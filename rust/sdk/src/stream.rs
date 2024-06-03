@@ -1,4 +1,7 @@
-use crate::traits::{async_step::InitialAsyncStep, instrumentation::NamedStep};
+use crate::traits::{
+    async_step::{AsyncStep, InitialAsyncStep},
+    instrumentation::NamedStep,
+};
 use async_trait::async_trait;
 use kanal::AsyncSender;
 
@@ -7,15 +10,14 @@ pub struct Transaction {
     pub transaction_version: u64,
 }
 
-pub struct GrpcStream<Transaction>
+pub struct TransactionStream
 where
     Self: Sized + Send + 'static,
-    Transaction: Send + 'static,
 {
     pub output_sender: AsyncSender<Vec<Transaction>>,
 }
 
-impl<Transaction> GrpcStream<Transaction>
+impl TransactionStream
 where
     Self: Sized + Send + 'static,
     Transaction: Send + 'static,
@@ -26,7 +28,7 @@ where
 }
 
 #[async_trait]
-impl InitialAsyncStep for GrpcStream<Transaction> {
+impl AsyncStep for TransactionStream {
     type Output = Transaction;
 
     async fn process(&mut self) -> Vec<Transaction> {
@@ -40,7 +42,10 @@ impl InitialAsyncStep for GrpcStream<Transaction> {
     }
 }
 
-impl NamedStep for GrpcStream<Transaction> {
+#[async_trait]
+impl InitialAsyncStep for TransactionStream {}
+
+impl NamedStep for TransactionStream<Transaction> {
     fn name(&self) -> String {
         "TransactionStream".to_string()
     }

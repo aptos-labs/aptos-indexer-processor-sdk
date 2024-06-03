@@ -23,12 +23,19 @@ where
 }
 
 #[async_trait]
+pub trait AsyncStepWithInput
+where
+    Self: AsyncStep + Sized + Send + 'static,
+{
+    /// Returns the input channel for receiving input items.
+    fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Self::Input>>;
+}
+
+#[async_trait]
 pub trait InitialAsyncStep
 where
-    Self: NamedStep + Sized + Send + 'static,
+    Self: AsyncStep + NamedStep + Sized + Send + 'static,
 {
-    type Output: Send + 'static;
-
     /// Processes a batch of input items and returns a batch of output items.
     async fn process(&mut self) -> Vec<Self::Output>;
 
