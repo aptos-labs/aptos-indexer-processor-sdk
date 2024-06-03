@@ -23,6 +23,20 @@ where
 }
 
 #[async_trait]
+pub trait InitialAsyncStep
+where
+    Self: NamedStep + Sized + Send + 'static,
+{
+    type Output: Send + 'static;
+
+    /// Processes a batch of input items and returns a batch of output items.
+    async fn process(&mut self) -> Vec<Self::Output>;
+
+    /// Returns the output channel for sending output items.
+    fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
+}
+
+#[async_trait]
 #[allow(dead_code)]
 pub trait PollableAsyncStep
 where
