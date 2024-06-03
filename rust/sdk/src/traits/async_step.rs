@@ -1,15 +1,17 @@
+use std::fmt::Debug;
 use crate::traits::instrumentation::NamedStep;
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
 use std::time::Duration;
 use tokio::task::JoinHandle;
+use tracing::instrument;
 
 #[async_trait]
-pub trait AsyncStep
-where
-    Self: NamedStep + Sized + Send + 'static,
+pub trait AsyncStep: NamedStep
+    where
+        Self: Debug + Sized + Send + 'static,
 {
-    type Input: Send + 'static;
+    type Input: Debug + Send + 'static;
     type Output: Send + 'static;
 
     /// Processes a batch of input items and returns a batch of output items.
@@ -24,9 +26,9 @@ where
 
 #[async_trait]
 #[allow(dead_code)]
-pub trait PollableAsyncStep
-where
-    Self: Sized + Send + 'static + AsyncStep,
+pub trait PollableAsyncStep: AsyncStep
+    where
+        Self: Sized + Send + 'static,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
@@ -37,6 +39,7 @@ where
 
 // TODO: Implement this for everything we can automatically?
 pub trait SpawnsPollable: PollableAsyncStep {
+    #[instrument]
     fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             let input_receiver = self.input_receiver().clone();

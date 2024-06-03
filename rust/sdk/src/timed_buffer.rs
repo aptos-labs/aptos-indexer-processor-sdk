@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crate::traits::{
     async_step::{AsyncStep, PollableAsyncStep, SpawnsPollable},
     instrumentation::NamedStep,
@@ -5,11 +6,13 @@ use crate::traits::{
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
 use std::time::Duration;
+use tracing::instrument;
 
+#[derive(Debug)]
 pub struct TimedBuffer<Input>
 where
     Self: Sized + Send + 'static,
-    Input: Send + 'static,
+    Input: Debug + Send + 'static,
 {
     pub input_receiver: AsyncReceiver<Vec<Input>>,
     pub output_sender: AsyncSender<Vec<Input>>,
@@ -20,7 +23,7 @@ where
 impl<Input> TimedBuffer<Input>
 where
     Self: Sized + Send + 'static,
-    Input: Send + 'static,
+    Input: Debug + Send + 'static,
 {
     #[allow(dead_code)]
     pub fn new(
@@ -40,11 +43,12 @@ where
 #[async_trait]
 impl<Input> AsyncStep for TimedBuffer<Input>
 where
-    Input: Send + 'static,
+    Input: Debug + Send + 'static,
 {
     type Input = Input;
     type Output = Input;
 
+    #[instrument(skip(item))]
     async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
         self.internal_buffer.extend(item);
         Vec::new() // No immediate output
@@ -60,24 +64,25 @@ where
 }
 
 #[async_trait]
-impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
+impl<Input: Debug + Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
     fn poll_interval(&self) -> Duration {
         self.poll_interval
     }
 
+    #[instrument]
     async fn poll(&mut self) -> Option<Vec<Input>> {
         Some(std::mem::take(&mut self.internal_buffer))
     }
 }
 
-impl<Input: Send + 'static> NamedStep for TimedBuffer<Input> {
+impl<Input: Debug + Send + 'static> NamedStep for TimedBuffer<Input> {
     // TODO: oncecell this somehow? Likely in wrapper struct...
     fn name(&self) -> String {
         format!("TimedBuffer: {}", std::any::type_name::<Input>())
     }
 }
 
-impl<Input: Send + 'static> SpawnsPollable for TimedBuffer<Input> {}
+impl<Input: Debug + Send + 'static> SpawnsPollable for TimedBuffer<Input> {}
 
 #[cfg(test)]
 mod tests {
