@@ -1,11 +1,17 @@
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
-use std::time::{Duration};
+use std::time::Duration;
 use tokio::task::JoinHandle;
 
+pub trait NamedStep {
+    fn name(&self) -> String;
+}
 
 #[async_trait]
-pub trait AsyncStep where Self: Sized + Send + 'static {
+pub trait AsyncStep
+where
+    Self: NamedStep + Sized + Send + 'static,
+{
     type Input: Send + 'static;
     type Output: Send + 'static;
 
@@ -21,7 +27,10 @@ pub trait AsyncStep where Self: Sized + Send + 'static {
 
 #[async_trait]
 #[allow(dead_code)]
-pub trait PollableAsyncStep: where Self: Sized + Send + 'static + AsyncStep {
+pub trait PollableAsyncStep
+where
+    Self: Sized + Send + 'static + AsyncStep,
+{
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
 
@@ -29,14 +38,22 @@ pub trait PollableAsyncStep: where Self: Sized + Send + 'static + AsyncStep {
     async fn poll(&mut self) -> Option<Vec<<Self as AsyncStep>::Output>>;
 }
 
-pub struct TimedBuffer<Input> where Self: Sized + Send + 'static, Input: Send + 'static {
+pub struct TimedBuffer<Input>
+where
+    Self: Sized + Send + 'static,
+    Input: Send + 'static,
+{
     pub input_receiver: AsyncReceiver<Vec<Input>>,
     pub output_sender: AsyncSender<Vec<Input>>,
     pub internal_buffer: Vec<Input>,
     pub poll_interval: Duration,
 }
 
-impl<Input> TimedBuffer<Input> where Self: Sized + Send + 'static, Input: Send + 'static {
+impl<Input> TimedBuffer<Input>
+where
+    Self: Sized + Send + 'static,
+    Input: Send + 'static,
+{
     #[allow(dead_code)]
     pub fn new(
         input_receiver: AsyncReceiver<Vec<Input>>,
@@ -53,10 +70,12 @@ impl<Input> TimedBuffer<Input> where Self: Sized + Send + 'static, Input: Send +
 }
 
 #[async_trait]
-impl<Input> AsyncStep for TimedBuffer<Input> where Input: Send + 'static {
+impl<Input> AsyncStep for TimedBuffer<Input>
+where
+    Input: Send + 'static,
+{
     type Input = Input;
     type Output = Input;
-
 
     async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
         self.internal_buffer.extend(item);
@@ -87,7 +106,10 @@ pub trait SpawnsPollable: PollableAsyncStep {
                 if last_poll.elapsed() >= poll_duration {
                     let result = self.poll().await;
                     if let Some(output) = result {
-                        output_sender.send(output).await.expect("Failed to send output");
+                        output_sender
+                            .send(output)
+                            .await
+                            .expect("Failed to send output");
                     };
                     last_poll = tokio::time::Instant::now();
                 }
@@ -126,6 +148,13 @@ impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
     }
 }
 
+impl<Input: Send + 'static> NamedStep for TimedBuffer<Input> {
+    // TODO: oncecell this somehow? Likely in wrapper struct...
+    fn name(&self) -> String {
+        format!("TimedBuffer: {}", std::any::type_name::<Input>())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,9 +175,9 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(timeout_ms), async {
             receiver.recv().await
         })
-            .await
-            .unwrap()
-            .ok()
+        .await
+        .unwrap()
+        .ok()
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
