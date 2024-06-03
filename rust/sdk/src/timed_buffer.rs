@@ -1,5 +1,7 @@
 use crate::traits::{
-    async_step::{AsyncStep, PollableAsyncStep, SpawnsPollable},
+    async_step::{
+        AsyncStep, AsyncStepWithInput, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollable,
+    },
     instrumentation::NamedStep,
 };
 use async_trait::async_trait;
@@ -49,11 +51,17 @@ where
         self.internal_buffer.extend(item);
         Vec::new() // No immediate output
     }
+}
 
+#[async_trait]
+impl<Input> AsyncStepWithInput for TimedBuffer<Input> {
     fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Input>> {
         &self.input_receiver
     }
+}
 
+#[async_trait]
+impl<Input> AsyncStepWithOutput for TimedBuffer<Input> {
     fn output_sender(&mut self) -> &AsyncSender<Vec<Input>> {
         &self.output_sender
     }

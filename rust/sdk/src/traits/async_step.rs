@@ -15,15 +15,15 @@ where
     /// Processes a batch of input items and returns a batch of output items.
     async fn process(&mut self, items: Vec<Self::Input>) -> Vec<Self::Output>;
 
-    /// Returns the input channel for receiving input items.
-    fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Self::Input>>;
+    // /// Returns the input channel for receiving input items.
+    // fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Self::Input>>;
 
-    /// Returns the output channel for sending output items.
-    fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
+    // /// Returns the output channel for sending output items.
+    // fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
 }
 
 #[async_trait]
-pub trait AsyncStepWithInput
+pub trait AsyncStepWithInput: AsyncStep
 where
     Self: AsyncStep + Sized + Send + 'static,
 {
@@ -32,13 +32,10 @@ where
 }
 
 #[async_trait]
-pub trait InitialAsyncStep
+pub trait AsyncStepWithOutput: AsyncStep
 where
-    Self: AsyncStep + NamedStep + Sized + Send + 'static,
+    Self: AsyncStep + Sized + Send + 'static,
 {
-    /// Processes a batch of input items and returns a batch of output items.
-    async fn process(&mut self) -> Vec<Self::Output>;
-
     /// Returns the output channel for sending output items.
     fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
 }
