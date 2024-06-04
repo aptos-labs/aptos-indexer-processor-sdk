@@ -21,8 +21,11 @@ async fn processor() -> Result<()> {
 
     let simple_step_1 = SimpleStep;
     let simple_step_2 = SimpleStep;
-    let dag = simple_step_1.connect(simple_step_2);
-    let simple_dag = AsyncStepChannelWrapper::new(dag, stream_receiver, dag_sender);
+    let simple_step_3 = SimpleStep;
+    let one_two = simple_step_1.connect_channeled(simple_step_2, 10);
+    let dag = one_two.connect(simple_step_3);
+    // TODO: wrap in a `DagRunner` that holds reference to the first step?
+    let simple_dag = AsyncStepChannelWrapper::new(dag, Some(stream_receiver), Some(dag_sender));
 
     let buffer = TimedBuffer::new(dag_receiver, buffer_sender, Duration::from_secs(1));
 

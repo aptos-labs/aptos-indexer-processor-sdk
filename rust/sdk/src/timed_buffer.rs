@@ -1,6 +1,6 @@
 use crate::traits::{
     async_step::{
-        AsyncStep, AsyncStepWithInput, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollable,
+        AsyncStep, PollableAsyncStep, SpawnsPollable,
     },
     instrumentation::NamedStep,
 };
@@ -9,9 +9,9 @@ use kanal::{AsyncReceiver, AsyncSender};
 use std::time::Duration;
 
 pub struct TimedBuffer<Input>
-where
-    Self: Sized + Send + 'static,
-    Input: Send + 'static,
+    where
+        Self: Sized + Send + 'static,
+        Input: Send + 'static,
 {
     pub input_receiver: AsyncReceiver<Vec<Input>>,
     pub output_sender: AsyncSender<Vec<Input>>,
@@ -20,9 +20,9 @@ where
 }
 
 impl<Input> TimedBuffer<Input>
-where
-    Self: Sized + Send + 'static,
-    Input: Send + 'static,
+    where
+        Self: Sized + Send + 'static,
+        Input: Send + 'static,
 {
     #[allow(dead_code)]
     pub fn new(
@@ -41,8 +41,8 @@ where
 
 #[async_trait]
 impl<Input> AsyncStep for TimedBuffer<Input>
-where
-    Input: Send + 'static,
+    where
+        Input: Send + 'static,
 {
     type Input = Input;
     type Output = Input;
@@ -50,26 +50,6 @@ where
     async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
         self.internal_buffer.extend(item);
         Vec::new() // No immediate output
-    }
-}
-
-#[async_trait]
-impl<Input> AsyncStepWithInput for TimedBuffer<Input>
-where
-    Input: Send + 'static,
-{
-    fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Input>> {
-        &self.input_receiver
-    }
-}
-
-#[async_trait]
-impl<Input> AsyncStepWithOutput for TimedBuffer<Input>
-where
-    Input: Send + 'static,
-{
-    fn output_sender(&mut self) -> &AsyncSender<Vec<Input>> {
-        &self.output_sender
     }
 }
 
@@ -113,9 +93,9 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(timeout_ms), async {
             receiver.recv().await
         })
-        .await
-        .unwrap()
-        .ok()
+            .await
+            .unwrap()
+            .ok()
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -1,5 +1,5 @@
 use crate::traits::{
-    async_step::{AsyncStep, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollableWithOutput},
+    async_step::{AsyncStep, PollableAsyncStep, SpawnsPollableWithOutput},
     instrumentation::NamedStep,
 };
 use async_trait::async_trait;
@@ -35,13 +35,6 @@ impl AsyncStep for TransactionStream {
 
     async fn process(&mut self, _item: Vec<()>) -> Vec<Transaction> {
         Vec::new()
-    }
-}
-
-#[async_trait]
-impl AsyncStepWithOutput for TransactionStream {
-    fn output_sender(&mut self) -> &AsyncSender<Vec<Transaction>> {
-        &self.output_sender
     }
 }
 
