@@ -1,4 +1,4 @@
-use crate::traits::instrumentation::NamedStep;
+use crate::{connectors::AsyncStepConnector, traits::instrumentation::NamedStep};
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
 use std::time::Duration;
@@ -15,15 +15,19 @@ where
     /// Processes a batch of input items and returns a batch of output items.
     async fn process(&mut self, items: Vec<Self::Input>) -> Vec<Self::Output>;
 
-    /// Returns the input channel for receiving input items.
-    fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Self::Input>>;
-
-    /// Returns the output channel for sending output items.
-    fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
+    fn connect<NextStep>(self, next_step: NextStep) -> AsyncStepConnector<Self, NextStep>
+    where
+        NextStep: AsyncStep<Input = Self::Output>,
+    {
+        AsyncStepConnector {
+            first_step: self,
+            second_step: next_step,
+        }
+    }
 }
 
 #[async_trait]
-pub trait AsyncStepWithInput
+pub trait AsyncStepWithInput: AsyncStep
 where
     Self: AsyncStep + Sized + Send + 'static,
 {
@@ -32,13 +36,10 @@ where
 }
 
 #[async_trait]
-pub trait InitialAsyncStep
+pub trait AsyncStepWithOutput: AsyncStep
 where
-    Self: AsyncStep + NamedStep + Sized + Send + 'static,
+    Self: AsyncStep + Sized + Send + 'static,
 {
-    /// Processes a batch of input items and returns a batch of output items.
-    async fn process(&mut self) -> Vec<Self::Output>;
-
     /// Returns the output channel for sending output items.
     fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
 }
@@ -57,7 +58,7 @@ where
 }
 
 // TODO: Implement this for everything we can automatically?
-pub trait SpawnsPollable: PollableAsyncStep {
+pub trait SpawnsPollable: PollableAsyncStep + AsyncStepWithInput + AsyncStepWithOutput {
     fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             let input_receiver = self.input_receiver().clone();
@@ -93,6 +94,48 @@ pub trait SpawnsPollable: PollableAsyncStep {
                         if !output.is_empty() {
                             output_sender.send(output).await.expect("Failed to send output");
                         }
+                    }
+                }
+            }
+        })
+    }
+}
+
+/// Spawns without polling
+pub trait SpawnsAsync: AsyncStep + AsyncStepWithInput + AsyncStepWithOutput {
+    fn spawn(mut self) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            let input_receiver = self.input_receiver().clone();
+            let output_sender = self.output_sender().clone();
+
+            loop {
+                tokio::select! {
+                    input = input_receiver.recv() => {
+                        let input = input.expect("Failed to receive input");
+                        let output = self.process(input).await;
+                        if !output.is_empty() {
+                            output_sender.send(output).await.expect("Failed to send output");
+                        }
+                    }
+                }
+            }
+        })
+    }
+}
+
+/// Spawns pollable with only output sender
+pub trait SpawnsPollableWithOutput: PollableAsyncStep + AsyncStepWithOutput {
+    fn spawn(mut self) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            let output_sender = self.output_sender().clone();
+            let poll_duration = self.poll_interval();
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(poll_duration) => {
+                        let result = self.poll().await;
+                        if let Some(output) = result {
+                            output_sender.send(output).await.expect("Failed to send output");
+                        };
                     }
                 }
             }
