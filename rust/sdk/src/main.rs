@@ -1,5 +1,6 @@
 use anyhow::Result;
 use sdk::connectors::AsyncStepChannelWrapper;
+use sdk::fanout::AsyncFanoutStep;
 use sdk::simple_step::SimpleStep;
 use sdk::stream::{Transaction, TransactionStream};
 use sdk::timed_buffer::TimedBuffer;
@@ -9,10 +10,14 @@ use std::time::Duration;
 const RUNTIME_WORKER_MULTIPLIER: usize = 2;
 
 async fn processor() -> Result<()> {
+    // create channels
     let (stream_sender, stream_receiver) = kanal::bounded_async::<Vec<Transaction>>(10);
     let (dag_sender, dag_receiver) = kanal::bounded_async::<Vec<Transaction>>(10);
     let (buffer_sender, buffer_receiver) = kanal::bounded_async::<Vec<Transaction>>(10);
+
     let stream = TransactionStream::new(stream_sender);
+
+    // let fanout = AsyncFanoutStep::new(stream_receiver, vec![simple_dag_receiver_1, simple_dag_receiver_2])
 
     let simple_step_1 = SimpleStep;
     let simple_step_2 = SimpleStep;
