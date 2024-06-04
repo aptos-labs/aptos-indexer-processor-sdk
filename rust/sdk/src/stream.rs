@@ -1,13 +1,11 @@
 use crate::traits::{
-    async_step::{
-        AsyncStep, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollable, SpawnsPollableWithOutput,
-    },
+    async_step::{AsyncStep, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollableWithOutput},
     instrumentation::NamedStep,
 };
 use async_trait::async_trait;
 use kanal::AsyncSender;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Transaction {
     pub transaction_version: u64,
 }
@@ -35,11 +33,8 @@ impl AsyncStep for TransactionStream {
     type Input = ();
     type Output = Transaction;
 
-    async fn process(&mut self, item: Vec<()>) -> Vec<Transaction> {
-        // Gets the transactions from grpc
-        vec![Transaction {
-            transaction_version: 0,
-        }]
+    async fn process(&mut self, _item: Vec<()>) -> Vec<Transaction> {
+        Vec::new()
     }
 }
 
@@ -63,7 +58,9 @@ impl PollableAsyncStep for TransactionStream {
     }
 
     async fn poll(&mut self) -> Option<Vec<Transaction>> {
-        None
+        Some(vec![Transaction {
+            transaction_version: 1,
+        }])
     }
 }
 

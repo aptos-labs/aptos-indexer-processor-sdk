@@ -1,16 +1,20 @@
-use async_trait::async_trait;
-
+use crate::stream::Transaction;
 use crate::traits::{async_step::AsyncStep, instrumentation::NamedStep};
+use async_trait::async_trait;
 
 pub struct SimpleStep;
 
 #[async_trait]
 impl AsyncStep for SimpleStep {
-    type Input = i64;
-    type Output = i64;
+    type Input = Transaction;
+    type Output = Transaction;
 
-    async fn process(&mut self, item: Vec<i64>) -> Vec<i64> {
-        item.into_iter().map(|i| i * 2).collect()
+    async fn process(&mut self, item: Vec<Transaction>) -> Vec<Transaction> {
+        item.into_iter()
+            .map(|txn| Transaction {
+                transaction_version: txn.transaction_version * 2,
+            })
+            .collect()
     }
 }
 

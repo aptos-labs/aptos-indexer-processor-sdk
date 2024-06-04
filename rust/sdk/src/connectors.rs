@@ -1,9 +1,5 @@
-use std::time::Duration;
-
 use crate::traits::{
-    async_step::{
-        AsyncStep, AsyncStepWithInput, AsyncStepWithOutput, PollableAsyncStep, SpawnsAsync,
-    },
+    async_step::{AsyncStep, AsyncStepWithInput, AsyncStepWithOutput, SpawnsAsync},
     instrumentation::NamedStep,
 };
 use async_trait::async_trait;

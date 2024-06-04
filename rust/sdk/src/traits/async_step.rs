@@ -129,29 +129,13 @@ pub trait SpawnsPollableWithOutput: PollableAsyncStep + AsyncStepWithOutput {
         tokio::spawn(async move {
             let output_sender = self.output_sender().clone();
             let poll_duration = self.poll_interval();
-
-            let mut last_poll = tokio::time::Instant::now();
-
             loop {
-                // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
-                if last_poll.elapsed() >= poll_duration {
-                    let result = self.poll().await;
-                    if let Some(output) = result {
-                        output_sender
-                            .send(output)
-                            .await
-                            .expect("Failed to send output");
-                    };
-                    last_poll = tokio::time::Instant::now();
-                }
-
                 tokio::select! {
                     _ = tokio::time::sleep(poll_duration) => {
                         let result = self.poll().await;
                         if let Some(output) = result {
                             output_sender.send(output).await.expect("Failed to send output");
                         };
-                        last_poll = tokio::time::Instant::now();
                     }
                 }
             }
