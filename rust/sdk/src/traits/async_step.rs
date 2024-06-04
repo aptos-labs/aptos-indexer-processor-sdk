@@ -1,4 +1,4 @@
-use crate::{pipeline::AsyncStepConnector, traits::instrumentation::NamedStep};
+use crate::{connectors::AsyncStepConnector, traits::instrumentation::NamedStep};
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
 use std::time::Duration;
@@ -101,6 +101,29 @@ pub trait SpawnsPollable: PollableAsyncStep + AsyncStepWithInput + AsyncStepWith
     }
 }
 
+/// Spawns without polling
+pub trait SpawnsAsync: AsyncStep + AsyncStepWithInput + AsyncStepWithOutput {
+    fn spawn(mut self) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            let input_receiver = self.input_receiver().clone();
+            let output_sender = self.output_sender().clone();
+
+            loop {
+                tokio::select! {
+                    input = input_receiver.recv() => {
+                        let input = input.expect("Failed to receive input");
+                        let output = self.process(input).await;
+                        if !output.is_empty() {
+                            output_sender.send(output).await.expect("Failed to send output");
+                        }
+                    }
+                }
+            }
+        })
+    }
+}
+
+/// Spawns pollable with only output sender
 pub trait SpawnsPollableWithOutput: PollableAsyncStep + AsyncStepWithOutput {
     fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
