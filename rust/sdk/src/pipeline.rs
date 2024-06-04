@@ -1,67 +1,36 @@
-// pub struct Pipeline<FirstStep>
-// where
-//     FirstStep: Step,
-// {
-//     first_step: FirstStep,
-// }
+use crate::traits::{async_step::AsyncStep, instrumentation::NamedStep};
+use async_trait::async_trait;
 
-// impl<FirstStep> Pipeline<FirstStep>
-// where
-//     FirstStep: Step,
-// {
-//     pub fn new(first_step: FirstStep) -> Self {
-//         Pipeline { first_step }
-//     }
-
-//     pub async fn execute(
-//         &self,
-//         input: FirstStep::Input,
-//     ) -> Result<FirstStep::Output, Box<dyn std::error::Error + Send + Sync + 'static>> {
-//         // Go through the dag and initialize all the steps
-//         self.first_step.process(input).await
-//     }
-// }
-
-pub struct Pipeline<InitialStep>
-where
-    InitialStep: InitialAsyncStep,
-{
-    firstStep: AsyncStep,
-}
-
-impl<InitialStep> Pipeline<InitialStep>
-where
-    InitialStep: AsyncStep,
-{
-    pub fn new(firstStep: InitialStep) -> Self {
-        Pipeline { firstStep }
-    }
-
-    pub fn connect<NextStep>(
-        &self,
-        nextStep: NextStep,
-    ) -> Pipeline<AsyncStepChannelConnector<InitialStep, NextStep>>
-    where
-        NextStep: AsyncStep,
-    {
-        Pipeline {
-            firstStep: AsyncStepChannelConnector {
-                first_step: self.firstStep,
-                second_step: nextStep,
-            },
-        }
-    }
-
-    pub fn run(&self) {}
-}
-
-use crate::traits::async_step::{AsyncStep, InitialAsyncStep};
-
-pub struct AsyncStepChannelConnector<FirstStep, SecondStep>
+pub struct AsyncStepConnector<FirstStep, SecondStep>
 where
     FirstStep: AsyncStep,
     SecondStep: AsyncStep,
 {
-    first_step: FirstStep,
-    second_step: SecondStep,
+    pub first_step: FirstStep,
+    pub second_step: SecondStep,
+}
+
+#[async_trait]
+impl<FirstStep, SecondStep> AsyncStep for AsyncStepConnector<FirstStep, SecondStep>
+where
+    FirstStep: AsyncStep,
+    SecondStep: AsyncStep<Input = FirstStep::Output>,
+{
+    type Input = FirstStep::Input;
+    type Output = SecondStep::Output;
+
+    async fn process(&mut self, items: Vec<Self::Input>) -> Vec<Self::Output> {
+        let first_step_output = self.first_step.process(items).await;
+        self.second_step.process(first_step_output).await
+    }
+}
+
+impl<FirstStep, SecondStep> NamedStep for AsyncStepConnector<FirstStep, SecondStep>
+where
+    FirstStep: AsyncStep,
+    SecondStep: AsyncStep,
+{
+    fn name(&self) -> String {
+        format!("{} -> {}", self.first_step.name(), self.second_step.name())
+    }
 }

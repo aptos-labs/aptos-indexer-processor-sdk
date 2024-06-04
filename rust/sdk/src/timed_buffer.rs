@@ -54,14 +54,20 @@ where
 }
 
 #[async_trait]
-impl<Input> AsyncStepWithInput for TimedBuffer<Input> {
+impl<Input> AsyncStepWithInput for TimedBuffer<Input>
+where
+    Input: Send + 'static,
+{
     fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Input>> {
         &self.input_receiver
     }
 }
 
 #[async_trait]
-impl<Input> AsyncStepWithOutput for TimedBuffer<Input> {
+impl<Input> AsyncStepWithOutput for TimedBuffer<Input>
+where
+    Input: Send + 'static,
+{
     fn output_sender(&mut self) -> &AsyncSender<Vec<Input>> {
         &self.output_sender
     }
