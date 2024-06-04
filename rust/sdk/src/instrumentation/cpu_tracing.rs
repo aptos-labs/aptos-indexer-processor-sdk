@@ -1,14 +1,10 @@
+use anyhow::Context;
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
-
+use prometheus::{Encoder, TextEncoder};
 #[cfg(target_os = "linux")]
 use std::convert::Infallible;
-
-use anyhow::Context;
-use prometheus::{Encoder, TextEncoder};
-use warp::Filter;
-use warp::http::Response;
-
+use warp::{http::Response, Filter};
 
 /// Register readiness and liveness probes and set up metrics endpoint
 async fn register_probes_and_metrics_handler(port: u16) {
@@ -32,7 +28,7 @@ async fn register_probes_and_metrics_handler(port: u16) {
 
     if cfg!(target_os = "linux") {
         #[cfg(target_os = "linux")]
-            let profilez = warp::path("profilez").and_then(|| async move {
+        let profilez = warp::path("profilez").and_then(|| async move {
             // TODO(grao): Consider make the parameters configurable.
             Ok::<_, Infallible>(match start_cpu_profiling(10, 99, false).await {
                 Ok(body) => {
@@ -49,7 +45,7 @@ async fn register_probes_and_metrics_handler(port: u16) {
                             warp::http::StatusCode::INTERNAL_SERVER_ERROR,
                         ),
                     }
-                }
+                },
                 Err(e) => warp::reply::with_status(
                     Response::new(format!("Profiling failed: {e:?}.").as_bytes().to_vec()),
                     warp::http::StatusCode::INTERNAL_SERVER_ERROR,

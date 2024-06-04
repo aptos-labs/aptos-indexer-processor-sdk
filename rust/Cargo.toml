@@ -20,7 +20,7 @@ aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", bra
 async-trait = "0.1.80"
 
 backtrace = "0.3.72"
-
+delegate = "0.12.0"
 futures = "0.3.30"
 kanal = "0.1.0-pre8"
 num_cpus = "1.16.0"

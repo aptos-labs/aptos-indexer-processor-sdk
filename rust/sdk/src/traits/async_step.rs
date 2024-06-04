@@ -1,15 +1,14 @@
-use std::fmt::Debug;
 use crate::traits::instrumentation::NamedStep;
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
-use std::time::Duration;
+use std::{fmt::Debug, time::Duration};
 use tokio::task::JoinHandle;
 use tracing::instrument;
 
 #[async_trait]
 pub trait AsyncStep: NamedStep
-    where
-        Self: Debug + Sized + Send + 'static,
+where
+    Self: Debug + Sized + Send + 'static,
 {
     type Input: Debug + Send + 'static;
     type Output: Send + 'static;
@@ -27,8 +26,8 @@ pub trait AsyncStep: NamedStep
 #[async_trait]
 #[allow(dead_code)]
 pub trait PollableAsyncStep: AsyncStep
-    where
-        Self: Sized + Send + 'static,
+where
+    Self: Sized + Send + 'static,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;

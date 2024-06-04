@@ -1,11 +1,10 @@
-use std::fmt::Debug;
 use crate::traits::{
     async_step::{AsyncStep, PollableAsyncStep, SpawnsPollable},
     instrumentation::NamedStep,
 };
 use async_trait::async_trait;
 use kanal::{AsyncReceiver, AsyncSender};
-use std::time::Duration;
+use std::{fmt::Debug, time::Duration};
 use tracing::instrument;
 
 #[derive(Debug)]

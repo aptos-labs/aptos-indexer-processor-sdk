@@ -9,6 +9,7 @@ anyhow = { workspace = true }
 
 async-trait = { workspace = true }
 backtrace = { workspace = true }
+delegate = { workspace = true }
 futures = { workspace = true }
 kanal = { workspace = true }
 num_cpus = { workspace = true }
