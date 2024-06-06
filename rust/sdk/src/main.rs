@@ -1,10 +1,11 @@
 use anyhow::Result;
-use sdk::connectors::AsyncStepChannelWrapper;
-use sdk::fanout::AsyncFanoutStep;
 use sdk::simple_step::SimpleStep;
 use sdk::stream::{Transaction, TransactionStream};
 use sdk::timed_buffer::TimedBuffer;
-use sdk::traits::async_step::{AsyncStep, SpawnsAsync, SpawnsPollable, SpawnsPollableWithOutput};
+use sdk::traits::async_step::{AsyncStep, AsyncStepChannelWrapper};
+use sdk::traits::channel_connected_step::{
+    SpawnsNonPollable, SpawnsPollable, SpawnsPollableWithOutput,
+};
 use std::time::Duration;
 
 const RUNTIME_WORKER_MULTIPLIER: usize = 2;

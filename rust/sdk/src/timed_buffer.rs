@@ -1,6 +1,7 @@
 use crate::traits::{
-    async_step::{
-        AsyncStep, AsyncStepWithInput, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollable,
+    channel_connected_step::{
+        ChannelConnectedStep, ChannelConnectedStepWithInput, ChannelConnectedStepWithOutput,
+        PollableStep, SpawnsPollable,
     },
     instrumentation::NamedStep,
 };
@@ -40,7 +41,7 @@ where
 }
 
 #[async_trait]
-impl<Input> AsyncStep for TimedBuffer<Input>
+impl<Input> ChannelConnectedStep for TimedBuffer<Input>
 where
     Input: Send + 'static,
 {
@@ -54,7 +55,7 @@ where
 }
 
 #[async_trait]
-impl<Input> AsyncStepWithInput for TimedBuffer<Input>
+impl<Input> ChannelConnectedStepWithInput for TimedBuffer<Input>
 where
     Input: Send + 'static,
 {
@@ -64,7 +65,7 @@ where
 }
 
 #[async_trait]
-impl<Input> AsyncStepWithOutput for TimedBuffer<Input>
+impl<Input> ChannelConnectedStepWithOutput for TimedBuffer<Input>
 where
     Input: Send + 'static,
 {
@@ -74,7 +75,7 @@ where
 }
 
 #[async_trait]
-impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
+impl<Input: Send + 'static> PollableStep for TimedBuffer<Input> {
     fn poll_interval(&self) -> Duration {
         self.poll_interval
     }

@@ -1,5 +1,9 @@
 use crate::traits::{
-    async_step::{AsyncStep, AsyncStepWithOutput, PollableAsyncStep, SpawnsPollableWithOutput},
+    async_step::AsyncStep,
+    channel_connected_step::{
+        ChannelConnectedStep, ChannelConnectedStepWithOutput, PollableStep,
+        SpawnsPollableWithOutput,
+    },
     instrumentation::NamedStep,
 };
 use async_trait::async_trait;
@@ -29,7 +33,7 @@ where
 }
 
 #[async_trait]
-impl AsyncStep for TransactionStream {
+impl ChannelConnectedStep for TransactionStream {
     type Input = ();
     type Output = Transaction;
 
@@ -39,7 +43,7 @@ impl AsyncStep for TransactionStream {
 }
 
 #[async_trait]
-impl AsyncStepWithOutput for TransactionStream {
+impl ChannelConnectedStepWithOutput for TransactionStream {
     fn output_sender(&mut self) -> &AsyncSender<Vec<Transaction>> {
         &self.output_sender
     }
@@ -52,7 +56,7 @@ impl NamedStep for TransactionStream {
 }
 
 #[async_trait]
-impl PollableAsyncStep for TransactionStream {
+impl PollableStep for TransactionStream {
     fn poll_interval(&self) -> std::time::Duration {
         std::time::Duration::from_secs(1)
     }
