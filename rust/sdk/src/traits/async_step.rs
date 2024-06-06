@@ -1,5 +1,5 @@
 use super::channel_connected_step::{
-    ChannelConnectedStep, ChannelConnectedStepWithInput, ChannelConnectedStepWithOutput,
+    ChannelConnectableStep, ChannelConnectableStepWithInput, ChannelConnectableStepWithOutput,
     SpawnsNonPollable,
 };
 use crate::traits::instrumentation::NamedStep;
@@ -104,7 +104,7 @@ where
 }
 
 #[async_trait]
-impl<Step> ChannelConnectedStep for AsyncStepChannelWrapper<Step>
+impl<Step> ChannelConnectableStep for AsyncStepChannelWrapper<Step>
 where
     Step: AsyncStep,
 {
@@ -117,7 +117,7 @@ where
 }
 
 #[async_trait]
-impl<Step> ChannelConnectedStepWithOutput for AsyncStepChannelWrapper<Step>
+impl<Step> ChannelConnectableStepWithOutput for AsyncStepChannelWrapper<Step>
 where
     Step: AsyncStep,
 {
@@ -127,7 +127,7 @@ where
 }
 
 #[async_trait]
-impl<Step> ChannelConnectedStepWithInput for AsyncStepChannelWrapper<Step>
+impl<Step> ChannelConnectableStepWithInput for AsyncStepChannelWrapper<Step>
 where
     Step: AsyncStep,
 {

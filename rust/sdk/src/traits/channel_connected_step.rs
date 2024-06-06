@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 use super::instrumentation::NamedStep;
 
 #[async_trait]
-pub trait ChannelConnectedStep
+pub trait ChannelConnectableStep
 where
     Self: NamedStep + Sized + Send + 'static,
 {
@@ -22,7 +22,7 @@ where
 
     fn connect_channel<NextStep>(self, next_step: NextStep) -> ChannelConnector<Self, NextStep>
     where
-        NextStep: ChannelConnectedStep,
+        NextStep: ChannelConnectableStep,
     {
         ChannelConnector {
             left_step: self,
@@ -31,10 +31,19 @@ where
     }
 }
 
-#[async_trait]
-pub trait ChannelConnectedStepWithInput: ChannelConnectedStep
+pub struct ChannelConnectableStepManager<Step>
 where
-    Self: ChannelConnectedStep + Sized + Send + 'static,
+    Step: ChannelConnectableStep,
+{
+    pub step: Step,
+    pub input_receiver: Option<AsyncReceiver<Vec<Step::Input>>>,
+    pub output_sender: Option<AsyncSender<Vec<Step::Output>>>,
+}
+
+#[async_trait]
+pub trait ChannelConnectableStepWithInput: ChannelConnectableStep
+where
+    Self: ChannelConnectableStep + Sized + Send + 'static,
 {
     /// Returns the input channel for receiving input items.
     fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Self::Input>>;
@@ -43,9 +52,9 @@ where
 }
 
 #[async_trait]
-pub trait ChannelConnectedStepWithOutput: ChannelConnectedStep
+pub trait ChannelConnectableStepWithOutput: ChannelConnectableStep
 where
-    Self: ChannelConnectedStep + Sized + Send + 'static,
+    Self: ChannelConnectableStep + Sized + Send + 'static,
 {
     /// Returns the output channel for sending output items.
     fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
@@ -55,8 +64,8 @@ where
 
 pub struct ChannelConnector<LeftStep, RightStep>
 where
-    LeftStep: ChannelConnectedStep,
-    RightStep: ChannelConnectedStep,
+    LeftStep: ChannelConnectableStep,
+    RightStep: ChannelConnectableStep,
 {
     pub left_step: LeftStep,
     pub right_step: RightStep,
@@ -64,10 +73,10 @@ where
     // pub output_sender: AsyncSender<Output>,
 }
 
-impl<LeftStep, RightStep> ChannelConnectedStep for ChannelConnector<LeftStep, RightStep>
+impl<LeftStep, RightStep> ChannelConnectableStep for ChannelConnector<LeftStep, RightStep>
 where
-    LeftStep: ChannelConnectedStep,
-    RightStep: ChannelConnectedStep,
+    LeftStep: ChannelConnectableStep,
+    RightStep: ChannelConnectableStep,
 {
     type Input = LeftStep::Input;
     type Output = RightStep::Output;
@@ -75,8 +84,8 @@ where
 
 impl<LeftStep, RightStep> NamedStep for ChannelConnector<LeftStep, RightStep>
 where
-    LeftStep: ChannelConnectedStep,
-    RightStep: ChannelConnectedStep,
+    LeftStep: ChannelConnectableStep,
+    RightStep: ChannelConnectableStep,
 {
     fn name(&self) -> String {
         format!("{} -> {}", self.left_step.name(), self.right_step.name())
@@ -87,18 +96,18 @@ where
 #[allow(dead_code)]
 pub trait PollableStep
 where
-    Self: Sized + Send + 'static + ChannelConnectedStep,
+    Self: Sized + Send + 'static + ChannelConnectableStep,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
 
     /// Polls the internal state and returns a batch of output items if available.
-    async fn poll(&mut self) -> Option<Vec<<Self as ChannelConnectedStep>::Output>>;
+    async fn poll(&mut self) -> Option<Vec<<Self as ChannelConnectableStep>::Output>>;
 }
 
 // TODO: Implement this for everything we can automatically?
 pub trait SpawnsPollable:
-    PollableStep + ChannelConnectedStepWithInput + ChannelConnectedStepWithOutput
+    PollableStep + ChannelConnectableStepWithInput + ChannelConnectableStepWithOutput
 {
     fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
@@ -144,7 +153,7 @@ pub trait SpawnsPollable:
 
 /// Spawns without polling
 pub trait SpawnsNonPollable:
-    ChannelConnectedStep + ChannelConnectedStepWithInput + ChannelConnectedStepWithOutput
+    ChannelConnectableStep + ChannelConnectableStepWithInput + ChannelConnectableStepWithOutput
 {
     fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
@@ -167,7 +176,7 @@ pub trait SpawnsNonPollable:
 }
 
 /// Spawns pollable with only output sender
-pub trait SpawnsPollableWithOutput: PollableStep + ChannelConnectedStepWithOutput {
+pub trait SpawnsPollableWithOutput: PollableStep + ChannelConnectableStepWithOutput {
     fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             let output_sender = self.output_sender().clone();

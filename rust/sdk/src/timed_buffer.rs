@@ -1,6 +1,6 @@
 use crate::traits::{
     channel_connected_step::{
-        ChannelConnectedStep, ChannelConnectedStepWithInput, ChannelConnectedStepWithOutput,
+        ChannelConnectableStep, ChannelConnectableStepWithInput, ChannelConnectableStepWithOutput,
         PollableStep, SpawnsPollable,
     },
     instrumentation::NamedStep,
@@ -41,7 +41,7 @@ where
 }
 
 #[async_trait]
-impl<Input> ChannelConnectedStep for TimedBuffer<Input>
+impl<Input> ChannelConnectableStep for TimedBuffer<Input>
 where
     Input: Send + 'static,
 {
@@ -55,7 +55,7 @@ where
 }
 
 #[async_trait]
-impl<Input> ChannelConnectedStepWithInput for TimedBuffer<Input>
+impl<Input> ChannelConnectableStepWithInput for TimedBuffer<Input>
 where
     Input: Send + 'static,
 {
@@ -65,7 +65,7 @@ where
 }
 
 #[async_trait]
-impl<Input> ChannelConnectedStepWithOutput for TimedBuffer<Input>
+impl<Input> ChannelConnectableStepWithOutput for TimedBuffer<Input>
 where
     Input: Send + 'static,
 {

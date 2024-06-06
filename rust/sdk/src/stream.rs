@@ -1,7 +1,7 @@
 use crate::traits::{
     async_step::AsyncStep,
     channel_connected_step::{
-        ChannelConnectedStep, ChannelConnectedStepWithOutput, PollableStep,
+        ChannelConnectableStep, ChannelConnectableStepWithOutput, PollableStep,
         SpawnsPollableWithOutput,
     },
     instrumentation::NamedStep,
@@ -33,7 +33,7 @@ where
 }
 
 #[async_trait]
-impl ChannelConnectedStep for TransactionStream {
+impl ChannelConnectableStep for TransactionStream {
     type Input = ();
     type Output = Transaction;
 
@@ -43,7 +43,7 @@ impl ChannelConnectedStep for TransactionStream {
 }
 
 #[async_trait]
-impl ChannelConnectedStepWithOutput for TransactionStream {
+impl ChannelConnectableStepWithOutput for TransactionStream {
     fn output_sender(&mut self) -> &AsyncSender<Vec<Transaction>> {
         &self.output_sender
     }

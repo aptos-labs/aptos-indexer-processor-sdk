@@ -4,7 +4,7 @@ use sdk::stream::{Transaction, TransactionStream};
 use sdk::timed_buffer::TimedBuffer;
 use sdk::traits::async_step::{AsyncStep, AsyncStepChannelWrapper};
 use sdk::traits::channel_connected_step::{
-    SpawnsNonPollable, SpawnsPollable, SpawnsPollableWithOutput,
+    ChannelConnectableStep, SpawnsNonPollable, SpawnsPollable, SpawnsPollableWithOutput,
 };
 use std::time::Duration;
 
@@ -18,8 +18,6 @@ async fn processor() -> Result<()> {
 
     let stream = TransactionStream::new(stream_sender);
 
-    // let fanout = AsyncFanoutStep::new(stream_receiver, vec![simple_dag_receiver_1, simple_dag_receiver_2])
-
     let simple_step_1 = SimpleStep;
     let simple_step_2 = SimpleStep;
     let dag = simple_step_1.connect(simple_step_2);
@@ -27,9 +25,7 @@ async fn processor() -> Result<()> {
 
     let buffer = TimedBuffer::new(dag_receiver, buffer_sender, Duration::from_secs(1));
 
-    simple_dag.spawn();
-    stream.spawn();
-    buffer.spawn();
+    let dag = stream.connect_channel(simple_dag).connect_channel(buffer);
 
     loop {
         match buffer_receiver.recv().await {
