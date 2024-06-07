@@ -10,5 +10,6 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 kanal = { workspace = true }
 num_cpus = { workspace = true }
+petgraph = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

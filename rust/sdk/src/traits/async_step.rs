@@ -1,80 +1,62 @@
-use crate::traits::instrumentation::NamedStep;
 use async_trait::async_trait;
-use kanal::{AsyncReceiver, AsyncSender};
-use std::time::Duration;
+use kanal::AsyncReceiver;
 use tokio::task::JoinHandle;
+use crate::traits::processable::Processable;
+use crate::traits::runnable_step::RunnableStep;
 
 #[async_trait]
 pub trait AsyncStep
-where
-    Self: NamedStep + Sized + Send + 'static,
+    where
+        Self: Processable + Send + Sized + 'static,
+{}
+
+
+pub struct RunnableAsyncStep<Step>
+    where
+        Step: AsyncStep,
 {
-    type Input: Send + 'static;
-    type Output: Send + 'static;
-
-    /// Processes a batch of input items and returns a batch of output items.
-    async fn process(&mut self, items: Vec<Self::Input>) -> Vec<Self::Output>;
-
-    /// Returns the input channel for receiving input items.
-    fn input_receiver(&mut self) -> &AsyncReceiver<Vec<Self::Input>>;
-
-    /// Returns the output channel for sending output items.
-    fn output_sender(&mut self) -> &AsyncSender<Vec<Self::Output>>;
+    pub step: Step,
 }
 
-#[async_trait]
-#[allow(dead_code)]
-pub trait PollableAsyncStep
-where
-    Self: Sized + Send + 'static + AsyncStep,
-{
-    /// Returns the duration between poll attempts.
-    fn poll_interval(&self) -> Duration;
-
-    /// Polls the internal state and returns a batch of output items if available.
-    async fn poll(&mut self) -> Option<Vec<<Self as AsyncStep>::Output>>;
+impl<Step> RunnableAsyncStep<Step>
+    where
+        Step: AsyncStep, {
+    pub fn new(step: Step) -> Self {
+        Self {
+            step,
+        }
+    }
 }
 
-// TODO: Implement this for everything we can automatically?
-pub trait SpawnsPollable: PollableAsyncStep {
-    fn spawn(mut self) -> JoinHandle<()> {
-        tokio::spawn(async move {
-            let input_receiver = self.input_receiver().clone();
-            let output_sender = self.output_sender().clone();
-            let poll_duration = self.poll_interval();
+impl<Step> RunnableStep<Step::Input, Step::Output> for RunnableAsyncStep<Step>
+    where
+        Step: AsyncStep + Send + Sized + 'static,
+{
+    fn spawn(
+        self,
+        input_receiver: Option<AsyncReceiver<Vec<Step::Input>>>,
+        channel_size: usize,
+    ) -> (AsyncReceiver<Vec<Step::Output>>, JoinHandle<()>) {
+        let (output_sender, output_receiver) = kanal::bounded_async(channel_size);
+        let input_receiver = input_receiver.expect("Input receiver must be set");
 
-            let mut last_poll = tokio::time::Instant::now();
-
+        let mut step = self.step;
+        let handle = tokio::spawn(async move {
             loop {
-                // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
-                if last_poll.elapsed() >= poll_duration {
-                    let result = self.poll().await;
-                    if let Some(output) = result {
-                        output_sender
-                            .send(output)
-                            .await
-                            .expect("Failed to send output");
-                    };
-                    last_poll = tokio::time::Instant::now();
-                }
-
-                tokio::select! {
-                    _ = tokio::time::sleep(poll_duration) => {
-                        let result = self.poll().await;
-                        if let Some(output) = result {
-                            output_sender.send(output).await.expect("Failed to send output");
-                        };
-                        last_poll = tokio::time::Instant::now();
-                    }
-                    input = input_receiver.recv() => {
-                        let input = input.expect("Failed to receive input");
-                        let output = self.process(input).await;
-                        if !output.is_empty() {
-                            output_sender.send(output).await.expect("Failed to send output");
-                        }
-                    }
+                let input = input_receiver
+                    .recv()
+                    .await
+                    .expect("Failed to receive input");
+                let output = step.process(input).await;
+                if !output.is_empty() {
+                    output_sender
+                        .send(output)
+                        .await
+                        .expect("Failed to send output");
                 }
             }
-        })
+        });
+
+        (output_receiver, handle)
     }
 }
