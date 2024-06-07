@@ -1,6 +1,5 @@
-pub mod connectors;
-pub mod fanout;
-pub mod simple_step;
-pub mod stream;
-pub mod timed_buffer;
+pub mod builder;
+pub mod steps;
 pub mod traits;
+
+pub mod stream;
