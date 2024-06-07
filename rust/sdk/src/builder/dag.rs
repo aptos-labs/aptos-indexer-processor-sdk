@@ -48,7 +48,7 @@ mod tests {
     }
 
     fn make_test_structs(num: usize) -> Vec<TestStruct> {
-        (1..(num+1)).map(|i| TestStruct { i }).collect()
+        (1..(num + 1)).map(|i| TestStruct { i }).collect()
     }
 
     pub struct TestStep;
