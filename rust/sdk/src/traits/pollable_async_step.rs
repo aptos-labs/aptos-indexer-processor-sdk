@@ -1,15 +1,15 @@
-use crate::traits::instrumentation::NamedStep;
+use crate::traits::{
+    instrumentation::NamedStep, processable::Processable, runnable_step::RunnableStep,
+};
 use async_trait::async_trait;
-use std::time::Duration;
 use kanal::AsyncReceiver;
+use std::time::Duration;
 use tokio::task::JoinHandle;
-use crate::traits::processable::Processable;
-use crate::traits::runnable_step::RunnableStep;
 
 #[async_trait]
 pub trait PollableAsyncStep
-    where
-        Self: Processable + NamedStep + Send + Sized + 'static,
+where
+    Self: Processable + NamedStep + Send + Sized + 'static,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
@@ -18,28 +18,26 @@ pub trait PollableAsyncStep
     async fn poll(&mut self) -> Option<Vec<Self::Output>>;
 }
 
-
 pub struct RunnablePollableStep<Step>
-    where
-        Step: PollableAsyncStep,
+where
+    Step: PollableAsyncStep,
 {
     pub step: Step,
 }
 
 impl<Step> RunnablePollableStep<Step>
-    where
-        Step: PollableAsyncStep, {
+where
+    Step: PollableAsyncStep,
+{
     pub fn new(step: Step) -> Self {
-        Self {
-            step,
-        }
+        Self { step }
     }
 }
 
 impl<PollableStep> RunnableStep<PollableStep::Input, PollableStep::Output>
-for RunnablePollableStep<PollableStep>
-    where
-        PollableStep: PollableAsyncStep + Send + Sized + 'static,
+    for RunnablePollableStep<PollableStep>
+where
+    PollableStep: PollableAsyncStep + Send + Sized + 'static,
 {
     fn spawn(
         self,

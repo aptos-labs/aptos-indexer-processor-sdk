@@ -1,36 +1,34 @@
+use crate::traits::{processable::Processable, runnable_step::RunnableStep};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use tokio::task::JoinHandle;
-use crate::traits::processable::Processable;
-use crate::traits::runnable_step::RunnableStep;
 
 #[async_trait]
 pub trait AsyncStep
-    where
-        Self: Processable + Send + Sized + 'static,
-{}
-
+where
+    Self: Processable + Send + Sized + 'static,
+{
+}
 
 pub struct RunnableAsyncStep<Step>
-    where
-        Step: AsyncStep,
+where
+    Step: AsyncStep,
 {
     pub step: Step,
 }
 
 impl<Step> RunnableAsyncStep<Step>
-    where
-        Step: AsyncStep, {
+where
+    Step: AsyncStep,
+{
     pub fn new(step: Step) -> Self {
-        Self {
-            step,
-        }
+        Self { step }
     }
 }
 
 impl<Step> RunnableStep<Step::Input, Step::Output> for RunnableAsyncStep<Step>
-    where
-        Step: AsyncStep + Send + Sized + 'static,
+where
+    Step: AsyncStep + Send + Sized + 'static,
 {
     fn spawn(
         self,

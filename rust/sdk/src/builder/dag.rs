@@ -1,18 +1,20 @@
-use kanal::AsyncReceiver;
-use tokio::task::JoinHandle;
 use crate::traits::runnable_step::{RunnableStep, RunnableStepWithInputReceiver};
+use tokio::task::JoinHandle;
 
 pub fn connect_two_steps<LeftInput, LeftOutput, RightOutput, LeftStep, RightStep>(
     left_step: RunnableStepWithInputReceiver<LeftInput, LeftOutput, LeftStep>,
     right_step: RightStep,
     channel_size: usize,
-) -> (JoinHandle<()>, RunnableStepWithInputReceiver<LeftOutput, RightOutput, RightStep>)
-    where
-        LeftInput: Send + 'static,
-        LeftOutput: Send + 'static,
-        RightOutput: Send + 'static,
-        LeftStep: RunnableStep<LeftInput, LeftOutput> + Send + Sized + 'static,
-        RightStep: RunnableStep<LeftOutput, RightOutput> + Send + Sized + 'static,
+) -> (
+    JoinHandle<()>,
+    RunnableStepWithInputReceiver<LeftOutput, RightOutput, RightStep>,
+)
+where
+    LeftInput: Send + 'static,
+    LeftOutput: Send + 'static,
+    RightOutput: Send + 'static,
+    LeftStep: RunnableStep<LeftInput, LeftOutput> + Send + Sized + 'static,
+    RightStep: RunnableStep<LeftOutput, RightOutput> + Send + Sized + 'static,
 {
     let RunnableStepWithInputReceiver {
         input_receiver: left_input_receiver,
@@ -20,24 +22,30 @@ pub fn connect_two_steps<LeftInput, LeftOutput, RightOutput, LeftStep, RightStep
         ..
     } = left_step;
 
-    let (left_output_receiver, left_handle) = left_step.spawn(Some(left_input_receiver), channel_size);
+    let (left_output_receiver, left_handle) =
+        left_step.spawn(Some(left_input_receiver), channel_size);
 
-    let right_step_with_input_receiver = RunnableStepWithInputReceiver::new(left_output_receiver, right_step);
+    let right_step_with_input_receiver =
+        RunnableStepWithInputReceiver::new(left_output_receiver, right_step);
 
     (left_handle, right_step_with_input_receiver)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-    use async_trait::async_trait;
-    use crate::timed_buffer::TimedBuffer;
-    use crate::traits::instrumentation::NamedStep;
     use super::*;
-    use crate::traits::async_step::{AsyncStep, RunnableAsyncStep};
-    use crate::traits::pollable_async_step::RunnablePollableStep;
-    use crate::traits::processable::Processable;
-
+    use crate::{
+        steps::timed_buffer::TimedBuffer,
+        traits::{
+            async_step::{AsyncStep, RunnableAsyncStep},
+            instrumentation::NamedStep,
+            pollable_async_step::RunnablePollableStep,
+            processable::Processable,
+        },
+    };
+    use async_trait::async_trait;
+    use kanal::AsyncReceiver;
+    use std::time::Duration;
 
     #[derive(Clone, Debug, PartialEq)]
     pub struct TestStruct {
@@ -75,11 +83,10 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(timeout_ms), async {
             receiver.recv().await
         })
-            .await
-            .unwrap()
-            .ok()
+        .await
+        .unwrap()
+        .ok()
     }
-
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_connect_two_steps() {
@@ -93,11 +100,7 @@ mod tests {
         let second_step = TestStep;
         let second_step = RunnableAsyncStep::new(second_step);
 
-        let (first_handle, second_step) = connect_two_steps(
-            first_step,
-            second_step,
-            1,
-        );
+        let (first_handle, second_step) = connect_two_steps(first_step, second_step, 1);
 
         let (mut output_receiver, second_handle) = second_step.spawn(None, 1);
 
@@ -113,7 +116,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(result, make_test_structs(3), "Output should be the same as input");
+        assert_eq!(
+            result,
+            make_test_structs(3),
+            "Output should be the same as input"
+        );
         first_handle.abort();
         second_handle.abort();
     }

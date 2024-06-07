@@ -3,8 +3,8 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait Processable
-    where
-        Self: NamedStep + Send + Sized + 'static,
+where
+    Self: NamedStep + Send + Sized + 'static,
 {
     type Input: Send + 'static;
     type Output: Send + 'static;

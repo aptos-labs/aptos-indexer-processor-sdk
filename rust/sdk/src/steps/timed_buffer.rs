@@ -1,24 +1,22 @@
 use crate::traits::{
-    pollable_async_step::{PollableAsyncStep},
-    instrumentation::NamedStep,
+    instrumentation::NamedStep, pollable_async_step::PollableAsyncStep, processable::Processable,
 };
 use async_trait::async_trait;
 use std::time::Duration;
-use crate::traits::processable::Processable;
 
 pub struct TimedBuffer<Input>
-    where
-        Self: Sized + Send + 'static,
-        Input: Send + 'static,
+where
+    Self: Sized + Send + 'static,
+    Input: Send + 'static,
 {
     pub internal_buffer: Vec<Input>,
     pub poll_interval: Duration,
 }
 
 impl<Input> TimedBuffer<Input>
-    where
-        Self: Sized + Send + 'static,
-        Input: Send + 'static,
+where
+    Self: Sized + Send + 'static,
+    Input: Send + 'static,
 {
     #[allow(dead_code)]
     pub fn new(poll_interval: Duration) -> Self {
@@ -31,8 +29,8 @@ impl<Input> TimedBuffer<Input>
 
 #[async_trait]
 impl<Input> Processable for TimedBuffer<Input>
-    where
-        Input: Send + 'static,
+where
+    Input: Send + 'static,
 {
     type Input = Input;
     type Output = Input;
