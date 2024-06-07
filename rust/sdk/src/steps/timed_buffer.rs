@@ -1,5 +1,6 @@
-use crate::traits::{
-    instrumentation::NamedStep, pollable_async_step::PollableAsyncStep, processable::Processable,
+use crate::{
+    steps::PollableAsyncStep,
+    traits::{NamedStep, Processable},
 };
 use async_trait::async_trait;
 use std::time::Duration;

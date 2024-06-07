@@ -1,4 +1,4 @@
-use crate::traits::runnable_step::{RunnableStep, RunnableStepWithInputReceiver};
+use crate::traits::{RunnableStep, RunnableStepWithInputReceiver};
 use tokio::task::JoinHandle;
 
 pub fn connect_two_steps<LeftInput, LeftOutput, RightOutput, LeftStep, RightStep>(
@@ -35,13 +35,8 @@ where
 mod tests {
     use super::*;
     use crate::{
-        steps::timed_buffer::TimedBuffer,
-        traits::{
-            async_step::{AsyncStep, RunnableAsyncStep},
-            instrumentation::NamedStep,
-            pollable_async_step::RunnablePollableStep,
-            processable::Processable,
-        },
+        steps::{AsyncStep, RunnableAsyncStep, RunnablePollableStep, TimedBuffer},
+        traits::{NamedStep, Processable},
     };
     use async_trait::async_trait;
     use kanal::AsyncReceiver;
@@ -53,7 +48,7 @@ mod tests {
     }
 
     fn make_test_structs(num: usize) -> Vec<TestStruct> {
-        (1..num).map(|i| TestStruct { i }).collect()
+        (1..(num+1)).map(|i| TestStruct { i }).collect()
     }
 
     pub struct TestStep;

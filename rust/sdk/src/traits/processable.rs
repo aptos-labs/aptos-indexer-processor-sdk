@@ -1,4 +1,4 @@
-use crate::traits::instrumentation::NamedStep;
+use crate::traits::NamedStep;
 use async_trait::async_trait;
 
 #[async_trait]
