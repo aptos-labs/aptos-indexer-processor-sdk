@@ -1,13 +1,29 @@
-use crate::traits::{Processable, RunnableStep};
+use crate::traits::{IntoRunnableStep, Processable, RunnableStep};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use tokio::task::JoinHandle;
+use crate::traits::processable::ProcessableStepExclusivityMarker;
 
 #[async_trait]
 pub trait AsyncStep
 where
     Self: Processable + Send + Sized + 'static,
 {
+}
+
+enum AsyncStepExclusivityMarker {}
+impl ProcessableStepExclusivityMarker for AsyncStepExclusivityMarker{}
+
+impl<Input, Output, Step> IntoRunnableStep<Input, Output> for Step
+where
+    Step: AsyncStep<Input = Input, Output = Output, ExclusivityMarker=AsyncStepExclusivityMarker> + Send + Sized + 'static,
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Self: AsyncStep<Input = Input, Output = Output, ExclusivityMarker=AsyncStepExclusivityMarker> + Send + Sized + 'static
+{
+    fn into_runnable_step(self) -> impl RunnableStep<Input, Output> {
+        RunnableAsyncStep::new(self)
+    }
 }
 
 pub struct RunnableAsyncStep<Step>

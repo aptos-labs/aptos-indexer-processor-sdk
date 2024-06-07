@@ -61,10 +61,13 @@ mod tests {
         }
     }
 
+
+
     #[async_trait]
     impl Processable for TestStep {
         type Input = usize;
         type Output = TestStruct;
+        type ExclusivityMarker = ();
 
         async fn process(&mut self, item: Vec<usize>) -> Vec<TestStruct> {
             item.into_iter().map(|i| TestStruct { i }).collect()

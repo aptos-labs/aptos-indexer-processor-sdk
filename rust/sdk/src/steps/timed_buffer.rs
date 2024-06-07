@@ -35,6 +35,7 @@ where
 {
     type Input = Input;
     type Output = Input;
+    type ExclusivityMarker = ();
 
     async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
         self.internal_buffer.extend(item);

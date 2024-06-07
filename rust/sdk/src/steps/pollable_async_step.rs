@@ -1,13 +1,14 @@
-use crate::traits::{NamedStep, Processable, RunnableStep};
+use crate::traits::{IntoRunnableStep, NamedStep, Processable, RunnableStep};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use std::time::Duration;
 use tokio::task::JoinHandle;
+use crate::traits::processable::ProcessableStepExclusivityMarker;
 
 #[async_trait]
 pub trait PollableAsyncStep
-where
-    Self: Processable + NamedStep + Send + Sized + 'static,
+    where
+        Self: Processable + NamedStep + Send + Sized + 'static,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
@@ -16,16 +17,32 @@ where
     async fn poll(&mut self) -> Option<Vec<Self::Output>>;
 }
 
+enum PollableAsyncStepExclusivityMarker {}
+
+impl ProcessableStepExclusivityMarker for PollableAsyncStepExclusivityMarker {}
+
+impl<Input, Output, Step> IntoRunnableStep<Input, Output> for Step
+    where
+        Step: PollableAsyncStep<Input=Input, Output=Output, ExclusivityMarker=PollableAsyncStepExclusivityMarker> + Send + Sized + 'static,
+        Input: Send + 'static,
+        Output: Send + 'static,
+        Self: PollableAsyncStep<Input=Input, Output=Output, ExclusivityMarker=PollableAsyncStepExclusivityMarker> + Send + Sized + 'static
+{
+    fn into_runnable_step(self) -> impl RunnableStep<Input, Output> {
+        RunnablePollableStep::new(self)
+    }
+}
+
 pub struct RunnablePollableStep<Step>
-where
-    Step: PollableAsyncStep,
+    where
+        Step: PollableAsyncStep,
 {
     pub step: Step,
 }
 
 impl<Step> RunnablePollableStep<Step>
-where
-    Step: PollableAsyncStep,
+    where
+        Step: PollableAsyncStep,
 {
     pub fn new(step: Step) -> Self {
         Self { step }
@@ -33,9 +50,9 @@ where
 }
 
 impl<PollableStep> RunnableStep<PollableStep::Input, PollableStep::Output>
-    for RunnablePollableStep<PollableStep>
-where
-    PollableStep: PollableAsyncStep + Send + Sized + 'static,
+for RunnablePollableStep<PollableStep>
+    where
+        PollableStep: PollableAsyncStep + Send + Sized + 'static,
 {
     fn spawn(
         self,
