@@ -1,6 +1,7 @@
 pub mod async_step;
 pub mod pollable_async_step;
 pub mod timed_buffer;
+pub mod transaction_stream;
 
 // Re-export the steps
 pub use async_step::{AsyncStep, RunnableAsyncStep};

@@ -2,6 +2,14 @@ use kanal::AsyncReceiver;
 use std::marker::PhantomData;
 use tokio::task::JoinHandle;
 
+pub trait RunnableStepType {}
+
+pub struct Pollable {}
+pub struct Async {}
+
+impl RunnableStepType for Pollable {}
+impl RunnableStepType for Async {}
+
 pub trait RunnableStep<Input, Output>
 where
     Self: Send + Sized + 'static,

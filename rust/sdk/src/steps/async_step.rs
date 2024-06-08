@@ -1,4 +1,4 @@
-use crate::traits::{Processable, RunnableStep};
+use crate::traits::{runnable_step::Async, IntoRunnableStep, Processable, RunnableStep};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use tokio::task::JoinHandle;
@@ -56,5 +56,14 @@ where
         });
 
         (output_receiver, handle)
+    }
+}
+
+impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, Async> for Step
+where
+    Step: AsyncStep<RunType = Async> + Send + Sized + 'static,
+{
+    fn into_runnable_step(self) -> impl RunnableStep<Step::Input, Step::Output> {
+        RunnableAsyncStep::new(self)
     }
 }

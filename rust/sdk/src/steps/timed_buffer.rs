@@ -1,6 +1,6 @@
 use crate::{
     steps::PollableAsyncStep,
-    traits::{NamedStep, Processable},
+    traits::{runnable_step::Pollable, NamedStep, Processable},
 };
 use async_trait::async_trait;
 use std::time::Duration;
@@ -35,6 +35,7 @@ where
 {
     type Input = Input;
     type Output = Input;
+    type RunType = Pollable;
 
     async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
         self.internal_buffer.extend(item);

@@ -1,4 +1,6 @@
-use crate::traits::{NamedStep, Processable, RunnableStep};
+use crate::traits::{
+    runnable_step::Pollable, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use std::time::Duration;
@@ -87,5 +89,14 @@ where
         });
 
         (output_receiver, handle)
+    }
+}
+
+impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, Pollable> for Step
+where
+    Step: PollableAsyncStep<RunType = Pollable> + Send + Sized + 'static,
+{
+    fn into_runnable_step(self) -> impl RunnableStep<Step::Input, Step::Output> {
+        RunnablePollableStep::new(self)
     }
 }

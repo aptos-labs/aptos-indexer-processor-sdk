@@ -36,7 +36,7 @@ mod tests {
     use super::*;
     use crate::{
         steps::{AsyncStep, RunnableAsyncStep, RunnablePollableStep, TimedBuffer},
-        traits::{NamedStep, Processable},
+        traits::{runnable_step::Async, NamedStep, Processable},
     };
     use async_trait::async_trait;
     use kanal::AsyncReceiver;
@@ -65,6 +65,7 @@ mod tests {
     impl Processable for TestStep {
         type Input = usize;
         type Output = TestStruct;
+        type RunType = Async;
 
         async fn process(&mut self, item: Vec<usize>) -> Vec<TestStruct> {
             item.into_iter().map(|i| TestStruct { i }).collect()
