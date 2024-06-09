@@ -1,14 +1,15 @@
-use crate::traits::{IntoRunnableStep, NamedStep, Processable, RunnableStep};
+use crate::traits::{
+    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use crate::traits::processable::RunnableStepType;
 
 #[async_trait]
 pub trait PollableAsyncStep
-    where
-        Self: Processable + NamedStep + Send + Sized + 'static,
+where
+    Self: Processable + NamedStep + Send + Sized + 'static,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
@@ -21,7 +22,6 @@ pub struct RunnablePollableStep<Step: PollableAsyncStep> {
     pub step: Step,
 }
 
-
 impl<Step: PollableAsyncStep> RunnablePollableStep<Step> {
     pub fn new(step: Step) -> Self {
         Self { step }
@@ -32,7 +32,6 @@ pub struct PollableAsyncRunType;
 
 impl RunnableStepType for PollableAsyncRunType {}
 
-
 impl<Step: PollableAsyncStep> NamedStep for RunnablePollableStep<Step> {
     fn name(&self) -> String {
         self.step.name()
@@ -40,8 +39,8 @@ impl<Step: PollableAsyncStep> NamedStep for RunnablePollableStep<Step> {
 }
 
 impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, PollableAsyncRunType> for Step
-    where
-        Step: PollableAsyncStep<RunType=PollableAsyncRunType> + Send + Sized + 'static,
+where
+    Step: PollableAsyncStep<RunType = PollableAsyncRunType> + Send + Sized + 'static,
 {
     fn into_runnable_step(self) -> impl RunnableStep<Step::Input, Step::Output> {
         RunnablePollableStep::new(self)
@@ -49,8 +48,8 @@ impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, PollableAsyncRunTyp
 }
 
 impl<Step> From<Step> for RunnablePollableStep<Step>
-    where
-        Step: PollableAsyncStep<RunType=PollableAsyncRunType> + Send + Sized + 'static,
+where
+    Step: PollableAsyncStep<RunType = PollableAsyncRunType> + Send + Sized + 'static,
 {
     fn from(step: Step) -> Self {
         RunnablePollableStep::new(step)
@@ -58,9 +57,9 @@ impl<Step> From<Step> for RunnablePollableStep<Step>
 }
 
 impl<PollableStep> RunnableStep<PollableStep::Input, PollableStep::Output>
-for RunnablePollableStep<PollableStep>
-    where
-        PollableStep: PollableAsyncStep + Send + Sized + 'static,
+    for RunnablePollableStep<PollableStep>
+where
+    PollableStep: PollableAsyncStep + Send + Sized + 'static,
 {
     fn spawn(
         self,

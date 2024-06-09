@@ -1,3 +1,4 @@
+use delegate::delegate;
 /**
 
 # Instrumented Channel
@@ -18,9 +19,7 @@ async fn main() {
 }
 ```
  **/
-
 use kanal::{AsyncReceiver, AsyncSender, ReceiveError, SendError};
-use delegate::delegate;
 
 // Double __ on purpose
 const METRICS_PREFIX: &str = "aptos_procsdk_channel_";
@@ -34,42 +33,6 @@ pub struct InstrumentedAsyncSender<T> {
 }
 
 impl<T> InstrumentedAsyncSender<T> {
-    pub fn new(sender: AsyncSender<T>, name: &str) -> Self {
-        let sent_messages = prometheus::register_int_counter_vec!(
-            // TODO: better to make them separate series, or use labels?
-            format!("{}_{}_sent_messages", METRICS_PREFIX, name),
-            "Number of messages sent",
-            &[],
-        ).unwrap();
-
-        let send_duration = prometheus::register_histogram_vec!(
-            format!("{}_{}_message_send_await_duration_ms", METRICS_PREFIX, name),
-            "Time taken to complete awaiting a message send in milliseconds",
-            &[],
-            // TODO: better buckets?
-            vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0],
-        ).unwrap();
-
-        let failed_sends = prometheus::register_int_counter_vec!(
-            format!("{}_{}_failed_message_sends", METRICS_PREFIX, name),
-            "Number of failed message sends",
-            &[],
-        ).unwrap();
-
-        Self { sender, sent_messages, send_duration, failed_sends }
-    }
-    pub async fn send(&'_ self, data: T) -> Result<(), SendError> {
-        let send_start = std::time::Instant::now();
-        let res = self.sender.send(data).await;
-        let send_duration = send_start.elapsed();
-        self.send_duration.with_label_values(&[]).observe(send_duration.as_millis() as f64);
-        self.sent_messages.with_label_values(&[]).inc();
-        if res.is_err() {
-            self.failed_sends.with_label_values(&[]).inc();
-        }
-        res
-    }
-
     /// shared_send_impl methods
     delegate! {
         to self.sender {
@@ -84,6 +47,53 @@ impl<T> InstrumentedAsyncSender<T> {
             pub fn is_closed(&self) -> bool;
         }
     }
+
+    pub fn new(sender: AsyncSender<T>, name: &str) -> Self {
+        let sent_messages = prometheus::register_int_counter_vec!(
+            // TODO: better to make them separate series, or use labels?
+            format!("{}_{}_sent_messages", METRICS_PREFIX, name),
+            "Number of messages sent",
+            &[],
+        )
+        .unwrap();
+
+        let send_duration = prometheus::register_histogram_vec!(
+            format!("{}_{}_message_send_await_duration_ms", METRICS_PREFIX, name),
+            "Time taken to complete awaiting a message send in milliseconds",
+            &[],
+            // TODO: better buckets?
+            vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0],
+        )
+        .unwrap();
+
+        let failed_sends = prometheus::register_int_counter_vec!(
+            format!("{}_{}_failed_message_sends", METRICS_PREFIX, name),
+            "Number of failed message sends",
+            &[],
+        )
+        .unwrap();
+
+        Self {
+            sender,
+            sent_messages,
+            send_duration,
+            failed_sends,
+        }
+    }
+
+    pub async fn send(&'_ self, data: T) -> Result<(), SendError> {
+        let send_start = std::time::Instant::now();
+        let res = self.sender.send(data).await;
+        let send_duration = send_start.elapsed();
+        self.send_duration
+            .with_label_values(&[])
+            .observe(send_duration.as_millis() as f64);
+        self.sent_messages.with_label_values(&[]).inc();
+        if res.is_err() {
+            self.failed_sends.with_label_values(&[]).inc();
+        }
+        res
+    }
 }
 
 pub struct InstrumentedAsyncReceiver<T> {
@@ -95,34 +105,6 @@ pub struct InstrumentedAsyncReceiver<T> {
 }
 
 impl<T> InstrumentedAsyncReceiver<T> {
-    pub fn new(receiver: AsyncReceiver<T>, name: &str) -> Self {
-        let received_messages = prometheus::register_int_counter_vec!(
-            format!("{}_{}_received_messages", METRICS_PREFIX, name),
-            "Number of messages received",
-            &[],
-        ).unwrap();
-        let receive_duration = prometheus::register_histogram_vec!(
-            format!("{}_{}_message_receive_await_duration_ms", METRICS_PREFIX, name),
-            "Time taken to complete awaiting a message receive in milliseconds",
-            &[],
-        ).unwrap();
-        let failed_receives = prometheus::register_int_counter_vec!(
-            format!("{}_{}_failed_message_receives", METRICS_PREFIX, name),
-            "Number of failed message receives",
-            &[],
-        ).unwrap();
-        Self { receiver, received_messages, receive_duration, failed_receives }
-    }
-
-    pub async fn recv(&'_ self) -> Result<T, ReceiveError> {
-        let receive_start = std::time::Instant::now();
-        let result = self.receiver.recv().await;
-        let receive_duration = receive_start.elapsed();
-        self.receive_duration.with_label_values(&[]).observe(receive_duration.as_millis() as f64);
-        self.received_messages.with_label_values(&[]).inc();
-        result
-    }
-
     /// shared_recv_impl methods
     delegate! {
         to self.receiver {
@@ -137,24 +119,74 @@ impl<T> InstrumentedAsyncReceiver<T> {
             pub fn is_closed(&self) -> bool;
         }
     }
+
+    pub fn new(receiver: AsyncReceiver<T>, name: &str) -> Self {
+        let received_messages = prometheus::register_int_counter_vec!(
+            format!("{}_{}_received_messages", METRICS_PREFIX, name),
+            "Number of messages received",
+            &[],
+        )
+        .unwrap();
+        let receive_duration = prometheus::register_histogram_vec!(
+            format!(
+                "{}_{}_message_receive_await_duration_ms",
+                METRICS_PREFIX, name
+            ),
+            "Time taken to complete awaiting a message receive in milliseconds",
+            &[],
+        )
+        .unwrap();
+        let failed_receives = prometheus::register_int_counter_vec!(
+            format!("{}_{}_failed_message_receives", METRICS_PREFIX, name),
+            "Number of failed message receives",
+            &[],
+        )
+        .unwrap();
+        Self {
+            receiver,
+            received_messages,
+            receive_duration,
+            failed_receives,
+        }
+    }
+
+    pub async fn recv(&'_ self) -> Result<T, ReceiveError> {
+        let receive_start = std::time::Instant::now();
+        let result = self.receiver.recv().await;
+        let receive_duration = receive_start.elapsed();
+        self.receive_duration
+            .with_label_values(&[])
+            .observe(receive_duration.as_millis() as f64);
+        self.received_messages.with_label_values(&[]).inc();
+        result
+    }
 }
 
-
-pub fn instrumented_bounded_channel<T>(channel_name: &str, size: usize) -> (InstrumentedAsyncSender<T>, InstrumentedAsyncReceiver<T>) {
+pub fn instrumented_bounded_channel<T>(
+    channel_name: &str,
+    size: usize,
+) -> (InstrumentedAsyncSender<T>, InstrumentedAsyncReceiver<T>) {
     let (sender, receiver) = kanal::bounded_async(size);
-    (InstrumentedAsyncSender::new(sender, channel_name), InstrumentedAsyncReceiver::new(receiver, channel_name))
+    (
+        InstrumentedAsyncSender::new(sender, channel_name),
+        InstrumentedAsyncReceiver::new(receiver, channel_name),
+    )
 }
 
-pub fn instrumented_unbounded_channel<T>(channel_name: &str) -> (InstrumentedAsyncSender<T>, InstrumentedAsyncReceiver<T>) {
+pub fn instrumented_unbounded_channel<T>(
+    channel_name: &str,
+) -> (InstrumentedAsyncSender<T>, InstrumentedAsyncReceiver<T>) {
     let (sender, receiver) = kanal::unbounded_async();
-    (InstrumentedAsyncSender::new(sender, channel_name), InstrumentedAsyncReceiver::new(receiver, channel_name))
+    (
+        InstrumentedAsyncSender::new(sender, channel_name),
+        InstrumentedAsyncReceiver::new(receiver, channel_name),
+    )
 }
-
 
 #[cfg(test)]
 mod tests {
-    use prometheus::Encoder;
     use super::*;
+    use prometheus::Encoder;
 
     fn gather_metrics_to_string() -> String {
         let metrics = prometheus::gather();
@@ -175,4 +207,3 @@ mod tests {
         println!("{}", metrics);
     }
 }
-

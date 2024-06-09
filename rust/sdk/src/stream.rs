@@ -1,8 +1,9 @@
-use crate::traits::{instrumentation::NamedStep, Processable};
-use crate::steps::PollableAsyncStep;
+use crate::{
+    steps::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep},
+    traits::{instrumentation::NamedStep, Processable},
+};
 use async_trait::async_trait;
 use kanal::AsyncSender;
-use crate::steps::pollable_async_step::PollableAsyncRunType;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Transaction {
@@ -10,17 +11,17 @@ pub struct Transaction {
 }
 
 pub struct TransactionStream
-    where
-        Self: Sized + Send + 'static,
-        Transaction: Send + 'static,
+where
+    Self: Sized + Send + 'static,
+    Transaction: Send + 'static,
 {
     pub output_sender: AsyncSender<Vec<Transaction>>,
 }
 
 impl TransactionStream
-    where
-        Self: Sized + Send + 'static,
-        Transaction: Send + 'static,
+where
+    Self: Sized + Send + 'static,
+    Transaction: Send + 'static,
 {
     pub fn new(output_sender: AsyncSender<Vec<Transaction>>) -> Self {
         Self { output_sender }
@@ -51,6 +52,7 @@ impl Processable for TransactionStream {
     type Input = ();
     type Output = Transaction;
     type RunType = PollableAsyncRunType;
+
     async fn process(&mut self, _item: Vec<()>) -> Vec<Transaction> {
         vec![Transaction {
             transaction_version: 1,
