@@ -2,6 +2,7 @@ use crate::stream::Transaction;
 use crate::traits::{async_step::AsyncStep, instrumentation::NamedStep};
 use async_trait::async_trait;
 
+#[derive(Clone, Debug)]
 pub struct SimpleStep;
 
 #[async_trait]
