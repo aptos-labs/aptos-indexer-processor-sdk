@@ -1,5 +1,7 @@
 use kanal::{AsyncReceiver, AsyncSender};
 use tokio::task::JoinHandle;
+use crate::steps::async_step::AsyncRunType;
+use crate::traits::Processable;
 
 /// 1 to N fanout step
 pub struct AsyncFanoutStep<Input>
@@ -35,5 +37,15 @@ where
                 }
             }
         })
+    }
+}
+
+impl<Input> Processable for AsyncFanoutStep<Input> {
+    type Input = Input;
+    type Output = Input;
+    type RunType = AsyncRunType;
+
+    async fn process(&mut self, item: Vec<Input>) -> Vec<Vec<usize>> {
+        item
     }
 }

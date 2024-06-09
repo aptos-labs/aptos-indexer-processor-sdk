@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 use petgraph::dot::Config;
 use tokio::task::JoinHandle;
 use crate::builder::dag::connect_two_steps;
@@ -8,8 +9,8 @@ use petgraph::prelude::*;
 
 #[derive(Default, Debug)]
 pub struct GraphBuilder {
-    pub graph: DiGraph<usize, usize>,
-    pub node_map: HashMap<usize, GraphNode>,
+    pub graph: Rc<DiGraph<usize, usize>>,
+    pub node_map: Rc<HashMap<usize, GraphNode>>,
     pub node_counter: usize,
     pub current_node_index: Option<NodeIndex>,
 }
@@ -17,8 +18,8 @@ pub struct GraphBuilder {
 impl GraphBuilder {
     pub fn new() -> Self {
         Self {
-            graph: DiGraph::new(),
-            node_map: HashMap::new(),
+            graph: Rc::new(DiGraph::new()),
+            node_map: Rc::new(HashMap::new()),
             node_counter: 0,
             current_node_index: None,
         }
@@ -46,6 +47,10 @@ impl GraphBuilder {
 
         self.add_edge_to(new_node_index);
         self.node_counter += 1;
+    }
+
+    pub fn fanout<Input, Output>(&mut self){
+
     }
 
     pub fn set_join_handle(&mut self, node_index: usize, join_handle: JoinHandle<()>) {
