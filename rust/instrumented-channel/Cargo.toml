@@ -1,0 +1,11 @@
+[package]
+name = "instrumented-channel"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+async-trait = { workspace = true }
+futures = { workspace = true }
+kanal = { workspace = true }
+prometheus = { workspace = true }
