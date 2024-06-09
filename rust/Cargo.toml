@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["sdk"]
+members = ["sdk", "instrumented-channel"]
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]
@@ -15,8 +15,10 @@ rust-version = "1.75"
 [workspace.dependencies]
 anyhow = "1.0.86"
 async-trait = "0.1.80"
+delegate = "0.12.0"
 futures = "0.3.30"
 kanal = "0.1.0-pre8"
 num_cpus = "1.16.0"
+prometheus = "0.13.4"
 thiserror = "1.0.61"
 tokio = { version = "1.37.0", features = ["full"] }
