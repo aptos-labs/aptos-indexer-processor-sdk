@@ -15,6 +15,7 @@ rust-version = "1.75"
 [workspace.dependencies]
 anyhow = "1.0.86"
 async-trait = "0.1.80"
+delegate = "0.12.0"
 futures = "0.3.30"
 kanal = "0.1.0-pre8"
 num_cpus = "1.16.0"
