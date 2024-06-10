@@ -39,6 +39,11 @@ where
     fn name(&self) -> String {
         self.step.name()
     }
+
+    fn type_name(&self) -> String {
+        let step_type = std::any::type_name::<Step>().to_string();
+        format!("{} (via RunnableAsyncStep)", step_type)
+    }
 }
 
 impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, AsyncRunType> for Step

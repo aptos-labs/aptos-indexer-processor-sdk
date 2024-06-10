@@ -22,6 +22,10 @@ where
     ) -> RunnableStepWithInputReceiver<Input, Output, Self> {
         RunnableStepWithInputReceiver::new(input_receiver, self)
     }
+
+    fn type_name(&self) -> String {
+        <Self as NamedStep>::type_name(self)
+    }
 }
 
 pub struct RunnableStepWithInputReceiver<Input, Output, Step>
@@ -58,6 +62,10 @@ where
 {
     fn name(&self) -> String {
         self.step.name()
+    }
+
+    fn type_name(&self) -> String {
+        format!("{} (via RunnableStepWithInputReceiver)", RunnableStep::type_name(&self.step))
     }
 }
 

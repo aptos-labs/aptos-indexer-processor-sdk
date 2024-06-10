@@ -46,7 +46,7 @@ impl GraphBuilder {
             .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
-                step_type: std::any::type_name::<Step>().to_string(),
+                step_type: step.type_name(),
                 input_type: std::any::type_name::<Input>().to_string(),
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle,

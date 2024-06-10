@@ -2,6 +2,10 @@ use std::marker::PhantomData;
 
 pub trait NamedStep {
     fn name(&self) -> String;
+
+    fn type_name(&self) -> String {
+        std::any::type_name::<Self>().to_string()
+    }
 }
 
 pub struct StepInstrumentor<Step>
