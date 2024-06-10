@@ -14,7 +14,7 @@ use tokio::time::{sleep, Duration};
 async fn main() {
     let (sender, receiver) = instrumented_bounded_channel("channel_name", 10);
     sender.send(42).await.unwrap();
-    assert_eq!(receiver.await.unwrap(), 42);
+    assert_eq!(receiver.recv().await.unwrap(), 42);
 }
 ```
  **/
