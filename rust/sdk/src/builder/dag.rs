@@ -1,7 +1,6 @@
 use crate::traits::{RunnableStep, RunnableStepWithInputReceiver};
 use tokio::task::JoinHandle;
 
-
 pub fn connect_two_steps<LeftInput, LeftOutput, RightOutput, LeftStep, RightStep>(
     left_step: RunnableStepWithInputReceiver<LeftInput, LeftOutput, LeftStep>,
     right_step: RightStep,
@@ -10,12 +9,12 @@ pub fn connect_two_steps<LeftInput, LeftOutput, RightOutput, LeftStep, RightStep
     JoinHandle<()>,
     RunnableStepWithInputReceiver<LeftOutput, RightOutput, RightStep>,
 )
-    where
-        LeftInput: Send + 'static,
-        LeftOutput: Send + 'static,
-        RightOutput: Send + 'static,
-        LeftStep: RunnableStep<LeftInput, LeftOutput> + Send + Sized + 'static,
-        RightStep: RunnableStep<LeftOutput, RightOutput> + Send + Sized + 'static,
+where
+    LeftInput: Send + 'static,
+    LeftOutput: Send + 'static,
+    RightOutput: Send + 'static,
+    LeftStep: RunnableStep<LeftInput, LeftOutput> + Send + Sized + 'static,
+    RightStep: RunnableStep<LeftOutput, RightOutput> + Send + Sized + 'static,
 {
     let RunnableStepWithInputReceiver {
         input_receiver: left_input_receiver,

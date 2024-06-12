@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use petgraph::dot::Config;
-use tokio::task::JoinHandle;
 use crate::builder::dag::connect_two_steps;
 use crate::traits::{RunnableStep, RunnableStepWithInputReceiver};
+use petgraph::dot::Config;
 use petgraph::graph::{DiGraph, EdgeReference, NodeIndex};
 use petgraph::prelude::*;
+use std::collections::HashMap;
+use tokio::task::JoinHandle;
 
 #[derive(Default, Debug)]
 pub struct GraphBuilder {
@@ -28,21 +28,23 @@ impl GraphBuilder {
         &mut self,
         step: &RunnableStepWithInputReceiver<Input, Output, Step>,
         join_handle: Option<JoinHandle<()>>,
-    )
-        where
-            Input: Send + 'static,
-            Output: Send + 'static,
-            Step: RunnableStep<Input, Output>
+    ) where
+        Input: Send + 'static,
+        Output: Send + 'static,
+        Step: RunnableStep<Input, Output>,
     {
         let new_node_index = self.graph.add_node(self.node_counter);
-        self.node_map.insert(self.node_counter, GraphNode {
-            id: self.node_counter,
-            name: step.step.name(),
-            step_type: std::any::type_name::<Step>().to_string(),
-            input_type: std::any::type_name::<Input>().to_string(),
-            output_type: std::any::type_name::<Output>().to_string(),
-            join_handle,
-        });
+        self.node_map.insert(
+            self.node_counter,
+            GraphNode {
+                id: self.node_counter,
+                name: step.step.name(),
+                step_type: std::any::type_name::<Step>().to_string(),
+                input_type: std::any::type_name::<Input>().to_string(),
+                output_type: std::any::type_name::<Output>().to_string(),
+                join_handle,
+            },
+        );
 
         self.add_edge_to(new_node_index);
         self.node_counter += 1;
@@ -107,20 +109,20 @@ pub struct GraphNode {
 }
 
 pub struct ProcessorBuilder<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     pub current_step: Option<RunnableStepWithInputReceiver<Input, Output, Step>>,
     pub graph: GraphBuilder,
 }
 
 impl<Input, Output, Step> ProcessorBuilder<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
         // Assumes that the first step does not actually accept any input
@@ -131,7 +133,9 @@ impl<Input, Output, Step> ProcessorBuilder<Input, Output, Step>
         }
     }
 
-    pub fn new_with_runnable_input_receiver_first_step(step: RunnableStepWithInputReceiver<Input, Output, Step>) -> Self {
+    pub fn new_with_runnable_input_receiver_first_step(
+        step: RunnableStepWithInputReceiver<Input, Output, Step>,
+    ) -> Self {
         Self {
             current_step: Some(step),
             graph: GraphBuilder::new(),
@@ -143,11 +147,12 @@ impl<Input, Output, Step> ProcessorBuilder<Input, Output, Step>
         next_step: NextStep,
         channel_size: usize,
     ) -> ProcessorBuilder<Output, NextOutput, NextStep>
-        where
-            NextOutput: Send + 'static,
-            NextStep: RunnableStep<Output, NextOutput>,
+    where
+        NextOutput: Send + 'static,
+        NextStep: RunnableStep<Output, NextOutput>,
     {
-        let (join_handle, next_step) = connect_two_steps(self.current_step.take().unwrap(), next_step, channel_size);
+        let (join_handle, next_step) =
+            connect_two_steps(self.current_step.take().unwrap(), next_step, channel_size);
         self.graph.add_step(&next_step, Some(join_handle));
         // self.graph.add_edge(self.graph.current_node_index - 1, self.graph.current_node_index);
 
@@ -157,13 +162,17 @@ impl<Input, Output, Step> ProcessorBuilder<Input, Output, Step>
         }
     }
 
-    pub fn end_with_and_return_output_receiver<NextOutput, NextStep>(self,
-                                                                     next_step: NextStep,
-                                                                     channel_size: usize,
-    ) -> (ProcessorBuilder<Output, NextOutput, NextStep>, kanal::AsyncReceiver<Vec<NextOutput>>)
-        where
-            NextOutput: Send + 'static,
-            NextStep: RunnableStep<Output, NextOutput>,
+    pub fn end_with_and_return_output_receiver<NextOutput, NextStep>(
+        self,
+        next_step: NextStep,
+        channel_size: usize,
+    ) -> (
+        ProcessorBuilder<Output, NextOutput, NextStep>,
+        kanal::AsyncReceiver<Vec<NextOutput>>,
+    )
+    where
+        NextOutput: Send + 'static,
+        NextStep: RunnableStep<Output, NextOutput>,
     {
         let mut pb = self.connect_to(next_step, channel_size);
 
@@ -171,7 +180,10 @@ impl<Input, Output, Step> ProcessorBuilder<Input, Output, Step>
         pb.graph.add_step(&final_step, None);
 
         let (output_receiver, join_handle) = final_step.spawn(None, channel_size);
-        pb.graph.set_join_handle(pb.graph.current_node_index.unwrap().index() - 1, join_handle);
+        pb.graph.set_join_handle(
+            pb.graph.current_node_index.unwrap().index() - 1,
+            join_handle,
+        );
 
         (pb, output_receiver)
     }
