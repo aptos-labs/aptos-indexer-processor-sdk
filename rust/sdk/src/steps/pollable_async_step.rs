@@ -1,6 +1,8 @@
+use crate::traits::processable::RunnableStepType;
 use crate::traits::{
     processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
 };
+use crate::traits::{IntoRunnableStep, NamedStep, Processable, RunnableStep};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use std::time::Duration;
@@ -12,10 +14,17 @@ where
     Self: Processable + NamedStep + Send + Sized + 'static,
 {
     /// Returns the duration between poll attempts.
-    fn poll_interval(&self) -> Duration;
+    fn poll_interval(&self) -> Duration {
+        Duration::from_secs(0)
+    }
 
     /// Polls the internal state and returns a batch of output items if available.
     async fn poll(&mut self) -> Option<Vec<Self::Output>>;
+
+    async fn should_continue_polling(&mut self) -> bool {
+        // By default, we always continue polling
+        true
+    }
 }
 
 pub struct RunnablePollableStep<Step: PollableAsyncStep> {
@@ -76,7 +85,9 @@ where
 
             let mut last_poll = tokio::time::Instant::now();
 
-            loop {
+            step.init().await;
+
+            while step.should_continue_polling().await {
                 // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
                 if last_poll.elapsed() >= poll_duration {
                     let result = step.poll().await;
@@ -108,6 +119,8 @@ where
                     }
                 }
             }
+
+            step.cleanup().await;
         });
 
         (output_receiver, handle)
