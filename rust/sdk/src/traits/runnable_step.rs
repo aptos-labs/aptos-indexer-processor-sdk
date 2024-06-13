@@ -65,7 +65,10 @@ where
     }
 
     fn type_name(&self) -> String {
-        format!("{} (via RunnableStepWithInputReceiver)", RunnableStep::type_name(&self.step))
+        format!(
+            "{} (via RunnableStepWithInputReceiver)",
+            RunnableStep::type_name(&self.step)
+        )
     }
 }
 

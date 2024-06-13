@@ -113,9 +113,9 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(timeout_ms), async {
             receiver.recv().await
         })
-            .await
-            .unwrap()
-            .ok()
+        .await
+        .unwrap()
+        .ok()
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -139,18 +139,19 @@ mod tests {
             .connect_to(second_step, 3);
 
         let mut builders = builder.fanout_broadcast(2);
-        let (first_builder, first_output_receiver) = builders.pop().unwrap().end_with_and_return_output_receiver(
-            RunnableAsyncStep::new(PassThroughStep::new()),
-            1,
-        );
+        let (first_builder, first_output_receiver) = builders
+            .pop()
+            .unwrap()
+            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 1);
 
-        let (second_builder, second_output_receiver) = builders.pop().unwrap().connect_to(
-            RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),
-            2,
-        ).end_with_and_return_output_receiver(
-            RunnableAsyncStep::new(PassThroughStep::new()),
-            5,
-        );
+        let (second_builder, second_output_receiver) = builders
+            .pop()
+            .unwrap()
+            .connect_to(
+                RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),
+                2,
+            )
+            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 5);
 
         let mut output_receivers = [first_output_receiver, second_output_receiver];
 
