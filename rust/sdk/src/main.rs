@@ -87,8 +87,7 @@ mod tests {
     use sdk::{
         builder::ProcessorBuilder,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
-        test::steps::pass_through_step::PassThroughStep,
-        test::utils::receive_with_timeout,
+        test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
     };
     use std::time::Duration;
