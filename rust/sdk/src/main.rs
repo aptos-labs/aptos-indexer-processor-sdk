@@ -16,20 +16,19 @@ fn main() {
         })
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
-
-    use sdk::{
-        steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
-        traits::{IntoRunnableStep, NamedStep, Processable, processable::RunnableStepType},
-    };
     use async_trait::async_trait;
     use kanal::AsyncReceiver;
-    use std::time::Duration;
-    use sdk::builder::ProcessorBuilder;
-    use sdk::traits::RunnableStepWithInputReceiver;
+    use sdk::{
+        builder::ProcessorBuilder,
+        steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
+        traits::{
+            processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable,
+            RunnableStepWithInputReceiver,
+        },
+    };
+    use std::{marker::PhantomData, time::Duration};
 
     #[derive(Clone, Debug, PartialEq)]
     pub struct TestStruct {
@@ -62,12 +61,21 @@ mod tests {
     }
 
     pub struct PassThroughStep<Input: Send + 'static> {
+        name: Option<String>,
         _input: PhantomData<Input>,
     }
 
     impl<Input: Send + 'static> PassThroughStep<Input> {
         pub fn new() -> Self {
             Self {
+                name: None,
+                _input: PhantomData,
+            }
+        }
+
+        pub fn new_named(name: String) -> Self {
+            Self {
+                name: Some(name),
                 _input: PhantomData,
             }
         }
@@ -77,7 +85,9 @@ mod tests {
 
     impl<Input: Send + 'static> NamedStep for PassThroughStep<Input> {
         fn name(&self) -> String {
-            "PassThroughStep".to_string()
+            self.name
+                .clone()
+                .unwrap_or_else(|| "PassThroughStep".to_string())
         }
     }
 
@@ -112,7 +122,10 @@ mod tests {
     async fn test_connect_two_steps() {
         let (input_sender, input_receiver) = kanal::bounded_async(1);
 
-        let input_step = RunnableStepWithInputReceiver::new(input_receiver, RunnableAsyncStep::new(PassThroughStep::new()));
+        let input_step = RunnableStepWithInputReceiver::new(
+            input_receiver,
+            RunnableAsyncStep::new(PassThroughStep::new()),
+        );
 
         // Create a timed buffer that outputs the input after 1 second
         let timed_buffer_step = TimedBuffer::<usize>::new(Duration::from_millis(200));
@@ -121,30 +134,49 @@ mod tests {
         let second_step = TestStep;
         let second_step = RunnableAsyncStep::new(second_step);
 
-        let (builder, mut output_receiver) = ProcessorBuilder::new_with_runnable_input_receiver_first_step(input_step)
+        let builder = ProcessorBuilder::new_with_runnable_input_receiver_first_step(input_step)
             .connect_to(first_step.into_runnable_step(), 5)
-            .connect_to(second_step, 3)
-            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 1);
+            .connect_to(second_step, 3);
 
-        assert_eq!(output_receiver.len(), 0, "Output should be empty");
+        let mut builders = builder.fanout_broadcast(2);
+        let (first_builder, first_output_receiver) = builders.pop().unwrap().end_with_and_return_output_receiver(
+            RunnableAsyncStep::new(PassThroughStep::new()),
+            1,
+        );
+
+        let (second_builder, second_output_receiver) = builders.pop().unwrap().connect_to(
+            RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),
+            2,
+        ).end_with_and_return_output_receiver(
+            RunnableAsyncStep::new(PassThroughStep::new()),
+            5,
+        );
+
+        let mut output_receivers = [first_output_receiver, second_output_receiver];
+
+        output_receivers.iter().for_each(|output_receiver| {
+            assert_eq!(output_receiver.len(), 0, "Output should be empty");
+        });
 
         let left_input = vec![1, 2, 3];
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;
 
-        assert_eq!(output_receiver.len(), 1, "Output should have 1 item");
+        output_receivers.iter().for_each(|output_receiver| {
+            assert_eq!(output_receiver.len(), 1, "Output should have 1 item");
+        });
 
-        let result = receive_with_timeout(&mut output_receiver, 100)
-            .await
-            .unwrap();
+        for output_receiver in output_receivers.iter_mut() {
+            let result = receive_with_timeout(output_receiver, 100).await.unwrap();
 
-        assert_eq!(
-            result,
-            make_test_structs(3),
-            "Output should be the same as input"
-        );
+            assert_eq!(
+                result,
+                make_test_structs(3),
+                "Output should be the same as input"
+            );
+        }
 
-        let graph = builder.graph;
+        let graph = second_builder.graph;
         let dot = graph.dot();
         println!("{:}", dot);
         //first_handle.abort();

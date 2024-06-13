@@ -1,45 +1,54 @@
-use crate::traits::{IntoRunnableStep, NamedStep, Processable, RunnableStep};
+use crate::traits::{
+    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use tokio::task::JoinHandle;
-use crate::traits::processable::RunnableStepType;
 
 #[async_trait]
 pub trait AsyncStep
-    where
-        Self: Processable + Send + Sized + 'static,
-{}
+where
+    Self: Processable + Send + Sized + 'static,
+{
+}
 
 pub struct AsyncRunType;
 
 impl RunnableStepType for AsyncRunType {}
 
 pub struct RunnableAsyncStep<Step>
-    where
-        Step: AsyncStep,
+where
+    Step: AsyncStep,
 {
     pub step: Step,
 }
 
 impl<Step> RunnableAsyncStep<Step>
-    where
-        Step: AsyncStep,
+where
+    Step: AsyncStep,
 {
     pub fn new(step: Step) -> Self {
         Self { step }
     }
 }
 
-
-impl<Step> NamedStep for RunnableAsyncStep<Step> where Step: 'static + AsyncStep + Send + Sized {
+impl<Step> NamedStep for RunnableAsyncStep<Step>
+where
+    Step: 'static + AsyncStep + Send + Sized,
+{
     fn name(&self) -> String {
         self.step.name()
+    }
+
+    fn type_name(&self) -> String {
+        let step_type = std::any::type_name::<Step>().to_string();
+        format!("{} (via RunnableAsyncStep)", step_type)
     }
 }
 
 impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, AsyncRunType> for Step
-    where
-        Step: AsyncStep<RunType = AsyncRunType> + Send + Sized + 'static,
+where
+    Step: AsyncStep<RunType = AsyncRunType> + Send + Sized + 'static,
 {
     fn into_runnable_step(self) -> impl RunnableStep<Step::Input, Step::Output> {
         RunnableAsyncStep::new(self)
@@ -47,8 +56,8 @@ impl<Step> IntoRunnableStep<Step::Input, Step::Output, Step, AsyncRunType> for S
 }
 
 impl<Step> RunnableStep<Step::Input, Step::Output> for RunnableAsyncStep<Step>
-    where
-        Step: AsyncStep + Send + Sized + 'static,
+where
+    Step: AsyncStep + Send + Sized + 'static,
 {
     fn spawn(
         self,

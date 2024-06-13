@@ -1,13 +1,13 @@
+use crate::traits::NamedStep;
 use kanal::AsyncReceiver;
 use std::marker::PhantomData;
 use tokio::task::JoinHandle;
-use crate::traits::NamedStep;
 
 pub trait RunnableStep<Input, Output>: NamedStep
-    where
-        Self: Send + Sized + 'static,
-        Input: Send + 'static,
-        Output: Send + 'static,
+where
+    Self: Send + Sized + 'static,
+    Input: Send + 'static,
+    Output: Send + 'static,
 {
     /// Runs the step, forever, with the given input receiver and returns the output receiver and the join handle.
     fn spawn(
@@ -22,13 +22,17 @@ pub trait RunnableStep<Input, Output>: NamedStep
     ) -> RunnableStepWithInputReceiver<Input, Output, Self> {
         RunnableStepWithInputReceiver::new(input_receiver, self)
     }
+
+    fn type_name(&self) -> String {
+        <Self as NamedStep>::type_name(self)
+    }
 }
 
 pub struct RunnableStepWithInputReceiver<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     pub input_receiver: AsyncReceiver<Vec<Input>>,
     pub step: Step,
@@ -36,10 +40,10 @@ pub struct RunnableStepWithInputReceiver<Input, Output, Step>
 }
 
 impl<Input, Output, Step> RunnableStepWithInputReceiver<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     pub fn new(input_receiver: AsyncReceiver<Vec<Input>>, step: Step) -> Self {
         Self {
@@ -51,19 +55,26 @@ impl<Input, Output, Step> RunnableStepWithInputReceiver<Input, Output, Step>
 }
 
 impl<Input, Output, Step> NamedStep for RunnableStepWithInputReceiver<Input, Output, Step>
-    where Input: 'static + Send,
-          Output: 'static + Send,
-          Step: RunnableStep<Input, Output> {
+where
+    Input: 'static + Send,
+    Output: 'static + Send,
+    Step: RunnableStep<Input, Output>,
+{
     fn name(&self) -> String {
         self.step.name()
     }
+
+    fn type_name(&self) -> String {
+        format!("{} (via RunnableStepWithInputReceiver)", RunnableStep::type_name(&self.step))
+    }
 }
 
-impl<Input, Output, Step> RunnableStep<Input, Output> for RunnableStepWithInputReceiver<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+impl<Input, Output, Step> RunnableStep<Input, Output>
+    for RunnableStepWithInputReceiver<Input, Output, Step>
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     fn spawn(
         self,
