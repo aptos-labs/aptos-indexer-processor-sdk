@@ -179,7 +179,7 @@ where
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
         // Assumes that the first step does not actually accept any input
-        let (_, input_receiver) = kanal::bounded_async(0);
+        let (input_sender, input_receiver) = kanal::bounded_async(1);
         Self {
             current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
                 step.add_input_receiver(input_receiver),

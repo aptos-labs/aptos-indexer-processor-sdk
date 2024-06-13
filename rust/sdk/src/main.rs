@@ -1,3 +1,13 @@
+use anyhow::Result;
+use sdk::{
+    builder::ProcessorBuilder,
+    steps::{TimedBuffer, TransactionStreamStep},
+    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
+};
+use std::time::Duration;
+use transaction_filter::transaction_filter::TransactionFilter;
+use url::Url;
+
 const RUNTIME_WORKER_MULTIPLIER: usize = 2;
 
 fn main() {
@@ -13,22 +23,75 @@ fn main() {
         .unwrap()
         .block_on(async {
             // TODO: actually launch something here
+            run_processor().await.unwrap();
         })
+}
+
+async fn run_processor() -> Result<()> {
+    let (input_sender, input_receiver) = kanal::bounded_async(1);
+
+    let transaction_stream = TransactionStreamStep::new(
+        Url::parse("https://grpc.devnet.aptoslabs.com:443").unwrap(),
+        Duration::from_secs(30),
+        Duration::from_secs(10),
+        Duration::from_secs(5),
+        Duration::from_secs(60),
+        0,
+        None,
+        String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
+        String::from("sdk_processor"),
+        TransactionFilter::default(),
+        100_000,
+    );
+
+    let transaction_stream_with_input =
+        RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());
+
+    let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
+
+    let (processor_builder, buffer_receiver) =
+        ProcessorBuilder::new_with_runnable_input_receiver_first_step(
+            transaction_stream_with_input,
+        )
+        .end_with_and_return_output_receiver(timed_buffer.into_runnable_step(), 10);
+
+    loop {
+        match buffer_receiver.recv().await {
+            Ok(txn_pb) => {
+                if txn_pb.len() == 0 {
+                    println!("Received no transactions");
+                    continue;
+                }
+                println!(
+                    "Received transactions: {:?} to {:?}",
+                    txn_pb
+                        .first()
+                        .unwrap()
+                        .transactions
+                        .first()
+                        .unwrap()
+                        .version,
+                    txn_pb.last().unwrap().transactions.last().unwrap().version
+                );
+            },
+            Err(e) => {
+                println!("Error receiving transactions: {:?}", e);
+            },
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use kanal::AsyncReceiver;
     use sdk::{
         builder::ProcessorBuilder,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
-        traits::{
-            processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable,
-            RunnableStepWithInputReceiver,
-        },
+        test::steps::pass_through_step::PassThroughStep,
+        test::utils::receive_with_timeout,
+        traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
     };
-    use std::{marker::PhantomData, time::Duration};
+    use std::time::Duration;
 
     #[derive(Clone, Debug, PartialEq)]
     pub struct TestStruct {
@@ -58,64 +121,6 @@ mod tests {
         async fn process(&mut self, item: Vec<usize>) -> Vec<TestStruct> {
             item.into_iter().map(|i| TestStruct { i }).collect()
         }
-    }
-
-    pub struct PassThroughStep<Input: Send + 'static> {
-        name: Option<String>,
-        _input: PhantomData<Input>,
-    }
-
-    impl<Input: Send + 'static> PassThroughStep<Input> {
-        pub fn new() -> Self {
-            Self {
-                name: None,
-                _input: PhantomData,
-            }
-        }
-
-        pub fn new_named(name: String) -> Self {
-            Self {
-                name: Some(name),
-                _input: PhantomData,
-            }
-        }
-    }
-
-    impl<Input: Send + 'static> AsyncStep for PassThroughStep<Input> {}
-
-    impl<Input: Send + 'static> NamedStep for PassThroughStep<Input> {
-        fn name(&self) -> String {
-            self.name
-                .clone()
-                .unwrap_or_else(|| "PassThroughStep".to_string())
-        }
-    }
-
-    pub struct PassThroughStepType;
-
-    impl RunnableStepType for PassThroughStepType {}
-
-    #[async_trait]
-    impl<Input: Send + 'static> Processable for PassThroughStep<Input> {
-        type Input = Input;
-        type Output = Input;
-        type RunType = PassThroughStepType;
-
-        async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
-            item
-        }
-    }
-
-    async fn receive_with_timeout<T>(
-        receiver: &mut AsyncReceiver<T>,
-        timeout_ms: u64,
-    ) -> Option<T> {
-        tokio::time::timeout(Duration::from_millis(timeout_ms), async {
-            receiver.recv().await
-        })
-        .await
-        .unwrap()
-        .ok()
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
