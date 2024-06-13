@@ -1,8 +1,12 @@
-use crate::builder::dag::connect_two_steps;
-use crate::traits::{RunnableStep, RunnableStepWithInputReceiver};
-use petgraph::dot::Config;
-use petgraph::graph::{DiGraph, EdgeReference, NodeIndex};
-use petgraph::prelude::*;
+use crate::{
+    builder::dag::connect_two_steps,
+    traits::{RunnableStep, RunnableStepWithInputReceiver},
+};
+use petgraph::{
+    dot::Config,
+    graph::{DiGraph, EdgeReference, NodeIndex},
+    prelude::*,
+};
 use std::collections::HashMap;
 use tokio::task::JoinHandle;
 
@@ -34,17 +38,14 @@ impl GraphBuilder {
         Step: RunnableStep<Input, Output>,
     {
         let new_node_index = self.graph.add_node(self.node_counter);
-        self.node_map.insert(
-            self.node_counter,
-            GraphNode {
-                id: self.node_counter,
-                name: step.step.name(),
-                step_type: std::any::type_name::<Step>().to_string(),
-                input_type: std::any::type_name::<Input>().to_string(),
-                output_type: std::any::type_name::<Output>().to_string(),
-                join_handle,
-            },
-        );
+        self.node_map.insert(self.node_counter, GraphNode {
+            id: self.node_counter,
+            name: step.step.name(),
+            step_type: std::any::type_name::<Step>().to_string(),
+            input_type: std::any::type_name::<Input>().to_string(),
+            output_type: std::any::type_name::<Output>().to_string(),
+            join_handle,
+        });
 
         self.add_edge_to(new_node_index);
         self.node_counter += 1;
@@ -126,7 +127,7 @@ where
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
         // Assumes that the first step does not actually accept any input
-        let (_, input_receiver) = kanal::bounded_async(0);
+        let (input_sender, input_receiver) = kanal::bounded_async(1);
         Self {
             current_step: Some(step.add_input_receiver(input_receiver)),
             graph: GraphBuilder::new(),

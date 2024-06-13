@@ -1,13 +1,13 @@
+use crate::traits::NamedStep;
 use kanal::AsyncReceiver;
 use std::marker::PhantomData;
 use tokio::task::JoinHandle;
-use crate::traits::NamedStep;
 
 pub trait RunnableStep<Input, Output>: NamedStep
-    where
-        Self: Send + Sized + 'static,
-        Input: Send + 'static,
-        Output: Send + 'static,
+where
+    Self: Send + Sized + 'static,
+    Input: Send + 'static,
+    Output: Send + 'static,
 {
     /// Runs the step, forever, with the given input receiver and returns the output receiver and the join handle.
     fn spawn(
@@ -25,10 +25,10 @@ pub trait RunnableStep<Input, Output>: NamedStep
 }
 
 pub struct RunnableStepWithInputReceiver<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     pub input_receiver: AsyncReceiver<Vec<Input>>,
     pub step: Step,
@@ -36,10 +36,10 @@ pub struct RunnableStepWithInputReceiver<Input, Output, Step>
 }
 
 impl<Input, Output, Step> RunnableStepWithInputReceiver<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     pub fn new(input_receiver: AsyncReceiver<Vec<Input>>, step: Step) -> Self {
         Self {
@@ -51,19 +51,22 @@ impl<Input, Output, Step> RunnableStepWithInputReceiver<Input, Output, Step>
 }
 
 impl<Input, Output, Step> NamedStep for RunnableStepWithInputReceiver<Input, Output, Step>
-    where Input: 'static + Send,
-          Output: 'static + Send,
-          Step: RunnableStep<Input, Output> {
+where
+    Input: 'static + Send,
+    Output: 'static + Send,
+    Step: RunnableStep<Input, Output>,
+{
     fn name(&self) -> String {
         self.step.name()
     }
 }
 
-impl<Input, Output, Step> RunnableStep<Input, Output> for RunnableStepWithInputReceiver<Input, Output, Step>
-    where
-        Input: Send + 'static,
-        Output: Send + 'static,
-        Step: RunnableStep<Input, Output>,
+impl<Input, Output, Step> RunnableStep<Input, Output>
+    for RunnableStepWithInputReceiver<Input, Output, Step>
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
 {
     fn spawn(
         self,
@@ -71,7 +74,7 @@ impl<Input, Output, Step> RunnableStep<Input, Output> for RunnableStepWithInputR
         channel_size: usize,
     ) -> (AsyncReceiver<Vec<Output>>, JoinHandle<()>) {
         if input_receiver.is_some() {
-            panic!("Input receiver already set");
+            panic!("Input receiver already set for {:?}", self.name());
         }
         self.step.spawn(Some(self.input_receiver), channel_size)
     }
@@ -80,6 +83,6 @@ impl<Input, Output, Step> RunnableStep<Input, Output> for RunnableStepWithInputR
         self,
         _input_receiver: AsyncReceiver<Vec<Input>>,
     ) -> RunnableStepWithInputReceiver<Input, Output, Self> {
-        panic!("Input receiver already set");
+        panic!("Input receiver already set for {:?}", self.name());
     }
 }

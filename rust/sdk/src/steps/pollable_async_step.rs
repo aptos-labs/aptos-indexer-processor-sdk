@@ -1,5 +1,6 @@
-use crate::traits::processable::RunnableStepType;
-use crate::traits::{IntoRunnableStep, NamedStep, Processable, RunnableStep};
+use crate::traits::{
+    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+};
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use std::time::Duration;
@@ -11,8 +12,8 @@ where
     Self: Processable + NamedStep + Send + Sized + 'static,
 {
     /// Returns the duration between poll attempts.
-    fn poll_interval(&self) -> Duration {
-        Duration::from_secs(0)
+    fn poll_interval(&self) -> Option<Duration> {
+        None
     }
 
     /// Polls the internal state and returns a batch of output items if available.
@@ -75,6 +76,7 @@ where
         let (output_sender, output_receiver) = kanal::bounded_async(channel_size);
 
         let mut step = self.step;
+        let step_name = step.name();
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
         let handle = tokio::spawn(async move {
@@ -86,18 +88,34 @@ where
 
             while step.should_continue_polling().await {
                 // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
-                if last_poll.elapsed() >= poll_duration {
-                    let result = step.poll().await;
-                    if let Some(output) = result {
-                        output_sender
-                            .send(output)
-                            .await
-                            .expect("Failed to send output");
-                    };
-                    last_poll = tokio::time::Instant::now();
+                match poll_duration {
+                    Some(poll_duration) => {
+                        if last_poll.elapsed() >= poll_duration {
+                            let result = step.poll().await;
+                            if let Some(output) = result {
+                                output_sender
+                                    .send(output)
+                                    .await
+                                    .expect("Failed to send output");
+                            };
+                            last_poll = tokio::time::Instant::now();
+                        }
+                    },
+                    None => {
+                        let result = step.poll().await;
+                        if let Some(output) = result {
+                            output_sender
+                                .send(output)
+                                .await
+                                .expect("Failed to send output");
+                        };
+                    },
                 }
 
-                let time_to_next_poll = poll_duration - last_poll.elapsed();
+                let time_to_next_poll = match poll_duration {
+                    Some(poll_duration) => poll_duration - last_poll.elapsed(),
+                    None => Duration::from_secs(0),
+                };
 
                 tokio::select! {
                     _ = tokio::time::sleep(time_to_next_poll) => {
@@ -108,7 +126,7 @@ where
                         last_poll = tokio::time::Instant::now();
                     }
                     input = input_receiver.recv() => {
-                        let input = input.expect("Failed to receive input");
+                        let input = input.expect(&format!("Failed to receive input for {}", step_name));
                         let output = step.process(input).await;
                         if !output.is_empty() {
                             output_sender.send(output).await.expect("Failed to send output");
@@ -117,6 +135,7 @@ where
                 }
             }
 
+            // TODO: Wait for channel to be empty before ending the task
             step.cleanup().await;
         });
 

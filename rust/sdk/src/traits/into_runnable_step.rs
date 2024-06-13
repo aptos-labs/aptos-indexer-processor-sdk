@@ -5,8 +5,7 @@ pub trait IntoRunnableStep<
     Output,
     Step: Processable,
     RunnableType = <Step as Processable>::RunType,
->
-where
+> where
     Self: Send + Sized + 'static,
     Input: Send + 'static,
     Output: Send + 'static,
