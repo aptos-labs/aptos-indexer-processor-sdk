@@ -28,7 +28,7 @@ fn main() {
 }
 
 async fn run_processor() -> Result<()> {
-    let (input_sender, input_receiver) = kanal::bounded_async(1);
+    // let (input_sender, input_receiver) = kanal::bounded_async(1);
 
     let transaction_stream = TransactionStreamStep::new(
         Url::parse("https://grpc.devnet.aptoslabs.com:443").unwrap(),
@@ -44,16 +44,14 @@ async fn run_processor() -> Result<()> {
         100_000,
     );
 
-    let transaction_stream_with_input =
-        RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());
+    // let transaction_stream_with_input =
+    //     RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());
 
     let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
 
     let (processor_builder, buffer_receiver) =
-        ProcessorBuilder::new_with_runnable_input_receiver_first_step(
-            transaction_stream_with_input,
-        )
-        .end_with_and_return_output_receiver(timed_buffer.into_runnable_step(), 10);
+        ProcessorBuilder::new_with_inputless_first_step(transaction_stream.into_runnable_step())
+            .end_with_and_return_output_receiver(timed_buffer.into_runnable_step(), 10);
 
     loop {
         match buffer_receiver.recv().await {
