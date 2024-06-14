@@ -85,7 +85,7 @@ where
         channel_size: usize,
     ) -> (AsyncReceiver<Vec<Output>>, JoinHandle<()>) {
         if input_receiver.is_some() {
-            panic!("Input receiver already set");
+            panic!("Input receiver already set for {:?}", self.name());
         }
         self.step.spawn(Some(self.input_receiver), channel_size)
     }
@@ -94,6 +94,6 @@ where
         self,
         _input_receiver: AsyncReceiver<Vec<Input>>,
     ) -> RunnableStepWithInputReceiver<Input, Output, Self> {
-        panic!("Input receiver already set");
+        panic!("Input receiver already set for {:?}", self.name());
     }
 }

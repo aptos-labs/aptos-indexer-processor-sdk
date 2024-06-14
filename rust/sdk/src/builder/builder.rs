@@ -41,9 +41,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -51,7 +51,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle,
                 end_step: false,
-            });
+            },
+        );
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
@@ -178,7 +179,7 @@ where
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
         // Assumes that the first step does not actually accept any input
-        let (_, input_receiver) = kanal::bounded_async(0);
+        let (input_sender, input_receiver) = kanal::bounded_async(1);
         Self {
             current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
                 step.add_input_receiver(input_receiver),

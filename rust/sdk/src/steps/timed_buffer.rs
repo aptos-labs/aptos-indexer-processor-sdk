@@ -45,8 +45,8 @@ where
 
 #[async_trait]
 impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
-    fn poll_interval(&self) -> Duration {
-        self.poll_interval
+    fn poll_interval(&self) -> Option<Duration> {
+        Some(self.poll_interval)
     }
 
     async fn poll(&mut self) -> Option<Vec<Input>> {

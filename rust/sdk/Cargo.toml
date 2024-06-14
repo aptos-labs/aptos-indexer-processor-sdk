@@ -6,10 +6,14 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
+aptos-indexer-transaction-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 kanal = { workspace = true }
+mockall = { workspace = true }
 num_cpus = { workspace = true }
 petgraph = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+transaction-filter = { workspace = true }
+url = { workspace = true }

@@ -14,12 +14,16 @@ rust-version = "1.75"
 
 [workspace.dependencies]
 anyhow = "1.0.86"
+aptos-indexer-transaction-stream = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = 'd15c17d7559a75c9c69c25dfd987af83e64b42a1' }
 async-trait = "0.1.80"
 delegate = "0.12.0"
 futures = "0.3.30"
 kanal = "0.1.0-pre8"
+mockall = "0.12.1"
 num_cpus = "1.16.0"
 petgraph = "0.6.5"
 prometheus = "0.13.4"
 thiserror = "1.0.61"
 tokio = { version = "1.37.0", features = ["full"] }
+transaction-filter = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = 'd15c17d7559a75c9c69c25dfd987af83e64b42a1' }
+url = { version = "2.5.1", features = ["serde"] }
