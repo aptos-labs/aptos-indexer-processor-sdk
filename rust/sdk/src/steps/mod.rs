@@ -1,5 +1,4 @@
 pub mod async_step;
-pub mod fanout;
 pub mod pollable_async_step;
 pub mod timed_buffer;
 pub mod transaction_stream_step;
