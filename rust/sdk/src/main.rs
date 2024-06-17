@@ -1,11 +1,11 @@
 use anyhow::Result;
+use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
 use std::time::Duration;
-use transaction_filter::transaction_filter::TransactionFilter;
 use url::Url;
 
 const RUNTIME_WORKER_MULTIPLIER: usize = 2;
@@ -29,20 +29,19 @@ fn main() {
 
 async fn run_processor() -> Result<()> {
     // let (input_sender, input_receiver) = kanal::bounded_async(1);
+    let transaction_stream_config = TransactionStreamConfig {
+        indexer_grpc_data_service_address: Url::parse("https://grpc.devnet.aptoslabs.com:443")?,
+        starting_version: 0,
+        request_ending_version: None,
+        auth_token: String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
+        request_name_header: String::from("sdk_processor"),
+        indexer_grpc_http2_ping_interval_secs: 30,
+        indexer_grpc_http2_ping_timeout_secs: 10,
+        indexer_grpc_reconnection_timeout_secs: 5,
+        indexer_grpc_response_item_timeout_secs: 60,
+    };
 
-    let transaction_stream = TransactionStreamStep::new(
-        Url::parse("https://grpc.devnet.aptoslabs.com:443").unwrap(),
-        Duration::from_secs(30),
-        Duration::from_secs(10),
-        Duration::from_secs(5),
-        Duration::from_secs(60),
-        0,
-        None,
-        String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
-        String::from("sdk_processor"),
-        TransactionFilter::default(),
-        100_000,
-    );
+    let transaction_stream = TransactionStreamStep::new(transaction_stream_config).await?;
 
     // let transaction_stream_with_input =
     //     RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());

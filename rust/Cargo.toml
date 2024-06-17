@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["sdk", "instrumented-channel"]
+members = ["sdk", "instrumented-channel", "sdk-examples"]
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]
@@ -13,8 +13,11 @@ repository = "https://github.com/aptos-labs/aptos-indexer-processors-sdk"
 rust-version = "1.75"
 
 [workspace.dependencies]
+sdk = { path = "sdk" }
+
 anyhow = "1.0.86"
-aptos-indexer-transaction-stream = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = 'd15c17d7559a75c9c69c25dfd987af83e64b42a1' }
+aptos-indexer-transaction-stream = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = '3c8896b489062ce0510c5e4162366db753b59499' }
+aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", tag = "aptos-node-v1.12.1" }
 async-trait = "0.1.80"
 delegate = "0.12.0"
 futures = "0.3.30"
@@ -23,7 +26,10 @@ mockall = "0.12.1"
 num_cpus = "1.16.0"
 petgraph = "0.6.5"
 prometheus = "0.13.4"
+rayon = "1.10.0"
+serde = { version = "1.0.193", features = ["derive", "rc"] }
+serde_json = { version = "1.0.81", features = ["preserve_order"] }
 thiserror = "1.0.61"
+tracing = "0.1.34"
 tokio = { version = "1.37.0", features = ["full"] }
-transaction-filter = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = 'd15c17d7559a75c9c69c25dfd987af83e64b42a1' }
 url = { version = "2.5.1", features = ["serde"] }

@@ -1,13 +1,12 @@
 use super::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep};
 use crate::traits::{NamedStep, Processable};
+use anyhow::Result;
+use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use aptos_indexer_transaction_stream::transaction_stream::{
     TransactionStream as TransactionStreamInternal, TransactionsPBResponse,
 };
 use async_trait::async_trait;
 use mockall::mock;
-use std::{ops::Deref, sync::Arc, time::Duration};
-use transaction_filter::transaction_filter::TransactionFilter;
-use url::Url;
 
 pub struct TransactionStreamStep
 where
@@ -20,33 +19,9 @@ impl TransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
-    pub fn new(
-        indexer_grpc_data_service_address: Url,
-        indexer_grpc_http2_ping_interval: Duration,
-        indexer_grpc_http2_ping_timeout: Duration,
-        indexer_grpc_reconnection_timeout_secs: Duration,
-        indexer_grpc_response_item_timeout_secs: Duration,
-        starting_version: u64,
-        request_ending_version: Option<u64>,
-        auth_token: String,
-        processor_name: String,
-        transaction_filter: TransactionFilter,
-        pb_channel_txn_chunk_size: usize,
-    ) -> Self {
-        let transaction_stream = TransactionStreamInternal::new(
-            indexer_grpc_data_service_address,
-            indexer_grpc_http2_ping_interval,
-            indexer_grpc_http2_ping_timeout,
-            indexer_grpc_reconnection_timeout_secs,
-            indexer_grpc_response_item_timeout_secs,
-            starting_version,
-            request_ending_version,
-            auth_token,
-            processor_name,
-            transaction_filter,
-            pb_channel_txn_chunk_size,
-        );
-        Self { transaction_stream }
+    pub async fn new(transaction_stream_config: TransactionStreamConfig) -> Result<Self> {
+        let transaction_stream = TransactionStreamInternal::new(transaction_stream_config).await?;
+        Ok(Self { transaction_stream })
     }
 }
 
@@ -58,10 +33,6 @@ where
     type Input = ();
     type Output = TransactionsPBResponse;
     type RunType = PollableAsyncRunType;
-
-    async fn init(&mut self) {
-        self.transaction_stream.init_stream().await;
-    }
 
     async fn process(&mut self, _item: Vec<()>) -> Vec<TransactionsPBResponse> {
         Vec::new()
@@ -75,7 +46,13 @@ where
 {
     async fn poll(&mut self) -> Option<Vec<TransactionsPBResponse>> {
         let transactions_output = self.transaction_stream.get_next_transaction_batch().await;
-        Some(transactions_output.transactions)
+        match transactions_output {
+            Ok(transactions) => Some(vec![transactions]),
+            Err(e) => {
+                println!("Error getting transactions: {:?}", e);
+                None
+            },
+        }
     }
 }
 
@@ -134,6 +111,7 @@ mod tests {
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
     };
+    use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_transaction_stream() {
