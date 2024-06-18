@@ -4,20 +4,20 @@
 #![allow(clippy::extra_unused_lifetimes)]
 
 use crate::{
-    // schema::events,
+    schema::events,
     utils::util::{standardize_address, truncate_str},
 };
 use aptos_protos::transaction::v1::Event as EventPB;
-// use field_count::FieldCount;
+use diesel::{Identifiable, Insertable};
+use field_count::FieldCount;
 use serde::{Deserialize, Serialize};
 
 // p99 currently is 303 so using 300 as a safe max length
 const EVENT_TYPE_MAX_LENGTH: usize = 300;
 
-// #[derive(Clone, Debug, Deserialize, FieldCount, Identifiable, Insertable, Serialize)]
-#[derive(Clone, Debug, Deserialize, Serialize)]
-// #[diesel(primary_key(transaction_version, event_index))]
-// #[diesel(table_name = events)]
+#[derive(Clone, Debug, Deserialize, FieldCount, Identifiable, Insertable, Serialize)]
+#[diesel(primary_key(transaction_version, event_index))]
+#[diesel(table_name = events)]
 pub struct Event {
     pub sequence_number: i64,
     pub creation_number: i64,

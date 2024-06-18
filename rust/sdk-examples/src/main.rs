@@ -5,7 +5,9 @@ use sdk::{
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
-use sdk_examples::events_processor::events_extractor::EventsExtractor;
+use sdk_examples::events_processor::{
+    events_extractor::EventsExtractor, events_storer::EventsStorer,
+};
 use std::time::Duration;
 use url::Url;
 
@@ -46,6 +48,11 @@ async fn run_processor() -> Result<()> {
     let transaction_stream_with_input =
         RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());
     let events_extractor = EventsExtractor {};
+    let events_storer = EventsStorer::new(
+        "postgresql://postgres:@localhost:5432/example".to_string(),
+        None,
+    )
+    .await?;
     let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
 
     let (processor_builder, buffer_receiver) =
@@ -53,7 +60,8 @@ async fn run_processor() -> Result<()> {
             transaction_stream_with_input,
         )
         .connect_to(events_extractor.into_runnable_step(), 10)
-        .end_with_and_return_output_receiver(timed_buffer.into_runnable_step(), 10);
+        .connect_to(timed_buffer.into_runnable_step(), 10)
+        .end_with_and_return_output_receiver(events_storer.into_runnable_step(), 10);
 
     loop {
         match buffer_receiver.recv().await {
