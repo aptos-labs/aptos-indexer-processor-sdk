@@ -139,14 +139,14 @@ mod tests {
             .connect_to(first_step.into_runnable_step(), 5)
             .connect_to(second_step, 3);
 
-        let mut builders = builder.fanout_broadcast(2);
-        let (first_builder, first_output_receiver) = builders
-            .pop()
+        let mut fanout_builder = builder.fanout_broadcast(2);
+        let (first_builder, first_output_receiver) = fanout_builder
+            .get_processor_builder()
             .unwrap()
             .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 1);
 
-        let (second_builder, second_output_receiver) = builders
-            .pop()
+        let (second_builder, second_output_receiver) = fanout_builder
+            .get_processor_builder()
             .unwrap()
             .connect_to(
                 RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),

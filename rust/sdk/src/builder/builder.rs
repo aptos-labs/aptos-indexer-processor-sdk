@@ -2,12 +2,13 @@ use crate::{
     builder::dag::connect_two_steps,
     traits::{RunnableStep, RunnableStepWithInputReceiver},
 };
+use anyhow::Result;
 use petgraph::{
     dot::Config,
     graph::{DiGraph, EdgeReference, NodeIndex},
     prelude::*,
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, f32::consts::E, rc::Rc};
 use tokio::task::JoinHandle;
 
 #[derive(Clone, Default, Debug)]
@@ -197,6 +198,60 @@ where
         }
     }
 
+    // This doesn't work because ProcessorBuilders can have different PrevioustInput types
+    pub fn new_fanin_step_with_receivers<PreviousInput, PreviousStep>(
+        fan_in_pbs: Vec<ProcessorBuilder<PreviousInput, Input, PreviousStep>>,
+        // fanout_step_receivers: Vec<kanal::AsyncReceiver<Vec<NextInput>>>,
+        next_step: Step,
+        channel_size: usize,
+    ) -> ProcessorBuilder<Input, Output, Step>
+    where
+        Input: Clone + Send + 'static,
+        PreviousInput: Send + 'static,
+        PreviousStep: RunnableStep<PreviousInput, Input>,
+    {
+        // Channel connects the output of fanout steps to the input of the next step
+        let (next_input_sender, next_output_receiver) = kanal::bounded_async(channel_size);
+        let graph = fan_in_pbs.first().unwrap().graph.clone();
+
+        for mut pb in fan_in_pbs {
+            let pb_current_step = pb
+                .current_step
+                .as_mut()
+                .take()
+                .expect("Can not fan in without a step");
+            let previous_output_receiver = match pb_current_step {
+                CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+                    panic!("Can not fan in with a runnable step with input receiver");
+                },
+                CurrentStepHolder::DanglingOutputReceiver(previous_output_receiver) => {
+                    previous_output_receiver
+                },
+            };
+            let sender = next_input_sender.clone();
+            let receiver = previous_output_receiver.clone();
+            tokio::spawn(async move {
+                loop {
+                    let result = receiver.recv().await;
+                    match result {
+                        Ok(input) => {
+                            sender.send(input.clone()).await.unwrap();
+                        },
+                        Err(e) => {
+                            panic!("Error receiving from previous step for fanout: {:?}", e);
+                        },
+                    }
+                }
+            });
+        }
+        ProcessorBuilder {
+            current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
+                next_step.add_input_receiver(next_output_receiver),
+            )),
+            graph,
+        }
+    }
+
     pub fn connect_to<NextOutput, NextStep>(
         mut self,
         next_step: NextStep,
@@ -229,7 +284,7 @@ where
         }
     }
 
-    pub fn fanout_broadcast(mut self, num_outputs: usize) -> Vec<Self>
+    pub fn fanout_broadcast(mut self, num_outputs: usize) -> FanoutBuilder<Input, Output, Step>
     where
         Output: Clone + Send + 'static,
     {
@@ -280,7 +335,10 @@ where
             });
         }
 
-        builders
+        FanoutBuilder {
+            processor_builders: builders,
+            graph: self.graph,
+        }
     }
 
     pub fn end_with_and_return_output_receiver<NextOutput, NextStep>(
@@ -343,6 +401,31 @@ where
                     },
                 }
             },
+        }
+    }
+}
+
+pub struct FanoutBuilder<Input, Output, Step>
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
+{
+    pub processor_builders: Vec<ProcessorBuilder<Input, Output, Step>>,
+    pub graph: GraphBuilder,
+}
+
+impl<Input, Output, Step> FanoutBuilder<Input, Output, Step>
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
+{
+    pub fn get_processor_builder(&mut self) -> Result<ProcessorBuilder<Input, Output, Step>> {
+        if let Some(pb) = self.processor_builders.pop() {
+            Ok(pb)
+        } else {
+            Err(anyhow::anyhow!("No more fanout steps to pop"))
         }
     }
 }
