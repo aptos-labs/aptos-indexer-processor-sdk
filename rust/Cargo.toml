@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["sdk", "instrumented-channel"]
+members = ["sdk", "instrumented-channel", "sdk-examples"]
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]
@@ -13,17 +13,57 @@ repository = "https://github.com/aptos-labs/aptos-indexer-processors-sdk"
 rust-version = "1.75"
 
 [workspace.dependencies]
+sdk = { path = "sdk" }
+
+ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"
-aptos-indexer-transaction-stream = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = 'd15c17d7559a75c9c69c25dfd987af83e64b42a1' }
+aptos-indexer-transaction-stream = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = '3c8896b489062ce0510c5e4162366db753b59499' }
+aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", tag = "aptos-node-v1.12.1" }
 async-trait = "0.1.80"
+bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
+bigdecimal = { version = "0.4.0", features = ["serde"] }
+chrono = { version = "0.4.19", features = ["clock", "serde"] }
 delegate = "0.12.0"
+# Do NOT enable the postgres feature here, it is conditionally enabled in a feature
+# block in the Cargo.toml file for the processor crate.
+# https://github.com/aptos-labs/aptos-indexer-processors/pull/325
+diesel = { version = "2.1", features = [
+    "chrono",
+    "postgres_backend",
+    "numeric",
+    "serde_json",
+] }
+# Use the crate version once this feature gets released on crates.io:
+# https://github.com/weiznich/diesel_async/commit/e165e8c96a6c540ebde2d6d7c52df5c5620a4bf1
+diesel-async = { git = "https://github.com/weiznich/diesel_async.git", rev = "d02798c67065d763154d7272dd0c09b39757d0f2", features = [
+    "async-connection-wrapper",
+    "postgres",
+    "bb8",
+    "tokio",
+] }
+diesel_migrations = { version = "2.1.0", features = ["postgres"] }
+diesel_async_migrations = { git = "https://github.com/niroco/diesel_async_migrations", rev = "11f331b73c5cfcc894380074f748d8fda710ac12" }
+field_count = "0.1.1"
 futures = "0.3.30"
+futures-util = "0.3.21"
+hex = "0.4.3"
 kanal = "0.1.0-pre8"
+lazy_static = "1.4.0"
 mockall = "0.12.1"
 num_cpus = "1.16.0"
 petgraph = "0.6.5"
 prometheus = "0.13.4"
+rayon = "1.10.0"
+serde = { version = "1.0.193", features = ["derive", "rc"] }
+serde_json = { version = "1.0.81", features = ["preserve_order"] }
+sha2 = "0.9.3"
 thiserror = "1.0.61"
+tiny-keccak = { version = "2.0.2", features = ["keccak", "sha3"] }
+tracing = "0.1.34"
 tokio = { version = "1.37.0", features = ["full"] }
-transaction-filter = { git = 'https://github.com/aptos-labs/aptos-indexer-processors.git', rev = 'd15c17d7559a75c9c69c25dfd987af83e64b42a1' }
 url = { version = "2.5.1", features = ["serde"] }
+
+# Postgres SSL support
+native-tls = "0.2.11"
+postgres-native-tls = "0.5.0"
+tokio-postgres = "0.7.10"
