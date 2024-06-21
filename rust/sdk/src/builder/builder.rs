@@ -8,7 +8,7 @@ use petgraph::{
     graph::{DiGraph, EdgeReference, NodeIndex},
     prelude::*,
 };
-use std::{cell::RefCell, collections::HashMap, f32::consts::E, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use tokio::task::JoinHandle;
 
 #[derive(Clone, Default, Debug)]
@@ -198,38 +198,23 @@ where
         }
     }
 
-    // This doesn't work because ProcessorBuilders can have different PrevioustInput types
-    pub fn new_fanin_step_with_receivers<PreviousInput, PreviousStep>(
-        fan_in_pbs: Vec<ProcessorBuilder<PreviousInput, Input, PreviousStep>>,
-        // fanout_step_receivers: Vec<kanal::AsyncReceiver<Vec<NextInput>>>,
+    pub fn new_fanin_step_with_receivers(
+        fanout_step_receivers: Vec<kanal::AsyncReceiver<Vec<Input>>>,
+        graph: GraphBuilder,
         next_step: Step,
         channel_size: usize,
     ) -> ProcessorBuilder<Input, Output, Step>
     where
         Input: Clone + Send + 'static,
-        PreviousInput: Send + 'static,
-        PreviousStep: RunnableStep<PreviousInput, Input>,
+        Step: RunnableStep<Input, Output>,
     {
         // Channel connects the output of fanout steps to the input of the next step
         let (next_input_sender, next_output_receiver) = kanal::bounded_async(channel_size);
-        let graph = fan_in_pbs.first().unwrap().graph.clone();
 
-        for mut pb in fan_in_pbs {
-            let pb_current_step = pb
-                .current_step
-                .as_mut()
-                .take()
-                .expect("Can not fan in without a step");
-            let previous_output_receiver = match pb_current_step {
-                CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
-                    panic!("Can not fan in with a runnable step with input receiver");
-                },
-                CurrentStepHolder::DanglingOutputReceiver(previous_output_receiver) => {
-                    previous_output_receiver
-                },
-            };
+        // Send the results of the fanned out steps to the channel
+        for fanout_step_receiver in fanout_step_receivers {
             let sender = next_input_sender.clone();
-            let receiver = previous_output_receiver.clone();
+            let receiver = fanout_step_receiver.clone();
             tokio::spawn(async move {
                 loop {
                     let result = receiver.recv().await;
@@ -244,6 +229,8 @@ where
                 }
             });
         }
+
+        // Return
         ProcessorBuilder {
             current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
                 next_step.add_input_receiver(next_output_receiver),
@@ -400,6 +387,44 @@ where
                         (pb, output_receiver)
                     },
                 }
+            },
+        }
+    }
+
+    pub fn end_and_return_output_receiver(
+        mut self,
+        channel_size: usize,
+    ) -> (
+        ProcessorBuilder<Input, Output, Step>,
+        kanal::AsyncReceiver<Vec<Output>>,
+    ) {
+        match self.current_step.take() {
+            None => panic!("Can not end the builder without a starting step"),
+            Some(current_step) => match current_step {
+                CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+                    let (output_receiver, join_handle) = current_step.spawn(None, channel_size);
+                    self.graph.set_join_handle(
+                        self.graph.current_node_index.unwrap().index() - 1,
+                        join_handle,
+                    );
+                    self.graph.set_end_step();
+
+                    (
+                        ProcessorBuilder {
+                            current_step: None,
+                            graph: self.graph,
+                        },
+                        output_receiver,
+                    )
+                },
+                CurrentStepHolder::DanglingOutputReceiver(output_receiver) => {
+                    let mut pb = ProcessorBuilder {
+                        current_step: None,
+                        graph: self.graph,
+                    };
+                    pb.graph.set_end_step();
+                    (pb, output_receiver)
+                },
             },
         }
     }

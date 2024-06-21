@@ -184,4 +184,64 @@ mod tests {
         //first_handle.abort();
         //second_handle.abort();
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_fanin() {
+        let (input_sender, input_receiver) = kanal::bounded_async(1);
+
+        let input_step = RunnableStepWithInputReceiver::new(
+            input_receiver,
+            RunnableAsyncStep::new(PassThroughStep::new()),
+        );
+
+        // // Create a timed buffer that outputs the input after 1 second
+        // let timed_buffer_step = TimedBuffer::<usize>::new(Duration::from_millis(200));
+        // let first_step = timed_buffer_step;
+
+        // let second_step = TestStep;
+        // let second_step = RunnableAsyncStep::new(second_step);
+
+        let mut fanout_builder =
+            ProcessorBuilder::new_with_runnable_input_receiver_first_step(input_step)
+                .fanout_broadcast(2);
+
+        let (first_builder, first_output_receiver) = fanout_builder
+            .get_processor_builder()
+            .unwrap()
+            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 1);
+
+        let (second_builder, second_output_receiver) = fanout_builder
+            .get_processor_builder()
+            .unwrap()
+            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 5);
+
+        let (fanin_builder, mut fanin_output_receiver) =
+            ProcessorBuilder::new_fanin_step_with_receivers(
+                vec![first_output_receiver, second_output_receiver],
+                first_builder.graph,
+                RunnableAsyncStep::new(PassThroughStep::new_named("FaninStep".to_string())),
+                3,
+            )
+            .end_and_return_output_receiver(6);
+
+        assert_eq!(fanin_output_receiver.len(), 0, "Output should be empty");
+
+        let left_input = vec![1, 2, 3];
+        input_sender.send(left_input.clone()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(250)).await;
+
+        assert_eq!(fanin_output_receiver.len(), 2, "Output should have 2 items");
+
+        let result = receive_with_timeout(&mut fanin_output_receiver, 100)
+            .await
+            .unwrap();
+
+        assert_eq!(result, left_input, "Output should be the same as input");
+
+        let graph = second_builder.graph;
+        let dot = graph.dot();
+        println!("{:}", dot);
+        //first_handle.abort();
+        //second_handle.abort();
+    }
 }
