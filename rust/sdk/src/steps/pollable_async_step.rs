@@ -71,9 +71,9 @@ where
     fn spawn(
         self,
         input_receiver: Option<AsyncReceiver<Vec<PollableStep::Input>>>,
-        channel_size: usize,
+        output_channel_size: usize,
     ) -> (AsyncReceiver<Vec<PollableStep::Output>>, JoinHandle<()>) {
-        let (output_sender, output_receiver) = kanal::bounded_async(channel_size);
+        let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
 
         let mut step = self.step;
         let step_name = step.name();

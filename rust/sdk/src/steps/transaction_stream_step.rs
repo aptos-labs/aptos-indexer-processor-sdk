@@ -148,7 +148,8 @@ mod tests {
             ProcessorBuilder::new_with_runnable_input_receiver_first_step(
                 transaction_stream_with_input,
             )
-            .end_with_and_return_output_receiver(pass_through_step.into_runnable_step(), 5);
+            .connect_to(pass_through_step.into_runnable_step(), 5)
+            .end_and_return_output_receiver(5);
 
         tokio::time::sleep(Duration::from_millis(250)).await;
         let result = receive_with_timeout(&mut output_receiver, 100)

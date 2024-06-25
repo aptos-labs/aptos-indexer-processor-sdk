@@ -13,7 +13,7 @@ where
     fn spawn(
         self,
         input_receiver: Option<AsyncReceiver<Vec<Input>>>,
-        channel_size: usize,
+        output_channel_size: usize,
     ) -> (AsyncReceiver<Vec<Output>>, JoinHandle<()>);
 
     fn add_input_receiver(

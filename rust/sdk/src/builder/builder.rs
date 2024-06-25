@@ -2,6 +2,7 @@ use crate::{
     builder::dag::connect_two_steps,
     traits::{RunnableStep, RunnableStepWithInputReceiver},
 };
+use anyhow::Result;
 use petgraph::{
     dot::Config,
     graph::{DiGraph, EdgeReference, NodeIndex},
@@ -33,7 +34,6 @@ impl GraphBuilder {
     pub fn add_step<Input, Output, Step>(
         &mut self,
         step: &RunnableStepWithInputReceiver<Input, Output, Step>,
-        join_handle: Option<JoinHandle<()>>,
     ) where
         Input: Send + 'static,
         Output: Send + 'static,
@@ -49,13 +49,41 @@ impl GraphBuilder {
                 step_type: step.type_name(),
                 input_type: std::any::type_name::<Input>().to_string(),
                 output_type: std::any::type_name::<Output>().to_string(),
-                join_handle,
+                join_handle: None,
+                end_step: false,
+            },
+        );
+
+        *self.node_counter.borrow_mut() += 1;
+        self.current_node_index = Some(new_node_index);
+    }
+
+    pub fn add_and_connect_step<Input, Output, Step>(
+        &mut self,
+        step: &RunnableStepWithInputReceiver<Input, Output, Step>,
+    ) where
+        Input: Send + 'static,
+        Output: Send + 'static,
+        Step: RunnableStep<Input, Output>,
+    {
+        let current_node_counter = *self.node_counter.borrow();
+        let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
+                id: current_node_counter,
+                name: step.step.name(),
+                step_type: step.type_name(),
+                input_type: std::any::type_name::<Input>().to_string(),
+                output_type: std::any::type_name::<Output>().to_string(),
+                join_handle: None,
                 end_step: false,
             },
         );
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
+        self.current_node_index = Some(new_node_index);
     }
 
     pub fn set_end_step(&mut self) {
@@ -96,7 +124,10 @@ impl GraphBuilder {
         if let Some(current_node_index) = self.current_node_index {
             self.graph.borrow_mut().add_edge(current_node_index, to, 1);
         }
-        self.current_node_index = Some(to);
+    }
+
+    pub fn add_edge_from_to(&mut self, from: NodeIndex, to: NodeIndex) {
+        self.graph.borrow_mut().add_edge(from, to, 1);
     }
 
     pub fn dot(&self) -> String {
@@ -197,6 +228,67 @@ where
         }
     }
 
+    pub fn new_with_fanin_step_with_receivers(
+        fanout_step_receivers_and_graphs: Vec<(kanal::AsyncReceiver<Vec<Input>>, GraphBuilder)>,
+        next_step: Step,
+        channel_size: usize,
+    ) -> ProcessorBuilder<Input, Output, Step>
+    where
+        Input: Clone + Send + 'static,
+        Step: RunnableStep<Input, Output>,
+    {
+        // Channel connects the output of fanout steps to the input of the next step
+        let (connector_sender, connector_receiver) = kanal::bounded_async(channel_size);
+
+        // Spawn the next step here so that we can connect the edges of the fan in steps to it
+        let next_step = next_step.add_input_receiver(connector_receiver);
+        let mut graph = fanout_step_receivers_and_graphs.first().unwrap().1.clone();
+        graph.add_step(&next_step);
+        println!(
+            "current node index: {:?}",
+            graph.current_node_index.unwrap().index(),
+        );
+        let (next_output_receiver, join_handle) = next_step.spawn(None, channel_size);
+        graph.set_join_handle(graph.current_node_index.unwrap().index(), join_handle);
+
+        // Send the results of the fanned out steps to the channel
+        for (fanout_step_receiver, gb) in fanout_step_receivers_and_graphs {
+            let sender = connector_sender.clone();
+            let receiver = fanout_step_receiver.clone();
+            tokio::spawn(async move {
+                loop {
+                    let result = receiver.recv().await;
+                    match result {
+                        Ok(input) => {
+                            sender.send(input.clone()).await.unwrap();
+                        },
+                        Err(e) => {
+                            panic!("Error receiving from previous step for fanout: {:?}", e);
+                        },
+                    }
+                }
+            });
+            println!(
+                "current node index: {:?}",
+                graph.current_node_index.unwrap().index(),
+            );
+
+            // Connect the fan in step to next step
+            graph.add_edge_from_to(
+                NodeIndex::new(gb.current_node_index.unwrap().index()),
+                NodeIndex::new(graph.current_node_index.unwrap().index()),
+            );
+        }
+
+        // Return
+        ProcessorBuilder {
+            current_step: Some(CurrentStepHolder::DanglingOutputReceiver(
+                next_output_receiver,
+            )),
+            graph,
+        }
+    }
+
     pub fn connect_to<NextOutput, NextStep>(
         mut self,
         next_step: NextStep,
@@ -209,15 +301,17 @@ where
         let current_step = self.current_step.take().unwrap();
         let next_step = match current_step {
             CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+                self.graph.add_and_connect_step(&current_step);
                 let (join_handle, next_step) =
                     connect_two_steps(current_step, next_step, channel_size);
-                self.graph.add_step(&next_step, Some(join_handle));
+                self.graph
+                    .set_join_handle(self.graph.current_node_index.unwrap().index(), join_handle);
                 CurrentStepHolder::RunnableStepWithInputReceiver(next_step)
             },
             CurrentStepHolder::DanglingOutputReceiver(output_receiver) => {
                 // TODO: HOOK UP THE GRAPH!!!
                 let next_step = next_step.add_input_receiver(output_receiver);
-                self.graph.add_step(&next_step, None);
+                // self.graph.add_and_connect_step(&next_step);
                 CurrentStepHolder::RunnableStepWithInputReceiver(next_step)
             },
         };
@@ -229,7 +323,7 @@ where
         }
     }
 
-    pub fn fanout_broadcast(mut self, num_outputs: usize) -> Vec<Self>
+    pub fn fanout_broadcast(mut self, num_outputs: usize) -> FanoutBuilder<Input, Output, Step>
     where
         Output: Clone + Send + 'static,
     {
@@ -239,6 +333,7 @@ where
             .expect("Can not fan out without a prior step")
         {
             CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+                self.graph.add_and_connect_step(&current_step);
                 let (output_receiver, join_handle) = current_step.spawn(None, num_outputs);
                 // TODO: add to graph?
                 self.graph
@@ -280,69 +375,150 @@ where
             });
         }
 
-        builders
+        FanoutBuilder {
+            processor_builders: builders,
+            graph: self.graph,
+        }
     }
 
-    pub fn end_with_and_return_output_receiver<NextOutput, NextStep>(
+    // You should use connect_to(...).end_and_return_output_receiver(...) instead
+    // pub fn end_with_and_return_output_receiver<NextOutput, NextStep>(
+    //     mut self,
+    //     next_step: NextStep,
+    //     channel_size: usize,
+    // ) -> (
+    //     ProcessorBuilder<Output, NextOutput, NextStep>,
+    //     kanal::AsyncReceiver<Vec<NextOutput>>,
+    // )
+    // where
+    //     NextOutput: Send + 'static,
+    //     NextStep: RunnableStep<Output, NextOutput>,
+    // {
+    //     match self.current_step.take() {
+    //         None => panic!("Can not end the builder without a starting step"),
+    //         Some(current_step) => {
+    //             match current_step {
+    //                 CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+    //                     // Hack for connect_to piping. This is a bit ugly.
+    //                     self.current_step = Some(CurrentStepHolder::RunnableStepWithInputReceiver(
+    //                         current_step,
+    //                     ));
+    //                     let mut pb = self.connect_to(next_step, channel_size);
+
+    //                     if let CurrentStepHolder::RunnableStepWithInputReceiver(final_step) =
+    //                         pb.current_step.take().unwrap()
+    //                     {
+    //                         println!(
+    //                             "end current node index: {:?}",
+    //                             pb.graph.current_node_index.unwrap().index()
+    //                         );
+    //                         pb.graph.add_and_connect_step(&final_step);
+    //                         let (output_receiver, join_handle) =
+    //                             final_step.spawn(None, channel_size);
+    //                         pb.graph.set_join_handle(
+    //                             pb.graph.current_node_index.unwrap().index(),
+    //                             join_handle,
+    //                         );
+    //                         pb.graph.set_end_step();
+    //                         println!(
+    //                             "end final node index: {:?}",
+    //                             pb.graph.current_node_index.unwrap().index()
+    //                         );
+    //                         (pb, output_receiver)
+    //                     } else {
+    //                         unreachable!("Dangling output receiver");
+    //                     }
+    //                 },
+    //                 CurrentStepHolder::DanglingOutputReceiver(output_receiver) => {
+    //                     let final_step = next_step.add_input_receiver(output_receiver);
+    //                     println!(
+    //                         "dangling end current node index: {:?}",
+    //                         self.graph.current_node_index.unwrap().index()
+    //                     );
+    //                     self.graph.add_and_connect_step(&final_step);
+    //                     let (output_receiver, join_handle) = final_step.spawn(None, channel_size);
+    //                     self.graph.set_join_handle(
+    //                         self.graph.current_node_index.unwrap().index(),
+    //                         join_handle,
+    //                     );
+    //                     println!(
+    //                         "end final node index: {:?}",
+    //                         self.graph.current_node_index.unwrap().index()
+    //                     );
+
+    //                     let mut pb = ProcessorBuilder {
+    //                         current_step: None,
+    //                         graph: self.graph,
+    //                     };
+    //                     pb.graph.set_end_step();
+    //                     (pb, output_receiver)
+    //                 },
+    //             }
+    //         },
+    //     }
+    // }]
+
+    pub fn end_and_return_output_receiver(
         mut self,
-        next_step: NextStep,
         channel_size: usize,
     ) -> (
-        ProcessorBuilder<Output, NextOutput, NextStep>,
-        kanal::AsyncReceiver<Vec<NextOutput>>,
-    )
-    where
-        NextOutput: Send + 'static,
-        NextStep: RunnableStep<Output, NextOutput>,
-    {
+        ProcessorBuilder<Input, Output, Step>,
+        kanal::AsyncReceiver<Vec<Output>>,
+    ) {
         match self.current_step.take() {
             None => panic!("Can not end the builder without a starting step"),
-            Some(current_step) => {
-                match current_step {
-                    CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
-                        // Hack for connect_to piping. This is a bit ugly.
-                        self.current_step = Some(CurrentStepHolder::RunnableStepWithInputReceiver(
-                            current_step,
-                        ));
-                        let mut pb = self.connect_to(next_step, channel_size);
+            Some(current_step) => match current_step {
+                CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+                    self.graph.add_and_connect_step(&current_step);
+                    let (output_receiver, join_handle) = current_step.spawn(None, channel_size);
+                    self.graph.set_join_handle(
+                        self.graph.current_node_index.unwrap().index(),
+                        join_handle,
+                    );
+                    self.graph.set_end_step();
 
-                        if let CurrentStepHolder::RunnableStepWithInputReceiver(final_step) =
-                            pb.current_step.take().unwrap()
-                        {
-                            pb.graph.add_step(&final_step, None);
-
-                            let (output_receiver, join_handle) =
-                                final_step.spawn(None, channel_size);
-                            pb.graph.set_join_handle(
-                                pb.graph.current_node_index.unwrap().index() - 1,
-                                join_handle,
-                            );
-                            pb.graph.set_end_step();
-                            (pb, output_receiver)
-                        } else {
-                            unreachable!("Dangling output receiver");
-                        }
-                    },
-                    CurrentStepHolder::DanglingOutputReceiver(output_receiver) => {
-                        let final_step = next_step.add_input_receiver(output_receiver);
-                        self.graph.add_step(&final_step, None);
-
-                        // TODO: HOOK UP THE GRAPH!!!
-                        let (output_receiver, join_handle) = final_step.spawn(None, channel_size);
-                        self.graph.set_join_handle(
-                            self.graph.current_node_index.unwrap().index() - 1,
-                            join_handle,
-                        );
-
-                        let mut pb = ProcessorBuilder {
+                    (
+                        ProcessorBuilder {
                             current_step: None,
                             graph: self.graph,
-                        };
-                        pb.graph.set_end_step();
-                        (pb, output_receiver)
-                    },
-                }
+                        },
+                        output_receiver,
+                    )
+                },
+                CurrentStepHolder::DanglingOutputReceiver(output_receiver) => {
+                    let mut pb = ProcessorBuilder {
+                        current_step: None,
+                        graph: self.graph,
+                    };
+                    pb.graph.set_end_step();
+                    (pb, output_receiver)
+                },
             },
+        }
+    }
+}
+
+pub struct FanoutBuilder<Input, Output, Step>
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
+{
+    pub processor_builders: Vec<ProcessorBuilder<Input, Output, Step>>,
+    pub graph: GraphBuilder,
+}
+
+impl<Input, Output, Step> FanoutBuilder<Input, Output, Step>
+where
+    Input: Send + 'static,
+    Output: Send + 'static,
+    Step: RunnableStep<Input, Output>,
+{
+    pub fn get_processor_builder(&mut self) -> Result<ProcessorBuilder<Input, Output, Step>> {
+        if let Some(pb) = self.processor_builders.pop() {
+            Ok(pb)
+        } else {
+            Err(anyhow::anyhow!("No more fanout steps to pop"))
         }
     }
 }

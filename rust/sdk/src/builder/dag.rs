@@ -23,7 +23,7 @@ where
     } = left_step;
 
     let (left_output_receiver, left_handle) =
-        left_step.spawn(Some(left_input_receiver), channel_size);
+        left_step.spawn(Some(left_input_receiver.clone()), channel_size);
 
     let right_step_with_input_receiver =
         RunnableStepWithInputReceiver::new(left_output_receiver, right_step);

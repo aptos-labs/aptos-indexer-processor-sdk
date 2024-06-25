@@ -33,7 +33,7 @@ pub struct InstrumentedAsyncSender<T> {
 }
 
 impl<T> InstrumentedAsyncSender<T> {
-    /// shared_send_impl methods
+    // shared_send_impl methods
     delegate! {
         to self.sender {
             pub fn is_disconnected(&self) -> bool;
@@ -101,11 +101,11 @@ pub struct InstrumentedAsyncReceiver<T> {
     // Metrics
     pub(crate) received_messages: prometheus::IntCounterVec,
     pub(crate) receive_duration: prometheus::HistogramVec,
-    pub(crate) failed_receives: prometheus::IntCounterVec,
+    pub(crate) _failed_receives: prometheus::IntCounterVec,
 }
 
 impl<T> InstrumentedAsyncReceiver<T> {
-    /// shared_recv_impl methods
+    // shared_recv_impl methods
     delegate! {
         to self.receiver {
             pub fn is_disconnected(&self) -> bool;
@@ -136,7 +136,7 @@ impl<T> InstrumentedAsyncReceiver<T> {
             &[],
         )
         .unwrap();
-        let failed_receives = prometheus::register_int_counter_vec!(
+        let _failed_receives = prometheus::register_int_counter_vec!(
             format!("{}_{}_failed_message_receives", METRICS_PREFIX, name),
             "Number of failed message receives",
             &[],
@@ -146,7 +146,7 @@ impl<T> InstrumentedAsyncReceiver<T> {
             receiver,
             received_messages,
             receive_duration,
-            failed_receives,
+            _failed_receives,
         }
     }
 
