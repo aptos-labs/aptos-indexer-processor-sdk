@@ -48,9 +48,10 @@ async fn run_processor() -> Result<()> {
 
     let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
 
-    let (processor_builder, buffer_receiver) =
+    let (_, buffer_receiver) =
         ProcessorBuilder::new_with_inputless_first_step(transaction_stream.into_runnable_step())
-            .end_with_and_return_output_receiver(timed_buffer.into_runnable_step(), 10);
+            .connect_to(timed_buffer.into_runnable_step(), 10)
+            .end_and_return_output_receiver(10);
 
     loop {
         match buffer_receiver.recv().await {
@@ -140,10 +141,11 @@ mod tests {
             .connect_to(second_step, 3);
 
         let mut fanout_builder = builder.fanout_broadcast(2);
-        let (first_builder, first_output_receiver) = fanout_builder
+        let (_, first_output_receiver) = fanout_builder
             .get_processor_builder()
             .unwrap()
-            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 1);
+            .connect_to(RunnableAsyncStep::new(PassThroughStep::new()), 1)
+            .end_and_return_output_receiver(1);
 
         let (second_builder, second_output_receiver) = fanout_builder
             .get_processor_builder()
@@ -152,7 +154,8 @@ mod tests {
                 RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),
                 2,
             )
-            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 5);
+            .connect_to(RunnableAsyncStep::new(PassThroughStep::new()), 5)
+            .end_and_return_output_receiver(5);
 
         let mut output_receivers = [first_output_receiver, second_output_receiver];
 
@@ -194,13 +197,6 @@ mod tests {
             RunnableAsyncStep::new(PassThroughStep::new()),
         );
 
-        // // Create a timed buffer that outputs the input after 1 second
-        // let timed_buffer_step = TimedBuffer::<usize>::new(Duration::from_millis(200));
-        // let first_step = timed_buffer_step;
-
-        // let second_step = TestStep;
-        // let second_step = RunnableAsyncStep::new(second_step);
-
         let mut fanout_builder =
             ProcessorBuilder::new_with_runnable_input_receiver_first_step(input_step)
                 .fanout_broadcast(2);
@@ -208,20 +204,34 @@ mod tests {
         let (first_builder, first_output_receiver) = fanout_builder
             .get_processor_builder()
             .unwrap()
-            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 1);
+            .connect_to(
+                RunnableAsyncStep::new(PassThroughStep::new_named("FanoutStep1".to_string())),
+                5,
+            )
+            .end_and_return_output_receiver(5);
 
         let (second_builder, second_output_receiver) = fanout_builder
             .get_processor_builder()
             .unwrap()
-            .end_with_and_return_output_receiver(RunnableAsyncStep::new(PassThroughStep::new()), 5);
+            .connect_to(
+                RunnableAsyncStep::new(PassThroughStep::new_named("FanoutStep2".to_string())),
+                5,
+            )
+            .end_and_return_output_receiver(5);
+
+        let test_step = TestStep;
+        let test_step = RunnableAsyncStep::new(test_step);
 
         let (fanin_builder, mut fanin_output_receiver) =
-            ProcessorBuilder::new_fanin_step_with_receivers(
-                vec![first_output_receiver, second_output_receiver],
-                first_builder.graph,
+            ProcessorBuilder::new_with_fanin_step_with_receivers(
+                vec![
+                    (first_output_receiver, first_builder.graph),
+                    (second_output_receiver, second_builder.graph),
+                ],
                 RunnableAsyncStep::new(PassThroughStep::new_named("FaninStep".to_string())),
                 3,
             )
+            .connect_to(test_step, 10)
             .end_and_return_output_receiver(6);
 
         assert_eq!(fanin_output_receiver.len(), 0, "Output should be empty");
@@ -232,13 +242,19 @@ mod tests {
 
         assert_eq!(fanin_output_receiver.len(), 2, "Output should have 2 items");
 
-        let result = receive_with_timeout(&mut fanin_output_receiver, 100)
-            .await
-            .unwrap();
+        for _ in 0..2 {
+            let result = receive_with_timeout(&mut fanin_output_receiver, 100)
+                .await
+                .unwrap();
 
-        assert_eq!(result, left_input, "Output should be the same as input");
+            assert_eq!(
+                result,
+                make_test_structs(3),
+                "Output should be the same as input"
+            );
+        }
 
-        let graph = second_builder.graph;
+        let graph = fanout_builder.graph;
         let dot = graph.dot();
         println!("{:}", dot);
         //first_handle.abort();
