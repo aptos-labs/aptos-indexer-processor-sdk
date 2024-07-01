@@ -1,3 +1,4 @@
+use super::metrics::METRICS_PREFIX;
 use crate::traits::{
     processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
 };
@@ -28,6 +29,12 @@ where
     Step: AsyncStep,
 {
     pub fn new(step: Step) -> Self {
+        // latest version metric
+        // latest timestamp metric
+        // number of transactions metric
+        // processing duration
+        // transaction size
+        // processing error count
         Self { step }
     }
 }

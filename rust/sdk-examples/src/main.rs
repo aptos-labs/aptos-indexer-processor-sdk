@@ -61,7 +61,8 @@ async fn run_processor() -> Result<()> {
         )
         .connect_to(events_extractor.into_runnable_step(), 10)
         .connect_to(timed_buffer.into_runnable_step(), 10)
-        .end_with_and_return_output_receiver(events_storer.into_runnable_step(), 10);
+        .connect_to(events_storer.into_runnable_step(), 10)
+        .end_and_return_output_receiver(10);
 
     loop {
         match buffer_receiver.recv().await {
