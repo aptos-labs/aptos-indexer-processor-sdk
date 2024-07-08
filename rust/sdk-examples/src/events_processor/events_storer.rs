@@ -12,6 +12,7 @@ use diesel::{
     ExpressionMethods,
 };
 use sdk::{
+    metrics::transaction_context::TransactionContext,
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
 };
@@ -61,12 +62,15 @@ impl Processable for EventsStorer {
     type Output = EventModel;
     type RunType = AsyncRunType;
 
-    async fn process(&mut self, events: Vec<EventModel>) -> Vec<EventModel> {
+    async fn process(
+        &mut self,
+        events: TransactionContext<EventModel>,
+    ) -> TransactionContext<EventModel> {
         let per_table_chunk_sizes: AHashMap<String, usize> = AHashMap::new();
         let execute_res = execute_in_chunks(
             self.conn_pool.clone(),
             insert_events_query,
-            &events,
+            &events.data,
             get_config_table_chunk_size::<EventModel>("events", &per_table_chunk_sizes),
         )
         .await;

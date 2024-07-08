@@ -1,5 +1,8 @@
-use crate::traits::{
-    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+use crate::{
+    metrics::transaction_context::TransactionContext,
+    traits::{
+        processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+    },
 };
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
@@ -17,7 +20,7 @@ where
     }
 
     /// Polls the internal state and returns a batch of output items if available.
-    async fn poll(&mut self) -> Option<Vec<Self::Output>>;
+    async fn poll(&mut self) -> Option<Vec<TransactionContext<Self::Output>>>;
 
     async fn should_continue_polling(&mut self) -> bool {
         // By default, we always continue polling
@@ -70,9 +73,12 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<Vec<PollableStep::Input>>>,
+        input_receiver: Option<AsyncReceiver<TransactionContext<PollableStep::Input>>>,
         output_channel_size: usize,
-    ) -> (AsyncReceiver<Vec<PollableStep::Output>>, JoinHandle<()>) {
+    ) -> (
+        AsyncReceiver<TransactionContext<PollableStep::Output>>,
+        JoinHandle<()>,
+    ) {
         let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
 
         let mut step = self.step;
@@ -92,22 +98,26 @@ where
                     Some(poll_duration) => {
                         if last_poll.elapsed() >= poll_duration {
                             let result = step.poll().await;
-                            if let Some(output) = result {
-                                output_sender
-                                    .send(output)
-                                    .await
-                                    .expect("Failed to send output");
+                            if let Some(outputs) = result {
+                                for output in outputs {
+                                    output_sender
+                                        .send(output)
+                                        .await
+                                        .expect("Failed to send output");
+                                }
                             };
                             last_poll = tokio::time::Instant::now();
                         }
                     },
                     None => {
                         let result = step.poll().await;
-                        if let Some(output) = result {
-                            output_sender
-                                .send(output)
-                                .await
-                                .expect("Failed to send output");
+                        if let Some(outputs) = result {
+                            for output in outputs {
+                                output_sender
+                                    .send(output)
+                                    .await
+                                    .expect("Failed to send output");
+                            }
                         };
                     },
                 }
@@ -120,17 +130,17 @@ where
                 tokio::select! {
                     _ = tokio::time::sleep(time_to_next_poll) => {
                         let result = step.poll().await;
-                        if let Some(output) = result {
-                            output_sender.send(output).await.expect("Failed to send output");
+                        if let Some(outputs) = result {
+                            for output in outputs {
+                                output_sender.send(output).await.expect("Failed to send output");
+                            }
                         };
                         last_poll = tokio::time::Instant::now();
                     }
-                    input = input_receiver.recv() => {
-                        let input = input.expect(&format!("Failed to receive input for {}", step_name));
-                        let output = step.process(input).await;
-                        if !output.is_empty() {
-                            output_sender.send(output).await.expect("Failed to send output");
-                        }
+                    input_with_context = input_receiver.recv() => {
+                        let input_with_context = input_with_context.expect(&format!("Failed to receive input for {}", step_name));
+                        let output_with_context = step.process(input_with_context).await;
+                        output_sender.send(output_with_context).await.expect("Failed to send output");
                     }
                 }
             }

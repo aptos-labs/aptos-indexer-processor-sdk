@@ -1,6 +1,8 @@
-use super::metrics::METRICS_PREFIX;
-use crate::traits::{
-    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+use crate::{
+    metrics::transaction_context::TransactionContext,
+    traits::{
+        processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+    },
 };
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
@@ -68,26 +70,27 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<Vec<Step::Input>>>,
+        input_receiver: Option<AsyncReceiver<TransactionContext<Step::Input>>>,
         output_channel_size: usize,
-    ) -> (AsyncReceiver<Vec<Step::Output>>, JoinHandle<()>) {
+    ) -> (
+        AsyncReceiver<TransactionContext<Step::Output>>,
+        JoinHandle<()>,
+    ) {
         let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
         let mut step = self.step;
         let handle = tokio::spawn(async move {
             loop {
-                let input = input_receiver
+                let input_with_context = input_receiver
                     .recv()
                     .await
                     .expect("Failed to receive input");
-                let output = step.process(input).await;
-                if !output.is_empty() {
-                    output_sender
-                        .send(output)
-                        .await
-                        .expect("Failed to send output");
-                }
+                let output_with_context = step.process(input_with_context).await;
+                output_sender
+                    .send(output_with_context)
+                    .await
+                    .expect("Failed to send output");
             }
         });
 

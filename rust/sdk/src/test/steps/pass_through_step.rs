@@ -1,4 +1,5 @@
 use crate::{
+    metrics::transaction_context::TransactionContext,
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
 };
@@ -42,7 +43,7 @@ impl<Input: Send + 'static> Processable for PassThroughStep<Input> {
     type Output = Input;
     type RunType = AsyncRunType;
 
-    async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
+    async fn process(&mut self, item: TransactionContext<Input>) -> TransactionContext<Input> {
         item
     }
 }

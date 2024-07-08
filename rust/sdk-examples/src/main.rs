@@ -66,15 +66,14 @@ async fn run_processor() -> Result<()> {
 
     loop {
         match buffer_receiver.recv().await {
-            Ok(events) => {
-                if events.len() == 0 {
+            Ok(txn_context) => {
+                if txn_context.data.len() == 0 {
                     println!("Received no transactions");
                     continue;
                 }
                 println!(
                     "Received events versions: {:?} to {:?}",
-                    events.first().unwrap().transaction_version,
-                    events.last().unwrap().transaction_version,
+                    txn_context.start_version, txn_context.end_version,
                 );
             },
             Err(e) => {

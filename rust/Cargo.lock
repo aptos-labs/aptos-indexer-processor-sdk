@@ -1940,6 +1940,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aptos-indexer-transaction-stream",
+ "aptos-protos",
  "async-trait",
  "derive_builder",
  "futures",

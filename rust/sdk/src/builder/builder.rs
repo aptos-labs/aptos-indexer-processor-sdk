@@ -1,5 +1,6 @@
 use crate::{
     builder::dag::connect_two_steps,
+    metrics::transaction_context::TransactionContext,
     traits::{RunnableStep, RunnableStepWithInputReceiver},
 };
 use anyhow::Result;
@@ -189,7 +190,7 @@ where
     Step: RunnableStep<Input, Output>,
 {
     RunnableStepWithInputReceiver(RunnableStepWithInputReceiver<Input, Output, Step>),
-    DanglingOutputReceiver(kanal::AsyncReceiver<Vec<Output>>),
+    DanglingOutputReceiver(kanal::AsyncReceiver<TransactionContext<Output>>),
 }
 
 pub struct ProcessorBuilder<Input, Output, Step>
@@ -229,7 +230,10 @@ where
     }
 
     pub fn new_with_fanin_step_with_receivers(
-        fanout_step_receivers_and_graphs: Vec<(kanal::AsyncReceiver<Vec<Input>>, GraphBuilder)>,
+        fanout_step_receivers_and_graphs: Vec<(
+            kanal::AsyncReceiver<TransactionContext<Input>>,
+            GraphBuilder,
+        )>,
         next_step: Step,
         channel_size: usize,
     ) -> ProcessorBuilder<Input, Output, Step>
@@ -463,7 +467,7 @@ where
         channel_size: usize,
     ) -> (
         ProcessorBuilder<Input, Output, Step>,
-        kanal::AsyncReceiver<Vec<Output>>,
+        kanal::AsyncReceiver<TransactionContext<Output>>,
     ) {
         match self.current_step.take() {
             None => panic!("Can not end the builder without a starting step"),

@@ -55,21 +55,14 @@ async fn run_processor() -> Result<()> {
 
     loop {
         match buffer_receiver.recv().await {
-            Ok(txn_pb) => {
-                if txn_pb.len() == 0 {
+            Ok(txn_context) => {
+                if txn_context.data.len() == 0 {
                     println!("Received no transactions");
                     continue;
                 }
                 println!(
                     "Received transactions: {:?} to {:?}",
-                    txn_pb
-                        .first()
-                        .unwrap()
-                        .transactions
-                        .first()
-                        .unwrap()
-                        .version,
-                    txn_pb.last().unwrap().transactions.last().unwrap().version
+                    txn_context.start_version, txn_context.end_version,
                 );
             },
             Err(e) => {
@@ -84,6 +77,7 @@ mod tests {
     use async_trait::async_trait;
     use sdk::{
         builder::ProcessorBuilder,
+        metrics::transaction_context::TransactionContext,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
@@ -115,8 +109,19 @@ mod tests {
         type Output = TestStruct;
         type RunType = ();
 
-        async fn process(&mut self, item: Vec<usize>) -> Vec<TestStruct> {
-            item.into_iter().map(|i| TestStruct { i }).collect()
+        async fn process(
+            &mut self,
+            item: TransactionContext<usize>,
+        ) -> TransactionContext<TestStruct> {
+            let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
+            TransactionContext {
+                data: processed,
+                start_version: item.start_version,
+                end_version: item.end_version,
+                start_transaction_timestamp: item.start_transaction_timestamp,
+                end_transaction_timestamp: item.end_transaction_timestamp,
+                total_size_in_bytes: item.total_size_in_bytes,
+            }
         }
     }
 
@@ -163,7 +168,14 @@ mod tests {
             assert_eq!(output_receiver.len(), 0, "Output should be empty");
         });
 
-        let left_input = vec![1, 2, 3];
+        let left_input = TransactionContext {
+            data: vec![1, 2, 3],
+            start_version: 0,
+            end_version: 1,
+            start_transaction_timestamp: None,
+            end_transaction_timestamp: None,
+            total_size_in_bytes: 0,
+        };
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;
 
@@ -175,7 +187,7 @@ mod tests {
             let result = receive_with_timeout(output_receiver, 100).await.unwrap();
 
             assert_eq!(
-                result,
+                result.data,
                 make_test_structs(3),
                 "Output should be the same as input"
             );
@@ -236,7 +248,14 @@ mod tests {
 
         assert_eq!(fanin_output_receiver.len(), 0, "Output should be empty");
 
-        let left_input = vec![1, 2, 3];
+        let left_input = TransactionContext {
+            data: vec![1, 2, 3],
+            start_version: 0,
+            end_version: 1,
+            start_transaction_timestamp: None,
+            end_transaction_timestamp: None,
+            total_size_in_bytes: 0,
+        };
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;
 
@@ -248,7 +267,7 @@ mod tests {
                 .unwrap();
 
             assert_eq!(
-                result,
+                result.data,
                 make_test_structs(3),
                 "Output should be the same as input"
             );
