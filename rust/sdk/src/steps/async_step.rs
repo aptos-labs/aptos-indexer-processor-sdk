@@ -1,5 +1,10 @@
+use std::time::Instant;
+
 use crate::{
-    metrics::transaction_context::TransactionContext,
+    metrics::{
+        step_metrics::{StepMetricLabels, StepMetricsBuilder},
+        transaction_context::TransactionContext,
+    },
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
     },
@@ -31,12 +36,6 @@ where
     Step: AsyncStep,
 {
     pub fn new(step: Step) -> Self {
-        // latest version metric
-        // latest timestamp metric
-        // number of transactions metric
-        // processing duration
-        // transaction size
-        // processing error count
         Self { step }
     }
 }
@@ -86,7 +85,22 @@ where
                     .recv()
                     .await
                     .expect("Failed to receive input");
+                let processing_duration = Instant::now();
                 let output_with_context = step.process(input_with_context).await;
+                StepMetricsBuilder::default()
+                    .labels(StepMetricLabels {
+                        step_name: step.name(),
+                    })
+                    .latest_processed_version(output_with_context.end_version)
+                    .latest_transaction_timestamp(
+                        output_with_context.get_start_transaction_timestamp_unix(),
+                    )
+                    .num_transactions_processed_count(output_with_context.get_num_transactions())
+                    .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
+                    .transaction_size(output_with_context.total_size_in_bytes)
+                    .build()
+                    .unwrap()
+                    .log_metrics();
                 output_sender
                     .send(output_with_context)
                     .await

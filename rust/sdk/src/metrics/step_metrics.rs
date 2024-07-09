@@ -1,14 +1,10 @@
+use std::sync::atomic::AtomicU64;
+
 use derive_builder::Builder;
 use once_cell::sync::Lazy;
 use prometheus_client::{
-    collector::Collector,
-    encoding::{DescriptorEncoder, EncodeLabelSet, EncodeMetric},
-    metrics::{
-        counter::Counter,
-        family::Family,
-        gauge::{ConstGauge, Gauge},
-        histogram::Histogram,
-    },
+    encoding::EncodeLabelSet,
+    metrics::{counter::Counter, family::Family, gauge::Gauge},
     registry::Registry,
 };
 
@@ -25,25 +21,67 @@ pub async fn init_step_metrics_registry() {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub struct StepMetricLabels {
-    pub processor_name: String,
     pub step_name: String,
 }
 
 pub static LATEST_PROCESSED_VERSION: Lazy<Family<StepMetricLabels, Gauge>> =
     Lazy::new(Family::<StepMetricLabels, Gauge>::default);
 
+pub static LATEST_TRANSACTION_TIMESTAMP: Lazy<Family<StepMetricLabels, Gauge<f64, AtomicU64>>> =
+    Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
+
+pub static NUM_TRANSACTIONS_PROCESSED_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
+    Lazy::new(Family::<StepMetricLabels, Counter>::default);
+
+pub static PROCESSING_DURATION_IN_SECS: Lazy<Family<StepMetricLabels, Gauge<f64, AtomicU64>>> =
+    Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
+
+pub static TRANSACTION_SIZE: Lazy<Family<StepMetricLabels, Gauge>> =
+    Lazy::new(Family::<StepMetricLabels, Gauge>::default);
+
+pub static PROCESSING_ERROR_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
+    Lazy::new(Family::<StepMetricLabels, Counter>::default);
+
 #[derive(Builder)]
 pub struct StepMetrics {
     pub labels: StepMetricLabels,
-    lastest_processed_version: Option<i64>,
+    #[builder(setter(strip_option))]
+    latest_processed_version: Option<u64>,
+    latest_transaction_timestamp: Option<f64>,
+    #[builder(setter(strip_option))]
+    num_transactions_processed_count: Option<u64>,
+    #[builder(setter(strip_option))]
+    processing_duration_in_secs: Option<f64>,
+    #[builder(setter(strip_option))]
+    transaction_size: Option<u64>,
 }
 
-impl Drop for StepMetrics {
-    fn drop(&mut self) {
-        if let Some(version) = self.lastest_processed_version {
+impl StepMetrics {
+    pub fn log_metrics(&mut self) {
+        if let Some(version) = self.latest_processed_version {
             LATEST_PROCESSED_VERSION
                 .get_or_create(&self.labels)
-                .set(version);
+                .set(version as i64);
+        }
+        if let Some(timestamp) = self.latest_transaction_timestamp {
+            LATEST_TRANSACTION_TIMESTAMP
+                .get_or_create(&self.labels)
+                .set(timestamp);
+        }
+        if let Some(count) = self.num_transactions_processed_count {
+            NUM_TRANSACTIONS_PROCESSED_COUNT
+                .get_or_create(&self.labels)
+                .inc_by(count);
+        }
+        if let Some(duration) = self.processing_duration_in_secs {
+            PROCESSING_DURATION_IN_SECS
+                .get_or_create(&self.labels)
+                .set(duration);
+        }
+        if let Some(size) = self.transaction_size {
+            TRANSACTION_SIZE
+                .get_or_create(&self.labels)
+                .set(size as i64);
         }
     }
 }

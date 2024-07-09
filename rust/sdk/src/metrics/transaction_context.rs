@@ -1,4 +1,4 @@
-use derive_builder::Builder;
+use aptos_indexer_transaction_stream::utils::util::timestamp_to_unixtime;
 
 /// TransactionContext is a struct that holds data processed from a set of transactions
 /// and includes metadata about the transactions that the data is associated with.
@@ -16,8 +16,14 @@ pub struct TransactionContext<T> {
 }
 
 impl<T> TransactionContext<T> {
-    fn get_num_transactions(&self) -> u64 {
+    pub fn get_num_transactions(&self) -> u64 {
         self.end_version - self.start_version + 1
+    }
+
+    pub fn get_start_transaction_timestamp_unix(&self) -> Option<f64> {
+        self.start_transaction_timestamp
+            .as_ref()
+            .map(timestamp_to_unixtime)
     }
 }
 
