@@ -19,6 +19,9 @@ once_cell = { workspace = true }
 petgraph = { workspace = true }
 prometheus = { workspace = true }
 prometheus-client = { workspace = true }
+server-framework = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
+warp = { workspace = true }
+serde = { workspace = true }
