@@ -1,39 +1,30 @@
+use crate::config::config::DbConfig;
+
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use anyhow::Result;
 use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
-use clap::Parser;
 use sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
 use std::time::Duration;
-use url::Url;
 
 pub struct EventsProcessor {
     pub transaction_stream_config: TransactionStreamConfig,
+    pub db_config: DbConfig,
 }
 
 impl EventsProcessor {
-    pub fn new(transaction_stream_config: TransactionStreamConfig) -> Self {
+    pub fn new(transaction_stream_config: TransactionStreamConfig, db_config: DbConfig) -> Self {
         Self {
             transaction_stream_config,
+            db_config,
         }
     }
 
     pub async fn run_processor(self) -> Result<()> {
         let (input_sender, input_receiver) = kanal::bounded_async(1);
-        // let transaction_stream_config = TransactionStreamConfig {
-        //     indexer_grpc_data_service_address: Url::parse("https://grpc.devnet.aptoslabs.com:443")?,
-        //     starting_version: 0,
-        //     request_ending_version: None,
-        //     auth_token: String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
-        //     request_name_header: String::from("sdk_events_processor"),
-        //     indexer_grpc_http2_ping_interval_secs: 30,
-        //     indexer_grpc_http2_ping_timeout_secs: 10,
-        //     indexer_grpc_reconnection_timeout_secs: 5,
-        //     indexer_grpc_response_item_timeout_secs: 60,
-        // };
 
         let transaction_stream = TransactionStreamStep::new(self.transaction_stream_config).await?;
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
@@ -41,21 +32,16 @@ impl EventsProcessor {
             transaction_stream.into_runnable_step(),
         );
         let events_extractor = EventsExtractor {};
-        let events_storer = EventsStorer::new(
-            "postgresql://postgres:@localhost:5432/example".to_string(),
-            None,
-        )
-        .await?;
+        let events_storer = EventsStorer::new(self.db_config.clone()).await?;
         let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
 
-        let (processor_builder, buffer_receiver) =
-            ProcessorBuilder::new_with_runnable_input_receiver_first_step(
-                transaction_stream_with_input,
-            )
-            .connect_to(events_extractor.into_runnable_step(), 10)
-            .connect_to(timed_buffer.into_runnable_step(), 10)
-            .connect_to(events_storer.into_runnable_step(), 10)
-            .end_and_return_output_receiver(10);
+        let (_, buffer_receiver) = ProcessorBuilder::new_with_runnable_input_receiver_first_step(
+            transaction_stream_with_input,
+        )
+        .connect_to(events_extractor.into_runnable_step(), 10)
+        .connect_to(timed_buffer.into_runnable_step(), 10)
+        .connect_to(events_storer.into_runnable_step(), 10)
+        .end_and_return_output_receiver(10);
 
         loop {
             match buffer_receiver.recv().await {

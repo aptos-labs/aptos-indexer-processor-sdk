@@ -1,17 +1,7 @@
 use anyhow::Result;
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use clap::Parser;
-use sdk::{
-    builder::ProcessorBuilder,
-    steps::{TimedBuffer, TransactionStreamStep},
-    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
-};
-use sdk_examples::events_processor::{
-    events_extractor::EventsExtractor, events_storer::EventsStorer,
-};
+use sdk_examples::config::config::IndexerProcessorConfig;
 use server_framework::ServerArgs;
-use std::time::Duration;
-use url::Url;
 
 #[cfg(unix)]
 #[global_allocator]
@@ -32,6 +22,7 @@ fn main() -> Result<()> {
         .unwrap()
         .block_on(async {
             let args = ServerArgs::parse();
-            args.run(tokio::runtime::Handle::current()).await
+            args.run::<IndexerProcessorConfig>(tokio::runtime::Handle::current())
+                .await
         })
 }

@@ -1,5 +1,6 @@
 use super::events_models::EventModel;
 use crate::{
+    config::config::DbConfig,
     schema,
     utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, PgDbPool},
 };
@@ -25,13 +26,13 @@ where
 }
 
 impl EventsStorer {
-    pub async fn new(
-        postgres_connection_string: String,
-        db_pool_size: Option<u32>,
-    ) -> Result<Self> {
-        let conn_pool = new_db_pool(&postgres_connection_string, db_pool_size)
-            .await
-            .context("Failed to create connection pool")?;
+    pub async fn new(db_config: DbConfig) -> Result<Self> {
+        let conn_pool = new_db_pool(
+            &db_config.postgres_connection_string,
+            Some(db_config.db_pool_size),
+        )
+        .await
+        .context("Failed to create connection pool")?;
         Ok(Self { conn_pool })
     }
 }

@@ -15,3 +15,6 @@ build
 
 # VSCode settings
 .vscode/
+
+# Processor config
+config.yaml
