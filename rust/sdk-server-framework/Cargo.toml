@@ -14,9 +14,9 @@ rust-version = { workspace = true }
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+autometrics = { workspace = true }
 backtrace = { workspace = true }
 clap = { workspace = true }
-prometheus = { workspace = true }
 sdk-metrics = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }

@@ -5,7 +5,6 @@ use anyhow::{Context, Result};
 use aptos_system_utils::profiling::start_cpu_profiling;
 use backtrace::Backtrace;
 use clap::Parser;
-use prometheus::{Encoder, TextEncoder};
 use sdk_metrics::metrics::step_metrics::init_step_metrics_registry;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(target_os = "linux")]
@@ -152,21 +151,22 @@ pub fn setup_logging() {
 async fn register_probes_and_metrics_handler(port: u16) {
     let readiness = warp::path("readiness")
         .map(move || warp::reply::with_status("ready", warp::http::StatusCode::OK));
-    let metrics_endpoint = warp::path("metrics").map(|| {
-        // Metrics encoding.
-        let metrics = prometheus::gather();
-        let mut encode_buffer = vec![];
-        let encoder = TextEncoder::new();
-        // If metrics encoding fails, we want to panic and crash the process.
-        encoder
-            .encode(&metrics, &mut encode_buffer)
-            .context("Failed to encode metrics")
-            .unwrap();
 
-        Response::builder()
-            .header("Content-Type", "text/plain")
-            .body(encode_buffer)
-    });
+    init_step_metrics_registry();
+    let metrics_endpoint =
+        warp::path("metrics").map(
+            || match autometrics::prometheus_exporter::encode_to_string() {
+                Ok(prometheus_client_rust_metrics) => Response::builder()
+                    .status(200)
+                    .header("Content-Type", "text/plain; version=0.0.4")
+                    .body(prometheus_client_rust_metrics)
+                    .expect("Error building response"),
+                Err(err) => Response::builder()
+                    .status(500)
+                    .body(format!("{:?}", err))
+                    .expect("Error building response"),
+            },
+        );
 
     if cfg!(target_os = "linux") {
         #[cfg(target_os = "linux")]

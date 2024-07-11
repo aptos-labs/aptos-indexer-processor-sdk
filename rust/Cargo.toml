@@ -24,6 +24,7 @@ aptos-indexer-transaction-stream = { git = 'https://github.com/aptos-labs/aptos-
 aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", tag = "aptos-node-v1.12.1" }
 aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "4541add3fd29826ec57f22658ca286d2d6134b93" }
 async-trait = "0.1.80"
+autometrics = { version = "1.0.1", features = ["prometheus-exporter"] }
 backtrace = "0.3.58"
 bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
 bigdecimal = { version = "0.4.0", features = ["serde"] }
