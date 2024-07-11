@@ -11,14 +11,16 @@ pub struct PassThroughStep<Input: Send + 'static> {
     _input: PhantomData<Input>,
 }
 
-impl<Input: Send + 'static> PassThroughStep<Input> {
-    pub fn new() -> Self {
+impl<Input: Send + 'static> Default for PassThroughStep<Input> {
+    fn default() -> Self {
         Self {
             name: None,
             _input: PhantomData,
         }
     }
+}
 
+impl<Input: Send + 'static> PassThroughStep<Input> {
     pub fn new_named(name: String) -> Self {
         Self {
             name: Some(name),

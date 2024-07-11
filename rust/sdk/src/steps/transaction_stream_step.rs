@@ -1,9 +1,13 @@
 use super::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep};
-use crate::traits::{NamedStep, Processable};
-use crate::types::transaction_context::TransactionContext;
+use crate::{
+    traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
+};
 use anyhow::Result;
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
-use aptos_indexer_transaction_stream::transaction_stream::TransactionStream as TransactionStreamInternal;
+use aptos_indexer_transaction_stream::{
+    config::TransactionStreamConfig,
+    transaction_stream::TransactionStream as TransactionStreamInternal,
+};
 use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
@@ -125,7 +129,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_transaction_stream() {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = kanal::bounded_async(1);
 
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
@@ -146,14 +150,14 @@ mod tests {
             .expect_name()
             .returning(|| "MockTransactionStream".to_string());
 
-        let pass_through_step = PassThroughStep::new();
+        let pass_through_step = PassThroughStep::default();
 
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
             input_receiver,
             mock_transaction_stream.into_runnable_step(),
         );
 
-        let (builder, mut output_receiver) =
+        let (_, mut output_receiver) =
             ProcessorBuilder::new_with_runnable_input_receiver_first_step(
                 transaction_stream_with_input,
             )

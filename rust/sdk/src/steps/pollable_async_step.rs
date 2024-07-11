@@ -138,7 +138,7 @@ where
                         last_poll = tokio::time::Instant::now();
                     }
                     input_with_context = input_receiver.recv() => {
-                        let input_with_context = input_with_context.expect(&format!("Failed to receive input for {}", step_name));
+                        let input_with_context = input_with_context.unwrap_or_else(|_| panic!("Failed to receive input for {}", step_name));
                         let output_with_context = step.process(input_with_context).await;
                         output_sender.send(output_with_context).await.expect("Failed to send output");
                     }

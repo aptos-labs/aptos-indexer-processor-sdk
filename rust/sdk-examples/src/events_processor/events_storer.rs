@@ -1,6 +1,6 @@
 use super::events_models::EventModel;
 use crate::{
-    config::config::DbConfig,
+    config::indexer_processor_config::DbConfig,
     schema,
     utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, PgDbPool},
 };
@@ -77,7 +77,7 @@ impl Processable for EventsStorer {
         .await;
         match execute_res {
             Ok(_) => {
-                // println!("Events stored successfully");
+                println!("Events stored successfully");
             },
             Err(e) => {
                 println!("Failed to store events: {:?}", e);

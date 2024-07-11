@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["sdk", "instrumented-channel", "sdk-examples", "sdk-metrics"]
+members = ["instrumented-channel", "sdk", "sdk-examples", "sdk-metrics"]
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]

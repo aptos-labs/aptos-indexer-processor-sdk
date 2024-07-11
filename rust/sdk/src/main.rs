@@ -3,7 +3,7 @@ use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
-    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
+    traits::IntoRunnableStep,
 };
 use std::time::Duration;
 use url::Url;
@@ -56,7 +56,7 @@ async fn run_processor() -> Result<()> {
     loop {
         match buffer_receiver.recv().await {
             Ok(txn_context) => {
-                if txn_context.data.len() == 0 {
+                if txn_context.data.is_empty() {
                     println!("Received no transactions");
                     continue;
                 }
@@ -131,7 +131,7 @@ mod tests {
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,
-            RunnableAsyncStep::new(PassThroughStep::new()),
+            RunnableAsyncStep::new(PassThroughStep::default()),
         );
 
         // Create a timed buffer that outputs the input after 1 second
@@ -149,7 +149,7 @@ mod tests {
         let (_, first_output_receiver) = fanout_builder
             .get_processor_builder()
             .unwrap()
-            .connect_to(RunnableAsyncStep::new(PassThroughStep::new()), 1)
+            .connect_to(RunnableAsyncStep::new(PassThroughStep::default()), 1)
             .end_and_return_output_receiver(1);
 
         let (second_builder, second_output_receiver) = fanout_builder
@@ -159,7 +159,7 @@ mod tests {
                 RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),
                 2,
             )
-            .connect_to(RunnableAsyncStep::new(PassThroughStep::new()), 5)
+            .connect_to(RunnableAsyncStep::new(PassThroughStep::default()), 5)
             .end_and_return_output_receiver(5);
 
         let mut output_receivers = [first_output_receiver, second_output_receiver];
@@ -206,7 +206,7 @@ mod tests {
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,
-            RunnableAsyncStep::new(PassThroughStep::new()),
+            RunnableAsyncStep::new(PassThroughStep::default()),
         );
 
         let mut fanout_builder =
@@ -234,17 +234,16 @@ mod tests {
         let test_step = TestStep;
         let test_step = RunnableAsyncStep::new(test_step);
 
-        let (fanin_builder, mut fanin_output_receiver) =
-            ProcessorBuilder::new_with_fanin_step_with_receivers(
-                vec![
-                    (first_output_receiver, first_builder.graph),
-                    (second_output_receiver, second_builder.graph),
-                ],
-                RunnableAsyncStep::new(PassThroughStep::new_named("FaninStep".to_string())),
-                3,
-            )
-            .connect_to(test_step, 10)
-            .end_and_return_output_receiver(6);
+        let (_, mut fanin_output_receiver) = ProcessorBuilder::new_with_fanin_step_with_receivers(
+            vec![
+                (first_output_receiver, first_builder.graph),
+                (second_output_receiver, second_builder.graph),
+            ],
+            RunnableAsyncStep::new(PassThroughStep::new_named("FaninStep".to_string())),
+            3,
+        )
+        .connect_to(test_step, 10)
+        .end_and_return_output_receiver(6);
 
         assert_eq!(fanin_output_receiver.len(), 0, "Output should be empty");
 

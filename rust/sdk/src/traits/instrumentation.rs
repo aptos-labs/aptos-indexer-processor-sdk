@@ -15,11 +15,11 @@ where
     _step: PhantomData<Step>,
 }
 
-impl<Step> StepInstrumentor<Step>
+impl<Step> Default for StepInstrumentor<Step>
 where
     Step: NamedStep + Send + Sized + 'static,
 {
-    pub fn new() -> Self {
+    fn default() -> Self {
         Self {
             _step: Default::default(),
         }

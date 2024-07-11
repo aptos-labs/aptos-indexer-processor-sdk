@@ -1,6 +1,5 @@
-use crate::config::config::DbConfig;
-
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
+use crate::config::indexer_processor_config::DbConfig;
 use anyhow::Result;
 use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use sdk::{
@@ -24,7 +23,7 @@ impl EventsProcessor {
     }
 
     pub async fn run_processor(self) -> Result<()> {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = kanal::bounded_async(1);
 
         let transaction_stream = TransactionStreamStep::new(self.transaction_stream_config).await?;
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
@@ -46,14 +45,14 @@ impl EventsProcessor {
         loop {
             match buffer_receiver.recv().await {
                 Ok(txn_context) => {
-                    if txn_context.data.len() == 0 {
-                        // println!("Received no transactions");
+                    if txn_context.data.is_empty() {
+                        println!("Received no transactions");
                         continue;
                     }
-                    // println!(
-                    //     "Received events versions: {:?} to {:?}",
-                    //     txn_context.start_version, txn_context.end_version,
-                    // );
+                    println!(
+                        "Received events versions: {:?} to {:?}",
+                        txn_context.start_version, txn_context.end_version,
+                    );
                 },
                 Err(e) => {
                     println!("Error receiving transactions: {:?}", e);

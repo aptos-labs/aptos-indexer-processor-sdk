@@ -1,7 +1,9 @@
-use crate::traits::{
-    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+use crate::{
+    traits::{
+        processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+    },
+    types::transaction_context::TransactionContext,
 };
-use crate::types::transaction_context::TransactionContext;
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
 use sdk_metrics::metrics::step_metrics::{StepMetricLabels, StepMetricsBuilder};

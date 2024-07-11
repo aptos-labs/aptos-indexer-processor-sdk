@@ -42,9 +42,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map.borrow_mut().insert(
-            current_node_counter,
-            GraphNode {
+        self.node_map
+            .borrow_mut()
+            .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -52,8 +52,7 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            },
-        );
+            });
 
         *self.node_counter.borrow_mut() += 1;
         self.current_node_index = Some(new_node_index);
@@ -69,9 +68,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map.borrow_mut().insert(
-            current_node_counter,
-            GraphNode {
+        self.node_map
+            .borrow_mut()
+            .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -79,8 +78,7 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            },
-        );
+            });
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
@@ -137,10 +135,10 @@ impl GraphBuilder {
             let node_map = self.node_map.borrow_mut();
             let from_node = node_map.get(&from_node_id.index()).unwrap();
 
-            return format!("label=\"  {}\"", from_node.output_type);
+            format!("label=\"  {}\"", from_node.output_type)
         };
 
-        let last_node_index = self.graph.borrow().node_count() - 1;
+        let _last_node_index = self.graph.borrow().node_count() - 1;
         let node_attribute_getter = |_graph, (_node_index, &node_val)| {
             //println!("node_index: {:?}, node_val: {:?}", node_index, node_val);
             //println!("node_map: {:?}", self.node_map);
@@ -156,7 +154,7 @@ impl GraphBuilder {
             } else {
                 " shape=ellipse".to_string()
             };
-            return label + &shape;
+            label + &shape
         };
 
         // TODO: figure out how to avoid the clone here
@@ -211,7 +209,7 @@ where
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
         // Assumes that the first step does not actually accept any input
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = kanal::bounded_async(1);
         Self {
             current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
                 step.add_input_receiver(input_receiver),
