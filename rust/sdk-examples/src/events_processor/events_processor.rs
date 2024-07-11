@@ -47,13 +47,13 @@ impl EventsProcessor {
             match buffer_receiver.recv().await {
                 Ok(txn_context) => {
                     if txn_context.data.len() == 0 {
-                        println!("Received no transactions");
+                        // println!("Received no transactions");
                         continue;
                     }
-                    println!(
-                        "Received events versions: {:?} to {:?}",
-                        txn_context.start_version, txn_context.end_version,
-                    );
+                    // println!(
+                    //     "Received events versions: {:?} to {:?}",
+                    //     txn_context.start_version, txn_context.end_version,
+                    // );
                 },
                 Err(e) => {
                     println!("Error receiving transactions: {:?}", e);

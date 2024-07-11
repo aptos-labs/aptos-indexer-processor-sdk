@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use sdk_examples::config::config::IndexerProcessorConfig;
-use server_framework::ServerArgs;
+use sdk_server_framework::ServerArgs;
 
 #[cfg(unix)]
 #[global_allocator]

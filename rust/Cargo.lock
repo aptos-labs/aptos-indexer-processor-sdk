@@ -2547,8 +2547,8 @@ dependencies = [
  "petgraph",
  "prometheus",
  "prometheus-client",
+ "sdk-metrics",
  "serde",
- "server-framework",
  "thiserror",
  "tokio",
  "url",
@@ -2584,9 +2584,9 @@ dependencies = [
  "postgres-native-tls",
  "rayon",
  "sdk",
+ "sdk-server-framework",
  "serde",
  "serde_json",
- "server-framework",
  "sha2 0.9.9",
  "strum",
  "tiny-keccak",
@@ -2594,6 +2594,38 @@ dependencies = [
  "tokio-postgres",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "sdk-metrics"
+version = "0.1.0"
+dependencies = [
+ "aptos-indexer-transaction-stream",
+ "aptos-protos",
+ "derive_builder",
+ "once_cell",
+ "prometheus-client",
+]
+
+[[package]]
+name = "sdk-server-framework"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "aptos-system-utils",
+ "async-trait",
+ "backtrace",
+ "clap",
+ "prometheus",
+ "sdk-metrics",
+ "serde",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "warp",
 ]
 
 [[package]]
@@ -2682,28 +2714,6 @@ dependencies = [
  "ryu",
  "serde",
  "yaml-rust",
-]
-
-[[package]]
-name = "server-framework"
-version = "1.0.0"
-source = "git+https://github.com/aptos-labs/aptos-indexer-processors.git?rev=3c8896b489062ce0510c5e4162366db753b59499#3c8896b489062ce0510c5e4162366db753b59499"
-dependencies = [
- "anyhow",
- "aptos-system-utils",
- "async-trait",
- "backtrace",
- "clap",
- "futures",
- "prometheus",
- "serde",
- "serde_yaml",
- "tempfile",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "warp",
 ]
 
 [[package]]

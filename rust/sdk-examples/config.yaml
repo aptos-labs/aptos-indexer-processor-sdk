@@ -6,6 +6,7 @@ server_config:
   transaction_stream_config:
     indexer_grpc_data_service_address: "https://grpc.testnet.aptoslabs.com:443"
     starting_version: 0
+    # request_ending_version: 1
     auth_token: "aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"
     request_name_header: "events-processor"
   db_config:

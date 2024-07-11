@@ -1,4 +1,4 @@
-use crate::{metrics::transaction_context::TransactionContext, traits::NamedStep};
+use crate::{traits::NamedStep, types::transaction_context::TransactionContext};
 use async_trait::async_trait;
 
 /// A trait to convince the compiler that different step types are mutually exclusive

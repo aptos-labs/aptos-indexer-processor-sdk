@@ -10,15 +10,6 @@ use prometheus_client::{
 
 pub const METRICS_PREFIX: &str = "aptos_procsdk_step_";
 
-pub async fn init_step_metrics_registry() {
-    let mut registry = <Registry>::with_prefix(METRICS_PREFIX);
-    registry.register(
-        "latest_processed_version",
-        "Latest version this step has finished processing",
-        LATEST_PROCESSED_VERSION.clone(),
-    );
-}
-
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub struct StepMetricLabels {
     pub step_name: String,
@@ -41,6 +32,40 @@ pub static TRANSACTION_SIZE: Lazy<Family<StepMetricLabels, Gauge>> =
 
 pub static PROCESSING_ERROR_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
     Lazy::new(Family::<StepMetricLabels, Counter>::default);
+
+pub fn init_step_metrics_registry() {
+    let mut registry = <Registry>::default();
+    registry.register(
+        "latest_processed_version",
+        "Latest version this step has finished processing",
+        LATEST_PROCESSED_VERSION.clone(),
+    );
+    registry.register(
+        "latest_transaction_timestamp",
+        "Latest timestamp of the transaction this step has finished processing",
+        LATEST_TRANSACTION_TIMESTAMP.clone(),
+    );
+    registry.register(
+        "num_transactions_processed_count",
+        "Number of transactions processed by this step",
+        NUM_TRANSACTIONS_PROCESSED_COUNT.clone(),
+    );
+    registry.register(
+        "processing_duration_in_secs",
+        "Duration of processing in seconds",
+        PROCESSING_DURATION_IN_SECS.clone(),
+    );
+    registry.register(
+        "transaction_size",
+        "Size of the transaction",
+        TRANSACTION_SIZE.clone(),
+    );
+    registry.register(
+        "processing_error_count",
+        "Number of processing errors",
+        PROCESSING_ERROR_COUNT.clone(),
+    );
+}
 
 #[derive(Builder)]
 pub struct StepMetrics {

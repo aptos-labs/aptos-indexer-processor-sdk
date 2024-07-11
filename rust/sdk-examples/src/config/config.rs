@@ -5,8 +5,8 @@ use super::processor_config::ProcessorConfig;
 use crate::events_processor::events_processor::EventsProcessor;
 use anyhow::Result;
 use aptos_indexer_transaction_stream::TransactionStreamConfig;
+use sdk_server_framework::RunnableConfig;
 use serde::{Deserialize, Serialize};
-use server_framework::RunnableConfig;
 
 pub const QUERY_DEFAULT_RETRIES: u32 = 5;
 pub const QUERY_DEFAULT_RETRY_DELAY_MS: u64 = 500;

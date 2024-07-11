@@ -13,9 +13,9 @@ use diesel::{
     ExpressionMethods,
 };
 use sdk::{
-    metrics::transaction_context::TransactionContext,
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
 };
 
 pub struct EventsStorer
@@ -77,7 +77,7 @@ impl Processable for EventsStorer {
         .await;
         match execute_res {
             Ok(_) => {
-                println!("Events stored successfully");
+                // println!("Events stored successfully");
             },
             Err(e) => {
                 println!("Failed to store events: {:?}", e);

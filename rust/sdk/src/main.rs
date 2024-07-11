@@ -77,10 +77,10 @@ mod tests {
     use async_trait::async_trait;
     use sdk::{
         builder::ProcessorBuilder,
-        metrics::transaction_context::TransactionContext,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
+        types::transaction_context::TransactionContext,
     };
     use std::time::Duration;
 

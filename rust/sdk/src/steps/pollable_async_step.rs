@@ -1,8 +1,8 @@
 use crate::{
-    metrics::transaction_context::TransactionContext,
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
     },
+    types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
 use kanal::AsyncReceiver;

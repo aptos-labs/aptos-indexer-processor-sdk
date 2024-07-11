@@ -1,6 +1,6 @@
 use super::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep};
-use crate::metrics::transaction_context::TransactionContext;
 use crate::traits::{NamedStep, Processable};
+use crate::types::transaction_context::TransactionContext;
 use anyhow::Result;
 use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use aptos_indexer_transaction_stream::transaction_stream::TransactionStream as TransactionStreamInternal;
