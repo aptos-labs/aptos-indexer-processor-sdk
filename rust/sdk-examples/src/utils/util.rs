@@ -11,6 +11,7 @@ use aptos_protos::{
     util::timestamp::Timestamp,
 };
 use bigdecimal::{BigDecimal, Signed, ToPrimitive, Zero};
+use chrono::Utc;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -259,7 +260,7 @@ fn get_clean_script_payload(payload: &ScriptPayload, version: i64) -> ScriptPayl
     }
 }
 
-pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::NaiveDateTime {
+pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::DateTime<Utc> {
     let final_ts = if ts.seconds >= MAX_TIMESTAMP_SECS {
         Timestamp {
             seconds: MAX_TIMESTAMP_SECS,
@@ -268,16 +269,13 @@ pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::NaiveDateTime {
     } else {
         ts.clone()
     };
-    chrono::NaiveDateTime::from_timestamp_opt(final_ts.seconds, final_ts.nanos as u32)
+    chrono::DateTime::from_timestamp(final_ts.seconds, final_ts.nanos as u32)
         .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
 }
 
-pub fn parse_timestamp_secs(ts: u64, version: i64) -> chrono::NaiveDateTime {
-    chrono::NaiveDateTime::from_timestamp_opt(
-        std::cmp::min(ts, MAX_TIMESTAMP_SECS as u64) as i64,
-        0,
-    )
-    .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
+pub fn parse_timestamp_secs(ts: u64, version: i64) -> chrono::DateTime<Utc> {
+    chrono::DateTime::from_timestamp(std::cmp::min(ts, MAX_TIMESTAMP_SECS as u64) as i64, 0)
+        .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
 }
 
 pub fn remove_null_bytes<T: serde::Serialize + for<'de> serde::Deserialize<'de>>(input: &T) -> T {

@@ -3,16 +3,24 @@ name = "sdk"
 version = "0.1.0"
 edition = "2021"
 
-
 [dependencies]
 anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
+aptos-protos = { workspace = true }
 async-trait = { workspace = true }
+derive_builder = { workspace = true }
 futures = { workspace = true }
+instrumented-channel = { workspace = true }
 kanal = { workspace = true }
 mockall = { workspace = true }
 num_cpus = { workspace = true }
+once_cell = { workspace = true }
 petgraph = { workspace = true }
+prometheus = { workspace = true }
+prometheus-client = { workspace = true }
+sdk-metrics = { workspace = true }
+serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
+warp = { workspace = true }

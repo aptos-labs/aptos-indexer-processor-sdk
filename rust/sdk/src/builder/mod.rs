@@ -1,4 +1,4 @@
-mod builder;
 mod dag;
+mod processor_builder;
 
-pub use builder::ProcessorBuilder;
+pub use processor_builder::ProcessorBuilder;

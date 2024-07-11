@@ -1,5 +1,6 @@
 use super::events_models::EventModel;
 use crate::{
+    config::indexer_processor_config::DbConfig,
     schema,
     utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, PgDbPool},
 };
@@ -14,6 +15,7 @@ use diesel::{
 use sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
 };
 
 pub struct EventsStorer
@@ -24,13 +26,13 @@ where
 }
 
 impl EventsStorer {
-    pub async fn new(
-        postgres_connection_string: String,
-        db_pool_size: Option<u32>,
-    ) -> Result<Self> {
-        let conn_pool = new_db_pool(&postgres_connection_string, db_pool_size)
-            .await
-            .context("Failed to create connection pool")?;
+    pub async fn new(db_config: DbConfig) -> Result<Self> {
+        let conn_pool = new_db_pool(
+            &db_config.postgres_connection_string,
+            Some(db_config.db_pool_size),
+        )
+        .await
+        .context("Failed to create connection pool")?;
         Ok(Self { conn_pool })
     }
 }
@@ -61,12 +63,15 @@ impl Processable for EventsStorer {
     type Output = EventModel;
     type RunType = AsyncRunType;
 
-    async fn process(&mut self, events: Vec<EventModel>) -> Vec<EventModel> {
+    async fn process(
+        &mut self,
+        events: TransactionContext<EventModel>,
+    ) -> TransactionContext<EventModel> {
         let per_table_chunk_sizes: AHashMap<String, usize> = AHashMap::new();
         let execute_res = execute_in_chunks(
             self.conn_pool.clone(),
             insert_events_query,
-            &events,
+            &events.data,
             get_config_table_chunk_size::<EventModel>("events", &per_table_chunk_sizes),
         )
         .await;

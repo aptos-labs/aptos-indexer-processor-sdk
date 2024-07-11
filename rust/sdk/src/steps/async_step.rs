@@ -1,8 +1,13 @@
-use crate::traits::{
-    processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+use crate::{
+    traits::{
+        processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+    },
+    types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
 use kanal::AsyncReceiver;
+use sdk_metrics::metrics::step_metrics::{StepMetricLabels, StepMetricsBuilder};
+use std::time::Instant;
 use tokio::task::JoinHandle;
 
 #[async_trait]
@@ -61,26 +66,42 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<Vec<Step::Input>>>,
+        input_receiver: Option<AsyncReceiver<TransactionContext<Step::Input>>>,
         output_channel_size: usize,
-    ) -> (AsyncReceiver<Vec<Step::Output>>, JoinHandle<()>) {
+    ) -> (
+        AsyncReceiver<TransactionContext<Step::Output>>,
+        JoinHandle<()>,
+    ) {
         let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
         let mut step = self.step;
         let handle = tokio::spawn(async move {
             loop {
-                let input = input_receiver
+                let input_with_context = input_receiver
                     .recv()
                     .await
                     .expect("Failed to receive input");
-                let output = step.process(input).await;
-                if !output.is_empty() {
-                    output_sender
-                        .send(output)
-                        .await
-                        .expect("Failed to send output");
-                }
+                let processing_duration = Instant::now();
+                let output_with_context = step.process(input_with_context).await;
+                StepMetricsBuilder::default()
+                    .labels(StepMetricLabels {
+                        step_name: step.name(),
+                    })
+                    .latest_processed_version(output_with_context.end_version)
+                    .latest_transaction_timestamp(
+                        output_with_context.get_start_transaction_timestamp_unix(),
+                    )
+                    .num_transactions_processed_count(output_with_context.get_num_transactions())
+                    .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
+                    .transaction_size(output_with_context.total_size_in_bytes)
+                    .build()
+                    .unwrap()
+                    .log_metrics();
+                output_sender
+                    .send(output_with_context)
+                    .await
+                    .expect("Failed to send output");
             }
         });
 

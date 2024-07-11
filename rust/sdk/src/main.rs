@@ -3,7 +3,7 @@ use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
-    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
+    traits::IntoRunnableStep,
 };
 use std::time::Duration;
 use url::Url;
@@ -55,21 +55,14 @@ async fn run_processor() -> Result<()> {
 
     loop {
         match buffer_receiver.recv().await {
-            Ok(txn_pb) => {
-                if txn_pb.len() == 0 {
+            Ok(txn_context) => {
+                if txn_context.data.is_empty() {
                     println!("Received no transactions");
                     continue;
                 }
                 println!(
                     "Received transactions: {:?} to {:?}",
-                    txn_pb
-                        .first()
-                        .unwrap()
-                        .transactions
-                        .first()
-                        .unwrap()
-                        .version,
-                    txn_pb.last().unwrap().transactions.last().unwrap().version
+                    txn_context.start_version, txn_context.end_version,
                 );
             },
             Err(e) => {
@@ -87,6 +80,7 @@ mod tests {
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
+        types::transaction_context::TransactionContext,
     };
     use std::time::Duration;
 
@@ -115,8 +109,19 @@ mod tests {
         type Output = TestStruct;
         type RunType = ();
 
-        async fn process(&mut self, item: Vec<usize>) -> Vec<TestStruct> {
-            item.into_iter().map(|i| TestStruct { i }).collect()
+        async fn process(
+            &mut self,
+            item: TransactionContext<usize>,
+        ) -> TransactionContext<TestStruct> {
+            let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
+            TransactionContext {
+                data: processed,
+                start_version: item.start_version,
+                end_version: item.end_version,
+                start_transaction_timestamp: item.start_transaction_timestamp,
+                end_transaction_timestamp: item.end_transaction_timestamp,
+                total_size_in_bytes: item.total_size_in_bytes,
+            }
         }
     }
 
@@ -126,7 +131,7 @@ mod tests {
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,
-            RunnableAsyncStep::new(PassThroughStep::new()),
+            RunnableAsyncStep::new(PassThroughStep::default()),
         );
 
         // Create a timed buffer that outputs the input after 1 second
@@ -144,7 +149,7 @@ mod tests {
         let (_, first_output_receiver) = fanout_builder
             .get_processor_builder()
             .unwrap()
-            .connect_to(RunnableAsyncStep::new(PassThroughStep::new()), 1)
+            .connect_to(RunnableAsyncStep::new(PassThroughStep::default()), 1)
             .end_and_return_output_receiver(1);
 
         let (second_builder, second_output_receiver) = fanout_builder
@@ -154,7 +159,7 @@ mod tests {
                 RunnableAsyncStep::new(PassThroughStep::new_named("MaxStep".to_string())),
                 2,
             )
-            .connect_to(RunnableAsyncStep::new(PassThroughStep::new()), 5)
+            .connect_to(RunnableAsyncStep::new(PassThroughStep::default()), 5)
             .end_and_return_output_receiver(5);
 
         let mut output_receivers = [first_output_receiver, second_output_receiver];
@@ -163,7 +168,14 @@ mod tests {
             assert_eq!(output_receiver.len(), 0, "Output should be empty");
         });
 
-        let left_input = vec![1, 2, 3];
+        let left_input = TransactionContext {
+            data: vec![1, 2, 3],
+            start_version: 0,
+            end_version: 1,
+            start_transaction_timestamp: None,
+            end_transaction_timestamp: None,
+            total_size_in_bytes: 0,
+        };
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;
 
@@ -175,7 +187,7 @@ mod tests {
             let result = receive_with_timeout(output_receiver, 100).await.unwrap();
 
             assert_eq!(
-                result,
+                result.data,
                 make_test_structs(3),
                 "Output should be the same as input"
             );
@@ -194,7 +206,7 @@ mod tests {
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,
-            RunnableAsyncStep::new(PassThroughStep::new()),
+            RunnableAsyncStep::new(PassThroughStep::default()),
         );
 
         let mut fanout_builder =
@@ -222,21 +234,27 @@ mod tests {
         let test_step = TestStep;
         let test_step = RunnableAsyncStep::new(test_step);
 
-        let (fanin_builder, mut fanin_output_receiver) =
-            ProcessorBuilder::new_with_fanin_step_with_receivers(
-                vec![
-                    (first_output_receiver, first_builder.graph),
-                    (second_output_receiver, second_builder.graph),
-                ],
-                RunnableAsyncStep::new(PassThroughStep::new_named("FaninStep".to_string())),
-                3,
-            )
-            .connect_to(test_step, 10)
-            .end_and_return_output_receiver(6);
+        let (_, mut fanin_output_receiver) = ProcessorBuilder::new_with_fanin_step_with_receivers(
+            vec![
+                (first_output_receiver, first_builder.graph),
+                (second_output_receiver, second_builder.graph),
+            ],
+            RunnableAsyncStep::new(PassThroughStep::new_named("FaninStep".to_string())),
+            3,
+        )
+        .connect_to(test_step, 10)
+        .end_and_return_output_receiver(6);
 
         assert_eq!(fanin_output_receiver.len(), 0, "Output should be empty");
 
-        let left_input = vec![1, 2, 3];
+        let left_input = TransactionContext {
+            data: vec![1, 2, 3],
+            start_version: 0,
+            end_version: 1,
+            start_transaction_timestamp: None,
+            end_transaction_timestamp: None,
+            total_size_in_bytes: 0,
+        };
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;
 
@@ -248,7 +266,7 @@ mod tests {
                 .unwrap();
 
             assert_eq!(
-                result,
+                result.data,
                 make_test_structs(3),
                 "Output should be the same as input"
             );

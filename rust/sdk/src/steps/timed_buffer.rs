@@ -1,6 +1,7 @@
 use crate::{
     steps::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep},
     traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
 use std::time::Duration;
@@ -10,7 +11,7 @@ where
     Self: Sized + Send + 'static,
     Input: Send + 'static,
 {
-    pub internal_buffer: Vec<Input>,
+    pub internal_buffer: Vec<TransactionContext<Input>>,
     pub poll_interval: Duration,
 }
 
@@ -37,9 +38,16 @@ where
     type Output = Input;
     type RunType = PollableAsyncRunType;
 
-    async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
-        self.internal_buffer.extend(item);
-        Vec::new() // No immediate output
+    async fn process(&mut self, item: TransactionContext<Input>) -> TransactionContext<Input> {
+        self.internal_buffer.push(item);
+        TransactionContext {
+            data: Vec::new(),
+            start_version: 0,
+            end_version: 0,
+            start_transaction_timestamp: None,
+            end_transaction_timestamp: None,
+            total_size_in_bytes: 0,
+        } // No immediate output
     }
 }
 
@@ -49,7 +57,7 @@ impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
         Some(self.poll_interval)
     }
 
-    async fn poll(&mut self) -> Option<Vec<Input>> {
+    async fn poll(&mut self) -> Option<Vec<TransactionContext<Input>>> {
         Some(std::mem::take(&mut self.internal_buffer))
     }
 }

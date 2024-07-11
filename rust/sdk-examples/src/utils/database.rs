@@ -7,7 +7,6 @@
 use crate::utils::util::remove_null_bytes;
 use ahash::AHashMap;
 use diesel::{
-    backend::Backend,
     query_builder::{AstPass, Query, QueryFragment, QueryId},
     ConnectionResult, QueryResult,
 };

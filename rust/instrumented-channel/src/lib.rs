@@ -121,6 +121,7 @@ impl<T> InstrumentedAsyncReceiver<T> {
     }
 
     pub fn new(receiver: AsyncReceiver<T>, name: &str) -> Self {
+        // TODO: channel size
         let received_messages = prometheus::register_int_counter_vec!(
             format!("{}_{}_received_messages", METRICS_PREFIX, name),
             "Number of messages received",

@@ -1,6 +1,7 @@
 use crate::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
 use std::marker::PhantomData;
@@ -10,14 +11,16 @@ pub struct PassThroughStep<Input: Send + 'static> {
     _input: PhantomData<Input>,
 }
 
-impl<Input: Send + 'static> PassThroughStep<Input> {
-    pub fn new() -> Self {
+impl<Input: Send + 'static> Default for PassThroughStep<Input> {
+    fn default() -> Self {
         Self {
             name: None,
             _input: PhantomData,
         }
     }
+}
 
+impl<Input: Send + 'static> PassThroughStep<Input> {
     pub fn new_named(name: String) -> Self {
         Self {
             name: Some(name),
@@ -42,7 +45,7 @@ impl<Input: Send + 'static> Processable for PassThroughStep<Input> {
     type Output = Input;
     type RunType = AsyncRunType;
 
-    async fn process(&mut self, item: Vec<Input>) -> Vec<Input> {
+    async fn process(&mut self, item: TransactionContext<Input>) -> TransactionContext<Input> {
         item
     }
 }

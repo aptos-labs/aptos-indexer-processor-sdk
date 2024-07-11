@@ -1,10 +1,14 @@
 use super::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep};
-use crate::traits::{NamedStep, Processable};
-use anyhow::Result;
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
-use aptos_indexer_transaction_stream::transaction_stream::{
-    TransactionStream as TransactionStreamInternal, TransactionsPBResponse,
+use crate::{
+    traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
 };
+use anyhow::Result;
+use aptos_indexer_transaction_stream::{
+    config::TransactionStreamConfig,
+    transaction_stream::TransactionStream as TransactionStreamInternal,
+};
+use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
 
@@ -31,11 +35,11 @@ where
     Self: Sized + Send + 'static,
 {
     type Input = ();
-    type Output = TransactionsPBResponse;
+    type Output = Transaction;
     type RunType = PollableAsyncRunType;
 
-    async fn process(&mut self, _item: Vec<()>) -> Vec<TransactionsPBResponse> {
-        Vec::new()
+    async fn process(&mut self, _item: TransactionContext<()>) -> TransactionContext<Transaction> {
+        TransactionContext::default()
     }
 }
 
@@ -44,10 +48,20 @@ impl PollableAsyncStep for TransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
-    async fn poll(&mut self) -> Option<Vec<TransactionsPBResponse>> {
-        let transactions_output = self.transaction_stream.get_next_transaction_batch().await;
-        match transactions_output {
-            Ok(transactions) => Some(vec![transactions]),
+    async fn poll(&mut self) -> Option<Vec<TransactionContext<Transaction>>> {
+        let txn_pb_response_res = self.transaction_stream.get_next_transaction_batch().await;
+        match txn_pb_response_res {
+            Ok(txn_pb_response) => {
+                let transactions_with_context = TransactionContext {
+                    data: txn_pb_response.transactions,
+                    start_version: txn_pb_response.start_version,
+                    end_version: txn_pb_response.end_version,
+                    start_transaction_timestamp: txn_pb_response.start_txn_timestamp,
+                    end_transaction_timestamp: txn_pb_response.end_txn_timestamp,
+                    total_size_in_bytes: txn_pb_response.size_in_bytes,
+                };
+                Some(vec![transactions_with_context])
+            },
             Err(e) => {
                 println!("Error getting transactions: {:?}", e);
                 None
@@ -70,12 +84,12 @@ mock! {
     where Self: Sized + Send + 'static,
     {
         type Input = ();
-        type Output = TransactionsPBResponse;
+        type Output = Transaction;
         type RunType = PollableAsyncRunType;
 
         async fn init(&mut self);
 
-        async fn process(&mut self, _item: Vec<()>) -> Vec<TransactionsPBResponse>;
+        async fn process(&mut self, _item: TransactionContext<()> ) -> TransactionContext<Transaction>;
     }
 
     #[async_trait]
@@ -95,7 +109,7 @@ mock! {
         //         size_in_bytes: 10,
         //     }])
         // }
-        async fn poll(&mut self) -> Option<Vec<TransactionsPBResponse>>;
+        async fn poll(&mut self) -> Option<Vec<TransactionContext<Transaction>>>;
     }
 
     impl NamedStep for TransactionStreamStep {
@@ -115,19 +129,18 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_transaction_stream() {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = kanal::bounded_async(1);
 
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
-            Some(vec![TransactionsPBResponse {
-                transactions: vec![],
-                chain_id: 0,
+            Some(vec![TransactionContext {
+                data: vec![],
                 start_version: 0,
                 end_version: 100,
-                start_txn_timestamp: None,
-                end_txn_timestamp: None,
-                size_in_bytes: 10,
+                start_transaction_timestamp: None,
+                end_transaction_timestamp: None,
+                total_size_in_bytes: 10,
             }])
         });
         mock_transaction_stream.expect_init().returning(|| {
@@ -137,14 +150,14 @@ mod tests {
             .expect_name()
             .returning(|| "MockTransactionStream".to_string());
 
-        let pass_through_step = PassThroughStep::new();
+        let pass_through_step = PassThroughStep::default();
 
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
             input_receiver,
             mock_transaction_stream.into_runnable_step(),
         );
 
-        let (builder, mut output_receiver) =
+        let (_, mut output_receiver) =
             ProcessorBuilder::new_with_runnable_input_receiver_first_step(
                 transaction_stream_with_input,
             )
@@ -156,6 +169,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.data.len(), 1);
     }
 }
