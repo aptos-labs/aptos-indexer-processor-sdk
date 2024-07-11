@@ -1,7 +1,7 @@
 use crate::{
     builder::dag::connect_two_steps,
-    metrics::transaction_context::TransactionContext,
     traits::{RunnableStep, RunnableStepWithInputReceiver},
+    types::transaction_context::TransactionContext,
 };
 use anyhow::Result;
 use petgraph::{

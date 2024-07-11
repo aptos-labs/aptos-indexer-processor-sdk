@@ -1,5 +1,4 @@
-use std::sync::atomic::AtomicU64;
-
+use autometrics::settings::AutometricsSettings;
 use derive_builder::Builder;
 use once_cell::sync::Lazy;
 use prometheus_client::{
@@ -7,16 +6,46 @@ use prometheus_client::{
     metrics::{counter::Counter, family::Family, gauge::Gauge},
     registry::Registry,
 };
+use std::sync::atomic::AtomicU64;
 
 pub const METRICS_PREFIX: &str = "aptos_procsdk_step_";
 
-pub async fn init_step_metrics_registry() {
+pub fn init_step_metrics_registry() {
     let mut registry = <Registry>::with_prefix(METRICS_PREFIX);
     registry.register(
         "latest_processed_version",
         "Latest version this step has finished processing",
         LATEST_PROCESSED_VERSION.clone(),
     );
+    registry.register(
+        "latest_transaction_timestamp",
+        "Latest transaction timestamp this step has finished processing",
+        LATEST_TRANSACTION_TIMESTAMP.clone(),
+    );
+    registry.register(
+        "num_transactions_processed_count",
+        "Number of transactions processed by this step",
+        NUM_TRANSACTIONS_PROCESSED_COUNT.clone(),
+    );
+    registry.register(
+        "processing_duration_in_secs",
+        "Duration in seconds this step has taken to process transactions",
+        PROCESSING_DURATION_IN_SECS.clone(),
+    );
+    registry.register(
+        "transaction_size",
+        "Size in bytes of transactions processed by this step",
+        TRANSACTION_SIZE.clone(),
+    );
+    registry.register(
+        "processing_error_count",
+        "Number of errors encountered by this step",
+        PROCESSING_ERROR_COUNT.clone(),
+    );
+
+    AutometricsSettings::builder()
+        .prometheus_client_registry(registry)
+        .init();
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -83,5 +112,9 @@ impl StepMetrics {
                 .get_or_create(&self.labels)
                 .set(size as i64);
         }
+    }
+
+    pub fn inc_procssing_error_count(&self) {
+        PROCESSING_ERROR_COUNT.get_or_create(&self.labels).inc();
     }
 }

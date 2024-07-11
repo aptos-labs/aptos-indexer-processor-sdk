@@ -1,4 +1,4 @@
-use crate::{metrics::transaction_context::TransactionContext, traits::NamedStep};
+use crate::{traits::NamedStep, types::transaction_context::TransactionContext};
 use kanal::AsyncReceiver;
 use std::marker::PhantomData;
 use tokio::task::JoinHandle;
