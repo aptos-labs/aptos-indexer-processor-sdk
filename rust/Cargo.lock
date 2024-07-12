@@ -1532,10 +1532,14 @@ name = "instrumented-channel"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "autometrics",
  "delegate",
+ "derive_builder",
  "futures",
  "kanal",
+ "once_cell",
  "prometheus",
+ "prometheus-client",
  "tokio",
 ]
 
@@ -2796,6 +2800,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hex",
+ "instrumented-channel",
  "jemallocator",
  "kanal",
  "lazy_static",
@@ -2836,6 +2841,7 @@ dependencies = [
  "autometrics",
  "backtrace",
  "clap",
+ "instrumented-channel",
  "sdk-metrics",
  "serde",
  "serde_yaml",

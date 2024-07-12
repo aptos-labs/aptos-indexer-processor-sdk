@@ -119,14 +119,13 @@ mock! {
 
 #[cfg(test)]
 mod tests {
-    use instrumented_channel::instrumented_bounded_channel;
-
     use super::*;
     use crate::{
         builder::ProcessorBuilder,
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
     };
+    use instrumented_channel::instrumented_bounded_channel;
     use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -6,7 +6,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
-use kanal::AsyncReceiver;
 use sdk_metrics::metrics::step_metrics::{StepMetricLabels, StepMetricsBuilder};
 use std::time::Instant;
 use tokio::task::JoinHandle;

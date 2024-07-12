@@ -6,7 +6,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
-use kanal::AsyncReceiver;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 

@@ -1,3 +1,6 @@
+pub mod channel_metrics;
+
+use channel_metrics::ChannelMetrics;
 use delegate::delegate;
 /**
 
@@ -21,15 +24,10 @@ async fn main() {
  **/
 use kanal::{AsyncReceiver, AsyncSender, ReceiveError, SendError};
 
-// Double __ on purpose
-const METRICS_PREFIX: &str = "aptos_procsdk_channel_";
-
 pub struct InstrumentedAsyncSender<T> {
     pub(crate) sender: AsyncSender<T>,
     // Metrics
-    pub(crate) sent_messages: prometheus::IntCounterVec,
-    pub(crate) send_duration: prometheus::HistogramVec,
-    pub(crate) failed_sends: prometheus::IntCounterVec,
+    pub(crate) channel_metrics: channel_metrics::ChannelMetrics,
 }
 
 impl<T> InstrumentedAsyncSender<T> {
@@ -49,35 +47,11 @@ impl<T> InstrumentedAsyncSender<T> {
     }
 
     pub fn new(sender: AsyncSender<T>, name: &str) -> Self {
-        let sent_messages = prometheus::register_int_counter_vec!(
-            // TODO: better to make them separate series, or use labels?
-            format!("{}_{}_sent_messages", METRICS_PREFIX, name),
-            "Number of messages sent",
-            &[],
-        )
-        .unwrap();
-
-        let send_duration = prometheus::register_histogram_vec!(
-            format!("{}_{}_message_send_await_duration_ms", METRICS_PREFIX, name),
-            "Time taken to complete awaiting a message send in milliseconds",
-            &[],
-            // TODO: better buckets?
-            vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0],
-        )
-        .unwrap();
-
-        let failed_sends = prometheus::register_int_counter_vec!(
-            format!("{}_{}_failed_message_sends", METRICS_PREFIX, name),
-            "Number of failed message sends",
-            &[],
-        )
-        .unwrap();
+        let channel_metrics = ChannelMetrics::new(name.to_string());
 
         Self {
             sender,
-            sent_messages,
-            send_duration,
-            failed_sends,
+            channel_metrics,
         }
     }
 
@@ -85,13 +59,17 @@ impl<T> InstrumentedAsyncSender<T> {
         let send_start = std::time::Instant::now();
         let res = self.sender.send(data).await;
         let send_duration = send_start.elapsed();
-        self.send_duration
-            .with_label_values(&[])
-            .observe(send_duration.as_millis() as f64);
-        self.sent_messages.with_label_values(&[]).inc();
+
         if res.is_err() {
-            self.failed_sends.with_label_values(&[]).inc();
+            self.channel_metrics
+                .log_send_duration(send_duration.as_secs_f64())
+                .inc_failed_sends_count();
+        } else {
+            self.channel_metrics
+                .log_send_duration(send_duration.as_secs_f64())
+                .inc_sent_messages_count();
         }
+
         res
     }
 }
@@ -100,9 +78,10 @@ impl<T> Clone for InstrumentedAsyncSender<T> {
     fn clone(&self) -> Self {
         Self {
             sender: self.sender.clone(),
-            sent_messages: self.sent_messages.clone(),
-            send_duration: self.send_duration.clone(),
-            failed_sends: self.failed_sends.clone(),
+            channel_metrics: ChannelMetrics::new(format!(
+                "{}_clone",
+                self.channel_metrics.labels.channel_name
+            )),
         }
     }
 }
@@ -110,9 +89,7 @@ impl<T> Clone for InstrumentedAsyncSender<T> {
 pub struct InstrumentedAsyncReceiver<T> {
     pub(crate) receiver: AsyncReceiver<T>,
     // Metrics
-    pub(crate) received_messages: prometheus::IntCounterVec,
-    pub(crate) receive_duration: prometheus::HistogramVec,
-    pub(crate) _failed_receives: prometheus::IntCounterVec,
+    pub(crate) channel_metrics: ChannelMetrics,
 }
 
 impl<T> InstrumentedAsyncReceiver<T> {
@@ -132,33 +109,10 @@ impl<T> InstrumentedAsyncReceiver<T> {
     }
 
     pub fn new(receiver: AsyncReceiver<T>, name: &str) -> Self {
-        // TODO: channel size
-        let received_messages = prometheus::register_int_counter_vec!(
-            format!("{}_{}_received_messages", METRICS_PREFIX, name),
-            "Number of messages received",
-            &[],
-        )
-        .unwrap();
-        let receive_duration = prometheus::register_histogram_vec!(
-            format!(
-                "{}_{}_message_receive_await_duration_ms",
-                METRICS_PREFIX, name
-            ),
-            "Time taken to complete awaiting a message receive in milliseconds",
-            &[],
-        )
-        .unwrap();
-        let _failed_receives = prometheus::register_int_counter_vec!(
-            format!("{}_{}_failed_message_receives", METRICS_PREFIX, name),
-            "Number of failed message receives",
-            &[],
-        )
-        .unwrap();
+        let channel_metrics = ChannelMetrics::new(name.to_string());
         Self {
             receiver,
-            received_messages,
-            receive_duration,
-            _failed_receives,
+            channel_metrics,
         }
     }
 
@@ -166,10 +120,17 @@ impl<T> InstrumentedAsyncReceiver<T> {
         let receive_start = std::time::Instant::now();
         let result = self.receiver.recv().await;
         let receive_duration = receive_start.elapsed();
-        self.receive_duration
-            .with_label_values(&[])
-            .observe(receive_duration.as_millis() as f64);
-        self.received_messages.with_label_values(&[]).inc();
+
+        if result.is_err() {
+            self.channel_metrics
+                .log_receive_duration(receive_duration.as_secs_f64())
+                .inc_failed_receives_count();
+        } else {
+            self.channel_metrics
+                .log_receive_duration(receive_duration.as_secs_f64())
+                .inc_received_messages_count();
+        }
+
         result
     }
 }
@@ -178,9 +139,10 @@ impl<T> Clone for InstrumentedAsyncReceiver<T> {
     fn clone(&self) -> Self {
         Self {
             receiver: self.receiver.clone(),
-            received_messages: self.received_messages.clone(),
-            receive_duration: self.receive_duration.clone(),
-            _failed_receives: self._failed_receives.clone(),
+            channel_metrics: ChannelMetrics::new(format!(
+                "{}_clone",
+                self.channel_metrics.labels.channel_name
+            )),
         }
     }
 }

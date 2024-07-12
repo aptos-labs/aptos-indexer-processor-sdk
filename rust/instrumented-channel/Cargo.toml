@@ -5,10 +5,14 @@ edition = "2021"
 
 [dependencies]
 async-trait = { workspace = true }
+autometrics = { workspace = true }
 delegate = { workspace = true }
+derive_builder = { workspace = true }
 futures = { workspace = true }
 kanal = { workspace = true }
+once_cell = { workspace = true }
 prometheus = { workspace = true }
+prometheus-client = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
