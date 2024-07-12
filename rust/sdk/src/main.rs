@@ -113,16 +113,16 @@ mod tests {
         async fn process(
             &mut self,
             item: TransactionContext<usize>,
-        ) -> TransactionContext<TestStruct> {
+        ) -> Option<TransactionContext<TestStruct>> {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
-            TransactionContext {
+            Some(TransactionContext {
                 data: processed,
                 start_version: item.start_version,
                 end_version: item.end_version,
                 start_transaction_timestamp: item.start_transaction_timestamp,
                 end_transaction_timestamp: item.end_transaction_timestamp,
                 total_size_in_bytes: item.total_size_in_bytes,
-            }
+            })
         }
     }
 

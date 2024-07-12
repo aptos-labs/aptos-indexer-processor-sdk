@@ -45,7 +45,10 @@ impl<Input: Send + 'static> Processable for PassThroughStep<Input> {
     type Output = Input;
     type RunType = AsyncRunType;
 
-    async fn process(&mut self, item: TransactionContext<Input>) -> TransactionContext<Input> {
-        item
+    async fn process(
+        &mut self,
+        item: TransactionContext<Input>,
+    ) -> Option<TransactionContext<Input>> {
+        Some(item)
     }
 }

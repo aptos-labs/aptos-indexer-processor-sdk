@@ -38,16 +38,12 @@ where
     type Output = Input;
     type RunType = PollableAsyncRunType;
 
-    async fn process(&mut self, item: TransactionContext<Input>) -> TransactionContext<Input> {
+    async fn process(
+        &mut self,
+        item: TransactionContext<Input>,
+    ) -> Option<TransactionContext<Input>> {
         self.internal_buffer.push(item);
-        TransactionContext {
-            data: Vec::new(),
-            start_version: 0,
-            end_version: 0,
-            start_transaction_timestamp: None,
-            end_transaction_timestamp: None,
-            total_size_in_bytes: 0,
-        } // No immediate output
+        None // No immediate output
     }
 }
 

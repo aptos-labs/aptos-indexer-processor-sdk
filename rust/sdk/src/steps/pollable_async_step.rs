@@ -142,12 +142,14 @@ where
                         match input_with_context_res {
                             Ok(input_with_context) => {
                                 let output_with_context = step.process(input_with_context).await;
-                                let output_send_res = output_sender.send(output_with_context).await;
+                                if let Some(output_with_context) = output_with_context {
+                                    let output_send_res = output_sender.send(output_with_context).await;
 
-                                match output_send_res {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        panic!("Failed to send output for {}: {:?}", step_name, e);
+                                    match output_send_res {
+                                        Ok(_) => {},
+                                        Err(e) => {
+                                            panic!("Failed to send output for {}: {:?}", step_name, e);
+                                        }
                                     }
                                 }
                             },

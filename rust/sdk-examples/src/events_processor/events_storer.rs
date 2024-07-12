@@ -66,7 +66,7 @@ impl Processable for EventsStorer {
     async fn process(
         &mut self,
         events: TransactionContext<EventModel>,
-    ) -> TransactionContext<EventModel> {
+    ) -> Option<TransactionContext<EventModel>> {
         let per_table_chunk_sizes: AHashMap<String, usize> = AHashMap::new();
         let execute_res = execute_in_chunks(
             self.conn_pool.clone(),
@@ -83,7 +83,7 @@ impl Processable for EventsStorer {
                 println!("Failed to store events: {:?}", e);
             },
         }
-        events
+        Some(events)
     }
 }
 

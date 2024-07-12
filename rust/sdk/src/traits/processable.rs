@@ -25,5 +25,5 @@ where
     async fn process(
         &mut self,
         items: TransactionContext<Self::Input>,
-    ) -> TransactionContext<Self::Output>;
+    ) -> Option<TransactionContext<Self::Output>>;
 }

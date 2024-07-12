@@ -38,8 +38,11 @@ where
     type Output = Transaction;
     type RunType = PollableAsyncRunType;
 
-    async fn process(&mut self, _item: TransactionContext<()>) -> TransactionContext<Transaction> {
-        TransactionContext::default()
+    async fn process(
+        &mut self,
+        _item: TransactionContext<()>,
+    ) -> Option<TransactionContext<Transaction>> {
+        None
     }
 }
 
@@ -91,7 +94,7 @@ mock! {
 
         async fn init(&mut self);
 
-        async fn process(&mut self, _item: TransactionContext<()> ) -> TransactionContext<Transaction>;
+        async fn process(&mut self, _item: TransactionContext<()> ) -> Option<TransactionContext<Transaction>>;
     }
 
     #[async_trait]
@@ -138,7 +141,7 @@ mod tests {
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
             Some(vec![TransactionContext {
-                data: vec![],
+                data: vec![Transaction::default()],
                 start_version: 0,
                 end_version: 100,
                 start_transaction_timestamp: None,
