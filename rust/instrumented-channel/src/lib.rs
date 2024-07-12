@@ -96,6 +96,17 @@ impl<T> InstrumentedAsyncSender<T> {
     }
 }
 
+impl<T> Clone for InstrumentedAsyncSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            sent_messages: self.sent_messages.clone(),
+            send_duration: self.send_duration.clone(),
+            failed_sends: self.failed_sends.clone(),
+        }
+    }
+}
+
 pub struct InstrumentedAsyncReceiver<T> {
     pub(crate) receiver: AsyncReceiver<T>,
     // Metrics
@@ -160,6 +171,17 @@ impl<T> InstrumentedAsyncReceiver<T> {
             .observe(receive_duration.as_millis() as f64);
         self.received_messages.with_label_values(&[]).inc();
         result
+    }
+}
+
+impl<T> Clone for InstrumentedAsyncReceiver<T> {
+    fn clone(&self) -> Self {
+        Self {
+            receiver: self.receiver.clone(),
+            received_messages: self.received_messages.clone(),
+            receive_duration: self.receive_duration.clone(),
+            _failed_receives: self._failed_receives.clone(),
+        }
     }
 }
 

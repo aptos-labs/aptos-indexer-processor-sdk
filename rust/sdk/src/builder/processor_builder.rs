@@ -4,6 +4,9 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use anyhow::Result;
+use instrumented_channel::{
+    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+};
 use petgraph::{
     dot::Config,
     graph::{DiGraph, EdgeReference, NodeIndex},
@@ -42,9 +45,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -52,7 +55,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            });
+            },
+        );
 
         *self.node_counter.borrow_mut() += 1;
         self.current_node_index = Some(new_node_index);
@@ -68,9 +72,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -78,7 +82,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            });
+            },
+        );
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
@@ -188,7 +193,7 @@ where
     Step: RunnableStep<Input, Output>,
 {
     RunnableStepWithInputReceiver(RunnableStepWithInputReceiver<Input, Output, Step>),
-    DanglingOutputReceiver(kanal::AsyncReceiver<TransactionContext<Output>>),
+    DanglingOutputReceiver(InstrumentedAsyncReceiver<TransactionContext<Output>>),
 }
 
 pub struct ProcessorBuilder<Input, Output, Step>
@@ -209,7 +214,7 @@ where
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
         // Assumes that the first step does not actually accept any input
-        let (_, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = instrumented_bounded_channel("input", 1);
         Self {
             current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
                 step.add_input_receiver(input_receiver),
@@ -229,7 +234,7 @@ where
 
     pub fn new_with_fanin_step_with_receivers(
         fanout_step_receivers_and_graphs: Vec<(
-            kanal::AsyncReceiver<TransactionContext<Input>>,
+            InstrumentedAsyncReceiver<TransactionContext<Input>>,
             GraphBuilder,
         )>,
         next_step: Step,
@@ -240,7 +245,9 @@ where
         Step: RunnableStep<Input, Output>,
     {
         // Channel connects the output of fanout steps to the input of the next step
-        let (connector_sender, connector_receiver) = kanal::bounded_async(channel_size);
+        // TODO: Update channel name
+        let (connector_sender, connector_receiver) =
+            instrumented_bounded_channel("fanout", channel_size);
 
         // Spawn the next step here so that we can connect the edges of the fan in steps to it
         let next_step = next_step.add_input_receiver(connector_receiver);
@@ -348,7 +355,9 @@ where
         let mut output_senders = Vec::new();
         let mut output_receivers = Vec::new();
         for _ in 0..num_outputs {
-            let (output_sender, output_receiver) = kanal::bounded_async(0);
+            // TODO: Change channel name
+            let (output_sender, output_receiver) =
+                instrumented_bounded_channel("fanout channels", 0);
             output_senders.push(output_sender);
             output_receivers.push(output_receiver);
         }
@@ -390,7 +399,7 @@ where
     //     channel_size: usize,
     // ) -> (
     //     ProcessorBuilder<Output, NextOutput, NextStep>,
-    //     kanal::AsyncReceiver<Vec<NextOutput>>,
+    //     InstrumentedAsyncReceiver<Vec<NextOutput>>,
     // )
     // where
     //     NextOutput: Send + 'static,
@@ -465,7 +474,7 @@ where
         channel_size: usize,
     ) -> (
         ProcessorBuilder<Input, Output, Step>,
-        kanal::AsyncReceiver<TransactionContext<Output>>,
+        InstrumentedAsyncReceiver<TransactionContext<Output>>,
     ) {
         match self.current_step.take() {
             None => panic!("Can not end the builder without a starting step"),

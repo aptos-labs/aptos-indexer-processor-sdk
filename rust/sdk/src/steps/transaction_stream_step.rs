@@ -119,6 +119,8 @@ mock! {
 
 #[cfg(test)]
 mod tests {
+    use instrumented_channel::instrumented_bounded_channel;
+
     use super::*;
     use crate::{
         builder::ProcessorBuilder,
@@ -129,7 +131,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_transaction_stream() {
-        let (_, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here

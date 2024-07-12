@@ -5,6 +5,7 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
+use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
 use kanal::AsyncReceiver;
 use std::time::Duration;
 use tokio::task::JoinHandle;
@@ -73,13 +74,14 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<TransactionContext<PollableStep::Input>>>,
+        input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<PollableStep::Input>>>,
         output_channel_size: usize,
     ) -> (
-        AsyncReceiver<TransactionContext<PollableStep::Output>>,
+        InstrumentedAsyncReceiver<TransactionContext<PollableStep::Output>>,
         JoinHandle<()>,
     ) {
-        let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
+        let (output_sender, output_receiver) =
+            instrumented_bounded_channel("channel_name", output_channel_size);
 
         let mut step = self.step;
         let step_name = step.name();

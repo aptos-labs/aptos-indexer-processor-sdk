@@ -75,6 +75,7 @@ async fn run_processor() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use instrumented_channel::instrumented_bounded_channel;
     use sdk::{
         builder::ProcessorBuilder,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
@@ -127,7 +128,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_connect_two_steps() {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,
@@ -202,7 +203,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_fanin() {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (input_sender, input_receiver) = instrumented_bounded_channel("channel_name", 1);
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,

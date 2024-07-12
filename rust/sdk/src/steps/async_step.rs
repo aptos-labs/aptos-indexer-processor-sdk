@@ -5,6 +5,7 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
+use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
 use kanal::AsyncReceiver;
 use sdk_metrics::metrics::step_metrics::{StepMetricLabels, StepMetricsBuilder};
 use std::time::Instant;
@@ -66,13 +67,15 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<TransactionContext<Step::Input>>>,
+        input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Step::Input>>>,
         output_channel_size: usize,
     ) -> (
-        AsyncReceiver<TransactionContext<Step::Output>>,
+        InstrumentedAsyncReceiver<TransactionContext<Step::Output>>,
         JoinHandle<()>,
     ) {
-        let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
+        // TODO: Update channel name
+        let (output_sender, output_receiver) =
+            instrumented_bounded_channel("channel_name", output_channel_size);
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
         let mut step = self.step;

@@ -1,5 +1,5 @@
 use crate::{traits::NamedStep, types::transaction_context::TransactionContext};
-use kanal::AsyncReceiver;
+use instrumented_channel::InstrumentedAsyncReceiver;
 use std::marker::PhantomData;
 use tokio::task::JoinHandle;
 
@@ -12,13 +12,16 @@ where
     /// Runs the step, forever, with the given input receiver and returns the output receiver and the join handle.
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<TransactionContext<Input>>>,
+        input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Input>>>,
         output_channel_size: usize,
-    ) -> (AsyncReceiver<TransactionContext<Output>>, JoinHandle<()>);
+    ) -> (
+        InstrumentedAsyncReceiver<TransactionContext<Output>>,
+        JoinHandle<()>,
+    );
 
     fn add_input_receiver(
         self,
-        input_receiver: AsyncReceiver<TransactionContext<Input>>,
+        input_receiver: InstrumentedAsyncReceiver<TransactionContext<Input>>,
     ) -> RunnableStepWithInputReceiver<Input, Output, Self> {
         RunnableStepWithInputReceiver::new(input_receiver, self)
     }
@@ -34,7 +37,7 @@ where
     Output: Send + 'static,
     Step: RunnableStep<Input, Output>,
 {
-    pub input_receiver: AsyncReceiver<TransactionContext<Input>>,
+    pub input_receiver: InstrumentedAsyncReceiver<TransactionContext<Input>>,
     pub step: Step,
     _output: PhantomData<Output>,
 }
@@ -45,7 +48,10 @@ where
     Output: Send + 'static,
     Step: RunnableStep<Input, Output>,
 {
-    pub fn new(input_receiver: AsyncReceiver<TransactionContext<Input>>, step: Step) -> Self {
+    pub fn new(
+        input_receiver: InstrumentedAsyncReceiver<TransactionContext<Input>>,
+        step: Step,
+    ) -> Self {
         Self {
             input_receiver,
             step,
@@ -81,9 +87,12 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<TransactionContext<Input>>>,
+        input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Input>>>,
         channel_size: usize,
-    ) -> (AsyncReceiver<TransactionContext<Output>>, JoinHandle<()>) {
+    ) -> (
+        InstrumentedAsyncReceiver<TransactionContext<Output>>,
+        JoinHandle<()>,
+    ) {
         if input_receiver.is_some() {
             panic!("Input receiver already set for {:?}", self.name());
         }
@@ -92,7 +101,7 @@ where
 
     fn add_input_receiver(
         self,
-        _input_receiver: AsyncReceiver<TransactionContext<Input>>,
+        _input_receiver: InstrumentedAsyncReceiver<TransactionContext<Input>>,
     ) -> RunnableStepWithInputReceiver<Input, Output, Self> {
         panic!("Input receiver already set for {:?}", self.name());
     }
