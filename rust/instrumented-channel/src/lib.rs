@@ -78,10 +78,7 @@ impl<T> Clone for InstrumentedAsyncSender<T> {
     fn clone(&self) -> Self {
         Self {
             sender: self.sender.clone(),
-            channel_metrics: ChannelMetrics::new(format!(
-                "{}_clone",
-                self.channel_metrics.labels.channel_name
-            )),
+            channel_metrics: self.channel_metrics.clone(),
         }
     }
 }
@@ -139,10 +136,7 @@ impl<T> Clone for InstrumentedAsyncReceiver<T> {
     fn clone(&self) -> Self {
         Self {
             receiver: self.receiver.clone(),
-            channel_metrics: ChannelMetrics::new(format!(
-                "{}_clone",
-                self.channel_metrics.labels.channel_name
-            )),
+            channel_metrics: self.channel_metrics.clone(),
         }
     }
 }

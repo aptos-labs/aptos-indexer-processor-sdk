@@ -79,7 +79,7 @@ pub static FAILED_RECEIVES_COUNT: Lazy<Family<ChannelMetricLabels, Counter>> =
 pub static CHANNEL_SIZE: Lazy<Family<ChannelMetricLabels, Gauge>> =
     Lazy::new(Family::<ChannelMetricLabels, Gauge>::default);
 
-#[derive(Builder)]
+#[derive(Builder, Clone)]
 pub struct ChannelMetrics {
     pub labels: ChannelMetricLabels,
 }

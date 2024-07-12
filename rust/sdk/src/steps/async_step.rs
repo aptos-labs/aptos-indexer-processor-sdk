@@ -72,12 +72,13 @@ where
         InstrumentedAsyncReceiver<TransactionContext<Step::Output>>,
         JoinHandle<()>,
     ) {
-        // TODO: Update channel name
-        let (output_sender, output_receiver) =
-            instrumented_bounded_channel("channel_name", output_channel_size);
+        let mut step = self.step;
+        let step_name = step.name();
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
-        let mut step = self.step;
+        let (output_sender, output_receiver) =
+            instrumented_bounded_channel(&format!("{}: Output", step_name), output_channel_size);
+
         let handle = tokio::spawn(async move {
             loop {
                 let input_with_context = input_receiver

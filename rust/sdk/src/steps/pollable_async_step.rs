@@ -79,12 +79,12 @@ where
         InstrumentedAsyncReceiver<TransactionContext<PollableStep::Output>>,
         JoinHandle<()>,
     ) {
-        let (output_sender, output_receiver) =
-            instrumented_bounded_channel("channel_name", output_channel_size);
-
         let mut step = self.step;
         let step_name = step.name();
         let input_receiver = input_receiver.expect("Input receiver must be set");
+
+        let (output_sender, output_receiver) =
+            instrumented_bounded_channel(&format!("{} Output", step_name), output_channel_size);
 
         let handle = tokio::spawn(async move {
             let poll_duration = step.poll_interval();

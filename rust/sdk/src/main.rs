@@ -203,7 +203,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_fanin() {
-        let (input_sender, input_receiver) = instrumented_bounded_channel("channel_name", 1);
+        let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,

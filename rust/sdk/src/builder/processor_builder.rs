@@ -43,9 +43,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -53,7 +53,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            });
+            },
+        );
 
         *self.node_counter.borrow_mut() += 1;
         self.current_node_index = Some(new_node_index);
@@ -69,9 +70,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -79,7 +80,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            });
+            },
+        );
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
@@ -241,9 +243,8 @@ where
         Step: RunnableStep<Input, Output>,
     {
         // Channel connects the output of fanout steps to the input of the next step
-        // TODO: Update channel name
         let (connector_sender, connector_receiver) =
-            instrumented_bounded_channel("fanout", channel_size);
+            instrumented_bounded_channel(&format!("{}: Fanin", next_step.name()), channel_size);
 
         // Spawn the next step here so that we can connect the edges of the fan in steps to it
         let next_step = next_step.add_input_receiver(connector_receiver);
@@ -332,28 +333,32 @@ where
     where
         Output: Clone + Send + 'static,
     {
-        let previous_output_receiver = match self
+        let (previous_output_receiver, previous_step_name) = match self
             .current_step
             .take()
             .expect("Can not fan out without a prior step")
         {
             CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
+                let step_name = current_step.step.name();
                 self.graph.add_and_connect_step(&current_step);
                 let (output_receiver, join_handle) = current_step.spawn(None, num_outputs);
                 // TODO: add to graph?
                 self.graph
                     .set_join_handle(self.graph.current_node_index.unwrap().index(), join_handle);
-                output_receiver
+                (output_receiver, step_name)
             },
-            CurrentStepHolder::DanglingOutputReceiver(output_receiver) => output_receiver,
+            CurrentStepHolder::DanglingOutputReceiver(_) => {
+                panic!("Cannot fan out without a prior step")
+            },
         };
 
         let mut output_senders = Vec::new();
         let mut output_receivers = Vec::new();
-        for _ in 0..num_outputs {
-            // TODO: Change channel name
-            let (output_sender, output_receiver) =
-                instrumented_bounded_channel("fanout channels", 0);
+        for idx in 0..num_outputs {
+            let (output_sender, output_receiver) = instrumented_bounded_channel(
+                &format!("{}: Fanout: {}", previous_step_name, idx),
+                0,
+            );
             output_senders.push(output_sender);
             output_receivers.push(output_receiver);
         }
