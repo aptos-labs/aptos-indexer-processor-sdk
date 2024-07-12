@@ -18,6 +18,7 @@ autometrics = { workspace = true }
 backtrace = { workspace = true }
 clap = { workspace = true }
 instrumented-channel = { workspace = true }
+prometheus-client = { workspace = true }
 sdk-metrics = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }

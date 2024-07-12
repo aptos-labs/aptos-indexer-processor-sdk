@@ -1,4 +1,3 @@
-use autometrics::settings::AutometricsSettings;
 use derive_builder::Builder;
 use once_cell::sync::Lazy;
 use prometheus_client::{
@@ -10,53 +9,48 @@ use std::sync::atomic::AtomicU64;
 
 pub const METRICS_PREFIX: &str = "aptos_procsdk_channel_";
 
-pub fn init_channel_metrics_registry() {
-    let mut registry = <Registry>::with_prefix(METRICS_PREFIX);
+pub fn init_channel_metrics_registry(registry: &mut Registry) {
     registry.register(
-        "sent_messages_count",
+        format!("{}_{}", METRICS_PREFIX, "sent_messages_count"),
         "Number of messages sent",
         SENT_MESSAGES_COUNT.clone(),
     );
 
     registry.register(
-        "received_messages_count",
+        format!("{}_{}", METRICS_PREFIX, "received_messages_count"),
         "Number of messages received",
         RECEIVED_MESSAGES_COUNT.clone(),
     );
 
     registry.register(
-        "send_duration",
-        "Time taken to complete sending a message in seconds",
+        format!("{}_{}", METRICS_PREFIX, "send_duration"),
+        "Duration in seconds to send a message",
         SEND_DURATION.clone(),
     );
 
     registry.register(
-        "receive_duration",
-        "Time taken to complete receiving a message in seconds",
+        format!("{}_{}", METRICS_PREFIX, "receive_duration"),
+        "Duration in seconds to receive a message",
         RECEIVE_DURATION.clone(),
     );
 
     registry.register(
-        "failed_sends_count",
-        "Number of failed message sends",
+        format!("{}_{}", METRICS_PREFIX, "failed_sends_count"),
+        "Number of failed sends",
         FAILED_SENDS_COUNT.clone(),
     );
 
     registry.register(
-        "failed_receives_count",
-        "Number of failed message receives",
+        format!("{}_{}", METRICS_PREFIX, "failed_receives_count"),
+        "Number of failed receives",
         FAILED_RECEIVES_COUNT.clone(),
     );
 
     registry.register(
-        "channel_size",
-        "Number of messages in the channel",
+        format!("{}_{}", METRICS_PREFIX, "channel_size"),
+        "Size of the channel",
         CHANNEL_SIZE.clone(),
     );
-
-    AutometricsSettings::builder()
-        .prometheus_client_registry(registry)
-        .init();
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

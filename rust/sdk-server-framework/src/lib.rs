@@ -3,9 +3,11 @@
 use anyhow::{Context, Result};
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
+use autometrics::settings::AutometricsSettings;
 use backtrace::Backtrace;
 use clap::Parser;
 use instrumented_channel::channel_metrics::init_channel_metrics_registry;
+use prometheus_client::registry::Registry;
 use sdk_metrics::metrics::step_metrics::init_step_metrics_registry;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(target_os = "linux")]
@@ -153,8 +155,13 @@ async fn register_probes_and_metrics_handler(port: u16) {
     let readiness = warp::path("readiness")
         .map(move || warp::reply::with_status("ready", warp::http::StatusCode::OK));
 
-    init_step_metrics_registry();
-    // init_channel_metrics_registry();
+    let mut registry = <Registry>::default();
+    init_step_metrics_registry(&mut registry);
+    init_channel_metrics_registry(&mut registry);
+    AutometricsSettings::builder()
+        .prometheus_client_registry(registry)
+        .init();
+
     let metrics_endpoint =
         warp::path("metrics").map(
             || match autometrics::prometheus_exporter::encode_to_string() {

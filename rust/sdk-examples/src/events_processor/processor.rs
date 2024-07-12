@@ -24,7 +24,7 @@ impl EventsProcessor {
     }
 
     pub async fn run_processor(self) -> Result<()> {
-        let (_, input_receiver) = instrumented_bounded_channel("input", 1);
+        let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let transaction_stream = TransactionStreamStep::new(self.transaction_stream_config).await?;
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
