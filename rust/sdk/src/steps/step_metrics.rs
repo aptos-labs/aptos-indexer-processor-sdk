@@ -35,9 +35,9 @@ pub fn init_step_metrics_registry(registry: &mut Registry) {
     );
 
     registry.register(
-        format!("{}_{}", METRICS_PREFIX, "transaction_size"),
+        format!("{}_{}", METRICS_PREFIX, "processed_size_in_bytes"),
         "Transaction size",
-        TRANSACTION_SIZE.clone(),
+        PROCESSED_SIZE_IN_BYTES.clone(),
     );
 
     registry.register(
@@ -64,8 +64,8 @@ pub static NUM_TRANSACTIONS_PROCESSED_COUNT: Lazy<Family<StepMetricLabels, Count
 pub static PROCESSING_DURATION_IN_SECS: Lazy<Family<StepMetricLabels, Gauge<f64, AtomicU64>>> =
     Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
 
-pub static TRANSACTION_SIZE: Lazy<Family<StepMetricLabels, Gauge>> =
-    Lazy::new(Family::<StepMetricLabels, Gauge>::default);
+pub static PROCESSED_SIZE_IN_BYTES: Lazy<Family<StepMetricLabels, Counter>> =
+    Lazy::new(Family::<StepMetricLabels, Counter>::default);
 
 pub static PROCESSING_ERROR_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
     Lazy::new(Family::<StepMetricLabels, Counter>::default);
@@ -81,7 +81,7 @@ pub struct StepMetrics {
     #[builder(setter(strip_option))]
     processing_duration_in_secs: Option<f64>,
     #[builder(setter(strip_option))]
-    transaction_size: Option<u64>,
+    processed_size_in_bytes: Option<u64>,
 }
 
 impl StepMetrics {
@@ -106,10 +106,10 @@ impl StepMetrics {
                 .get_or_create(&self.labels)
                 .set(duration);
         }
-        if let Some(size) = self.transaction_size {
-            TRANSACTION_SIZE
+        if let Some(size_in_bytes) = self.processed_size_in_bytes {
+            PROCESSED_SIZE_IN_BYTES
                 .get_or_create(&self.labels)
-                .set(size as i64);
+                .inc_by(size_in_bytes);
         }
     }
 

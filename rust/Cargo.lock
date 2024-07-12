@@ -2771,7 +2771,6 @@ dependencies = [
  "petgraph",
  "prometheus",
  "prometheus-client",
- "sdk-metrics",
  "serde",
  "thiserror",
  "tokio",
@@ -2822,16 +2821,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdk-metrics"
-version = "0.1.0"
-dependencies = [
- "autometrics",
- "derive_builder",
- "once_cell",
- "prometheus-client",
-]
-
-[[package]]
 name = "sdk-server-framework"
 version = "1.0.0"
 dependencies = [
@@ -2843,7 +2832,7 @@ dependencies = [
  "clap",
  "instrumented-channel",
  "prometheus-client",
- "sdk-metrics",
+ "sdk",
  "serde",
  "serde_yaml",
  "tempfile",

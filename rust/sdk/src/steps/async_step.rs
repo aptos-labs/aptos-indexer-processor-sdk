@@ -1,3 +1,4 @@
+use super::step_metrics::{StepMetricLabels, StepMetricsBuilder};
 use crate::{
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
@@ -6,7 +7,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
-use sdk_metrics::metrics::step_metrics::{StepMetricLabels, StepMetricsBuilder};
 use std::time::Instant;
 use tokio::task::JoinHandle;
 
@@ -96,7 +96,7 @@ where
                     )
                     .num_transactions_processed_count(output_with_context.get_num_transactions())
                     .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
-                    .transaction_size(output_with_context.total_size_in_bytes)
+                    .processed_size_in_bytes(output_with_context.total_size_in_bytes)
                     .build()
                     .unwrap()
                     .log_metrics();

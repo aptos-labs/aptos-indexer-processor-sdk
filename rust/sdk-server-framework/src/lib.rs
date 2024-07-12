@@ -8,7 +8,7 @@ use backtrace::Backtrace;
 use clap::Parser;
 use instrumented_channel::channel_metrics::init_channel_metrics_registry;
 use prometheus_client::registry::Registry;
-use sdk_metrics::metrics::step_metrics::init_step_metrics_registry;
+use sdk::steps::step_metrics::init_step_metrics_registry;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(target_os = "linux")]
 use std::convert::Infallible;

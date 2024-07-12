@@ -18,7 +18,6 @@ once_cell = { workspace = true }
 petgraph = { workspace = true }
 prometheus = { workspace = true }
 prometheus-client = { workspace = true }
-sdk-metrics = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
