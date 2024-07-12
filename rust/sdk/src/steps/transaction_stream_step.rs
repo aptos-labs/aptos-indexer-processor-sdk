@@ -63,8 +63,10 @@ where
                 Some(vec![transactions_with_context])
             },
             Err(e) => {
-                println!("Error getting transactions: {:?}", e);
-                None
+                panic!(
+                    "Error getting transactions in TransactionStreamStep: {:?}",
+                    e
+                );
             },
         }
     }
@@ -72,7 +74,7 @@ where
 
 impl NamedStep for TransactionStreamStep {
     fn name(&self) -> String {
-        "TransactionStream".to_string()
+        "TransactionStreamStep".to_string()
     }
 }
 

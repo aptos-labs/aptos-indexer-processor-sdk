@@ -138,10 +138,23 @@ where
                         };
                         last_poll = tokio::time::Instant::now();
                     }
-                    input_with_context = input_receiver.recv() => {
-                        let input_with_context = input_with_context.unwrap_or_else(|_| panic!("Failed to receive input for {}", step_name));
-                        let output_with_context = step.process(input_with_context).await;
-                        output_sender.send(output_with_context).await.expect("Failed to send output");
+                    input_with_context_res = input_receiver.recv() => {
+                        match input_with_context_res {
+                            Ok(input_with_context) => {
+                                let output_with_context = step.process(input_with_context).await;
+                                let output_send_res = output_sender.send(output_with_context).await;
+
+                                match output_send_res {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        panic!("Failed to send output for {}: {:?}", step_name, e);
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                panic!("Failed to receive input for {}: {:?}", step_name, e);
+                            }
+                        }
                     }
                 }
             }
