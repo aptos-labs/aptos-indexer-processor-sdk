@@ -133,7 +133,12 @@ where
                     last_poll = tokio::time::Instant::now();
                 }
 
-                let time_to_next_poll = poll_duration - last_poll.elapsed();
+                let elapsed = last_poll.elapsed();
+                let time_to_next_poll = if elapsed >= poll_duration {
+                    Duration::from_secs(0)
+                } else {
+                    poll_duration - elapsed
+                };
 
                 tokio::select! {
                     _ = tokio::time::sleep(time_to_next_poll) => {

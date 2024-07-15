@@ -137,25 +137,27 @@ pub static POLLING_ERROR_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
 pub struct StepMetrics {
     pub labels: StepMetricLabels,
     // AsyncStep metrics
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     latest_processed_version: Option<u64>,
+    #[builder(default)]
     latest_transaction_timestamp: Option<f64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     num_transactions_processed_count: Option<u64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     processing_duration_in_secs: Option<f64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     processed_size_in_bytes: Option<u64>,
 
     // PollableAsyncStep metrics
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     latest_polled_version: Option<u64>,
+    #[builder(default)]
     latest_polled_transaction_timestamp: Option<f64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     num_polled_transactions_count: Option<u64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     polling_duration_in_secs: Option<f64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     polled_size_in_bytes: Option<u64>,
 }
 
