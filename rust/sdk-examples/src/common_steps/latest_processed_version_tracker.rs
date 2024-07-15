@@ -23,6 +23,7 @@ where
     T: Send + 'static,
 {
     conn_pool: ArcDbPool,
+    processor_name: String,
     // Next version to process that we expect.
     next_version: u64,
     // Number of batches that have been processed out of order.
@@ -38,7 +39,11 @@ where
     Self: Sized + Send + 'static,
     T: Send + 'static,
 {
-    pub async fn new(db_config: DbConfig, starting_version: u64) -> Result<Self> {
+    pub async fn new(
+        db_config: DbConfig,
+        starting_version: u64,
+        processor_name: String,
+    ) -> Result<Self> {
         let conn_pool = new_db_pool(
             &db_config.postgres_connection_string,
             Some(db_config.db_pool_size),
@@ -47,6 +52,7 @@ where
         .context("Failed to create connection pool")?;
         Ok(Self {
             conn_pool,
+            processor_name,
             next_version: starting_version,
             num_gaps: 0,
             last_success_batch: None,
@@ -132,7 +138,7 @@ where
                 .map(|t| parse_timestamp(t, last_success_batch.end_version as i64))
                 .map(|t| t.naive_utc());
             let status = ProcessorStatus {
-                processor: self.name().to_string(),
+                processor: self.processor_name.clone(),
                 last_success_version: last_success_batch.end_version as i64,
                 last_transaction_timestamp: end_timestamp,
             };
