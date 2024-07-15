@@ -43,9 +43,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map.borrow_mut().insert(
-            current_node_counter,
-            GraphNode {
+        self.node_map
+            .borrow_mut()
+            .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -53,8 +53,7 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            },
-        );
+            });
 
         *self.node_counter.borrow_mut() += 1;
         self.current_node_index = Some(new_node_index);
@@ -70,9 +69,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map.borrow_mut().insert(
-            current_node_counter,
-            GraphNode {
+        self.node_map
+            .borrow_mut()
+            .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -80,8 +79,7 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            },
-        );
+            });
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
