@@ -1,4 +1,4 @@
-use super::events_models::EventModel;
+use crate::db::models::events_models::EventModel;
 use aptos_indexer_processor_sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
