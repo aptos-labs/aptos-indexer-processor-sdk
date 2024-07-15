@@ -11,6 +11,7 @@ use aptos_indexer_transaction_stream::{
 use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
+use std::time::Duration;
 
 pub struct TransactionStreamStep
 where
@@ -51,6 +52,10 @@ impl PollableAsyncStep for TransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
+    fn poll_interval(&self) -> std::time::Duration {
+        Duration::from_secs(0)
+    }
+
     async fn poll(&mut self) -> Option<Vec<TransactionContext<Transaction>>> {
         let txn_pb_response_res = self.transaction_stream.get_next_transaction_batch().await;
         match txn_pb_response_res {
@@ -102,6 +107,8 @@ mock! {
     where
         Self: Sized + Send + 'static,
     {
+        fn poll_interval(&self) -> std::time::Duration;
+
         // async fn poll(&mut self) -> Option<Vec<TransactionsPBResponse>> {
         //     // Testing framework can provide mocked transactions here
         //     Some(vec![TransactionsPBResponse {
@@ -149,6 +156,9 @@ mod tests {
                 total_size_in_bytes: 10,
             }])
         });
+        mock_transaction_stream
+            .expect_poll_interval()
+            .returning(|| Duration::from_secs(0));
         mock_transaction_stream.expect_init().returning(|| {
             // Do nothing
         });

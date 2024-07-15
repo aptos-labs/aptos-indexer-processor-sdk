@@ -1,4 +1,5 @@
 use crate::{
+    steps::step_metrics::{StepMetricLabels, StepMetricsBuilder},
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
     },
@@ -6,7 +7,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 
 #[async_trait]
@@ -15,9 +16,7 @@ where
     Self: Processable + NamedStep + Send + Sized + 'static,
 {
     /// Returns the duration between poll attempts.
-    fn poll_interval(&self) -> Option<Duration> {
-        None
-    }
+    fn poll_interval(&self) -> Duration;
 
     /// Polls the internal state and returns a batch of output items if available.
     async fn poll(&mut self) -> Option<Vec<TransactionContext<Self::Output>>>;
@@ -95,45 +94,78 @@ where
 
             while step.should_continue_polling().await {
                 // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
-                match poll_duration {
-                    Some(poll_duration) => {
-                        if last_poll.elapsed() >= poll_duration {
-                            let result = step.poll().await;
-                            if let Some(outputs) = result {
-                                for output in outputs {
-                                    output_sender
-                                        .send(output)
-                                        .await
-                                        .expect("Failed to send output");
-                                }
-                            };
-                            last_poll = tokio::time::Instant::now();
+                if last_poll.elapsed() >= poll_duration {
+                    let polling_duration_for_logging = Instant::now();
+                    let result = step.poll().await;
+                    StepMetricsBuilder::default()
+                        .labels(StepMetricLabels {
+                            step_name: step.name(),
+                        })
+                        .polling_duration_in_secs(
+                            polling_duration_for_logging.elapsed().as_secs_f64(),
+                        )
+                        .build()
+                        .unwrap()
+                        .log_metrics();
+                    if let Some(outputs_with_context) = result {
+                        for output_with_context in outputs_with_context {
+                            StepMetricsBuilder::default()
+                                .labels(StepMetricLabels {
+                                    step_name: step.name(),
+                                })
+                                .latest_polled_version(output_with_context.end_version)
+                                .latest_polled_transaction_timestamp(
+                                    output_with_context.get_start_transaction_timestamp_unix(),
+                                )
+                                .num_polled_transactions_count(
+                                    output_with_context.get_num_transactions(),
+                                )
+                                .polled_size_in_bytes(output_with_context.total_size_in_bytes)
+                                .build()
+                                .unwrap()
+                                .log_metrics();
+                            output_sender
+                                .send(output_with_context)
+                                .await
+                                .expect("Failed to send output");
                         }
-                    },
-                    None => {
-                        let result = step.poll().await;
-                        if let Some(outputs) = result {
-                            for output in outputs {
-                                output_sender
-                                    .send(output)
-                                    .await
-                                    .expect("Failed to send output");
-                            }
-                        };
-                    },
+                    };
+                    last_poll = tokio::time::Instant::now();
                 }
 
-                let time_to_next_poll = match poll_duration {
-                    Some(poll_duration) => poll_duration - last_poll.elapsed(),
-                    None => Duration::from_secs(0),
-                };
+                let time_to_next_poll = poll_duration - last_poll.elapsed();
 
                 tokio::select! {
                     _ = tokio::time::sleep(time_to_next_poll) => {
+                        let polling_duration = Instant::now();
                         let result = step.poll().await;
-                        if let Some(outputs) = result {
-                            for output in outputs {
-                                output_sender.send(output).await.expect("Failed to send output");
+                        StepMetricsBuilder::default()
+                            .labels(StepMetricLabels {
+                                step_name: step.name(),
+                            })
+                            .polling_duration_in_secs(polling_duration.elapsed().as_secs_f64())
+                            .build()
+                            .unwrap()
+                            .log_metrics();
+                        if let Some(outputs_with_context) = result {
+                            for output_with_context in outputs_with_context {
+                                StepMetricsBuilder::default()
+                                    .labels(StepMetricLabels {
+                                        step_name: step.name(),
+                                    })
+                                    .latest_polled_version(output_with_context.end_version)
+                                    .latest_polled_transaction_timestamp(
+                                        output_with_context.get_start_transaction_timestamp_unix(),
+                                    )
+                                    .num_polled_transactions_count(
+                                        output_with_context.get_num_transactions(),
+                                    )
+                                    .polled_size_in_bytes(output_with_context.total_size_in_bytes)
+                                    .build()
+                                    .unwrap()
+                                    .log_metrics();
+
+                                output_sender.send(output_with_context).await.expect("Failed to send output");
                             }
                         };
                         last_poll = tokio::time::Instant::now();
@@ -141,8 +173,26 @@ where
                     input_with_context_res = input_receiver.recv() => {
                         match input_with_context_res {
                             Ok(input_with_context) => {
+                                let processing_duration = Instant::now();
                                 let output_with_context = step.process(input_with_context).await;
                                 if let Some(output_with_context) = output_with_context {
+                                    StepMetricsBuilder::default()
+                                    .labels(StepMetricLabels {
+                                        step_name: step.name(),
+                                    })
+                                    .latest_processed_version(output_with_context.end_version)
+                                    .latest_transaction_timestamp(
+                                        output_with_context.get_start_transaction_timestamp_unix(),
+                                    )
+                                    .num_transactions_processed_count(
+                                        output_with_context.get_num_transactions(),
+                                    )
+                                    .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
+                                    .processed_size_in_bytes(output_with_context.total_size_in_bytes)
+                                    .build()
+                                    .unwrap()
+                                    .log_metrics();
+
                                     let output_send_res = output_sender.send(output_with_context).await;
 
                                     match output_send_res {
