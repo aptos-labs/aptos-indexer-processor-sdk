@@ -1532,10 +1532,14 @@ name = "instrumented-channel"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "autometrics",
  "delegate",
+ "derive_builder",
  "futures",
  "kanal",
+ "once_cell",
  "prometheus",
+ "prometheus-client",
  "tokio",
 ]
 
@@ -2767,7 +2771,6 @@ dependencies = [
  "petgraph",
  "prometheus",
  "prometheus-client",
- "sdk-metrics",
  "serde",
  "thiserror",
  "tokio",
@@ -2796,6 +2799,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hex",
+ "instrumented-channel",
  "jemallocator",
  "kanal",
  "lazy_static",
@@ -2817,16 +2821,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdk-metrics"
-version = "0.1.0"
-dependencies = [
- "autometrics",
- "derive_builder",
- "once_cell",
- "prometheus-client",
-]
-
-[[package]]
 name = "sdk-server-framework"
 version = "1.0.0"
 dependencies = [
@@ -2836,7 +2830,9 @@ dependencies = [
  "autometrics",
  "backtrace",
  "clap",
- "sdk-metrics",
+ "instrumented-channel",
+ "prometheus-client",
+ "sdk",
  "serde",
  "serde_yaml",
  "tempfile",

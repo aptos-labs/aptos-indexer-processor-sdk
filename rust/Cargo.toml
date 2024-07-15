@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["instrumented-channel", "sdk", "sdk-examples", "sdk-metrics"]
+members = ["instrumented-channel", "sdk", "sdk-examples"]
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]
@@ -16,7 +16,6 @@ rust-version = "1.75"
 instrumented-channel = { path = "instrumented-channel" }
 sdk = { path = "sdk" }
 sdk-server-framework = { path = 'sdk-server-framework' }
-sdk-metrics = { path = "sdk-metrics" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"

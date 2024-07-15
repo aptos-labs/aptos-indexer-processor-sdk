@@ -75,6 +75,7 @@ async fn run_processor() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use instrumented_channel::instrumented_bounded_channel;
     use sdk::{
         builder::ProcessorBuilder,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
@@ -112,22 +113,22 @@ mod tests {
         async fn process(
             &mut self,
             item: TransactionContext<usize>,
-        ) -> TransactionContext<TestStruct> {
+        ) -> Option<TransactionContext<TestStruct>> {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
-            TransactionContext {
+            Some(TransactionContext {
                 data: processed,
                 start_version: item.start_version,
                 end_version: item.end_version,
                 start_transaction_timestamp: item.start_transaction_timestamp,
                 end_transaction_timestamp: item.end_transaction_timestamp,
                 total_size_in_bytes: item.total_size_in_bytes,
-            }
+            })
         }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_connect_two_steps() {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,
@@ -202,7 +203,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_fanin() {
-        let (input_sender, input_receiver) = kanal::bounded_async(1);
+        let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let input_step = RunnableStepWithInputReceiver::new(
             input_receiver,

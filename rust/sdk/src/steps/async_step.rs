@@ -1,3 +1,4 @@
+use super::step_metrics::{StepMetricLabels, StepMetricsBuilder};
 use crate::{
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
@@ -5,8 +6,7 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
-use kanal::AsyncReceiver;
-use sdk_metrics::metrics::step_metrics::{StepMetricLabels, StepMetricsBuilder};
+use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
 use std::time::Instant;
 use tokio::task::JoinHandle;
 
@@ -66,16 +66,19 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<TransactionContext<Step::Input>>>,
+        input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Step::Input>>>,
         output_channel_size: usize,
     ) -> (
-        AsyncReceiver<TransactionContext<Step::Output>>,
+        InstrumentedAsyncReceiver<TransactionContext<Step::Output>>,
         JoinHandle<()>,
     ) {
-        let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
+        let mut step = self.step;
+        let step_name = step.name();
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
-        let mut step = self.step;
+        let (output_sender, output_receiver) =
+            instrumented_bounded_channel(&format!("{}: Output", step_name), output_channel_size);
+
         let handle = tokio::spawn(async move {
             loop {
                 let input_with_context = input_receiver
@@ -84,24 +87,28 @@ where
                     .expect("Failed to receive input");
                 let processing_duration = Instant::now();
                 let output_with_context = step.process(input_with_context).await;
-                StepMetricsBuilder::default()
-                    .labels(StepMetricLabels {
-                        step_name: step.name(),
-                    })
-                    .latest_processed_version(output_with_context.end_version)
-                    .latest_transaction_timestamp(
-                        output_with_context.get_start_transaction_timestamp_unix(),
-                    )
-                    .num_transactions_processed_count(output_with_context.get_num_transactions())
-                    .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
-                    .transaction_size(output_with_context.total_size_in_bytes)
-                    .build()
-                    .unwrap()
-                    .log_metrics();
-                output_sender
-                    .send(output_with_context)
-                    .await
-                    .expect("Failed to send output");
+                if let Some(output_with_context) = output_with_context {
+                    StepMetricsBuilder::default()
+                        .labels(StepMetricLabels {
+                            step_name: step.name(),
+                        })
+                        .latest_processed_version(output_with_context.end_version)
+                        .latest_transaction_timestamp(
+                            output_with_context.get_start_transaction_timestamp_unix(),
+                        )
+                        .num_transactions_processed_count(
+                            output_with_context.get_num_transactions(),
+                        )
+                        .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
+                        .processed_size_in_bytes(output_with_context.total_size_in_bytes)
+                        .build()
+                        .unwrap()
+                        .log_metrics();
+                    output_sender
+                        .send(output_with_context)
+                        .await
+                        .expect("Failed to send output");
+                }
             }
         });
 

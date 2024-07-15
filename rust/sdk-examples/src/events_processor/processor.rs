@@ -2,6 +2,7 @@ use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use crate::config::indexer_processor_config::DbConfig;
 use anyhow::Result;
 use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
+use instrumented_channel::instrumented_bounded_channel;
 use sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
@@ -23,7 +24,7 @@ impl EventsProcessor {
     }
 
     pub async fn run_processor(self) -> Result<()> {
-        let (_, input_receiver) = kanal::bounded_async(1);
+        let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let transaction_stream = TransactionStreamStep::new(self.transaction_stream_config).await?;
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(

@@ -21,7 +21,7 @@ impl Processable for EventsExtractor {
     async fn process(
         &mut self,
         item: TransactionContext<Transaction>,
-    ) -> TransactionContext<EventModel> {
+    ) -> Option<TransactionContext<EventModel>> {
         let events = item
             .data
             .par_iter()
@@ -56,14 +56,14 @@ impl Processable for EventsExtractor {
             })
             .flatten()
             .collect::<Vec<EventModel>>();
-        TransactionContext {
+        Some(TransactionContext {
             data: events,
             start_version: item.start_version,
             end_version: item.end_version,
             start_transaction_timestamp: item.start_transaction_timestamp,
             end_transaction_timestamp: item.end_transaction_timestamp,
             total_size_in_bytes: item.total_size_in_bytes,
-        }
+        })
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
-use kanal::AsyncReceiver;
+use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
@@ -73,17 +73,18 @@ where
 {
     fn spawn(
         self,
-        input_receiver: Option<AsyncReceiver<TransactionContext<PollableStep::Input>>>,
+        input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<PollableStep::Input>>>,
         output_channel_size: usize,
     ) -> (
-        AsyncReceiver<TransactionContext<PollableStep::Output>>,
+        InstrumentedAsyncReceiver<TransactionContext<PollableStep::Output>>,
         JoinHandle<()>,
     ) {
-        let (output_sender, output_receiver) = kanal::bounded_async(output_channel_size);
-
         let mut step = self.step;
         let step_name = step.name();
         let input_receiver = input_receiver.expect("Input receiver must be set");
+
+        let (output_sender, output_receiver) =
+            instrumented_bounded_channel(&format!("{} Output", step_name), output_channel_size);
 
         let handle = tokio::spawn(async move {
             let poll_duration = step.poll_interval();
@@ -137,10 +138,25 @@ where
                         };
                         last_poll = tokio::time::Instant::now();
                     }
-                    input_with_context = input_receiver.recv() => {
-                        let input_with_context = input_with_context.unwrap_or_else(|_| panic!("Failed to receive input for {}", step_name));
-                        let output_with_context = step.process(input_with_context).await;
-                        output_sender.send(output_with_context).await.expect("Failed to send output");
+                    input_with_context_res = input_receiver.recv() => {
+                        match input_with_context_res {
+                            Ok(input_with_context) => {
+                                let output_with_context = step.process(input_with_context).await;
+                                if let Some(output_with_context) = output_with_context {
+                                    let output_send_res = output_sender.send(output_with_context).await;
+
+                                    match output_send_res {
+                                        Ok(_) => {},
+                                        Err(e) => {
+                                            panic!("Failed to send output for {}: {:?}", step_name, e);
+                                        }
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                panic!("Failed to receive input for {}: {:?}", step_name, e);
+                            }
+                        }
                     }
                 }
             }

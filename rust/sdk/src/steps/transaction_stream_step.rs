@@ -38,8 +38,11 @@ where
     type Output = Transaction;
     type RunType = PollableAsyncRunType;
 
-    async fn process(&mut self, _item: TransactionContext<()>) -> TransactionContext<Transaction> {
-        TransactionContext::default()
+    async fn process(
+        &mut self,
+        _item: TransactionContext<()>,
+    ) -> Option<TransactionContext<Transaction>> {
+        None
     }
 }
 
@@ -63,8 +66,10 @@ where
                 Some(vec![transactions_with_context])
             },
             Err(e) => {
-                println!("Error getting transactions: {:?}", e);
-                None
+                panic!(
+                    "Error getting transactions in TransactionStreamStep: {:?}",
+                    e
+                );
             },
         }
     }
@@ -72,7 +77,7 @@ where
 
 impl NamedStep for TransactionStreamStep {
     fn name(&self) -> String {
-        "TransactionStream".to_string()
+        "TransactionStreamStep".to_string()
     }
 }
 
@@ -89,7 +94,7 @@ mock! {
 
         async fn init(&mut self);
 
-        async fn process(&mut self, _item: TransactionContext<()> ) -> TransactionContext<Transaction>;
+        async fn process(&mut self, _item: TransactionContext<()> ) -> Option<TransactionContext<Transaction>>;
     }
 
     #[async_trait]
@@ -125,17 +130,18 @@ mod tests {
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
     };
+    use instrumented_channel::instrumented_bounded_channel;
     use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_transaction_stream() {
-        let (_, input_receiver) = kanal::bounded_async(1);
+        let (_, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
             Some(vec![TransactionContext {
-                data: vec![],
+                data: vec![Transaction::default()],
                 start_version: 0,
                 end_version: 100,
                 start_transaction_timestamp: None,

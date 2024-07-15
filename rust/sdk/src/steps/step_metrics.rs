@@ -1,4 +1,3 @@
-use autometrics::settings::AutometricsSettings;
 use derive_builder::Builder;
 use once_cell::sync::Lazy;
 use prometheus_client::{
@@ -10,42 +9,42 @@ use std::sync::atomic::AtomicU64;
 
 pub const METRICS_PREFIX: &str = "aptos_procsdk_step_";
 
-pub fn init_step_metrics_registry() {
-    let mut registry = <Registry>::with_prefix(METRICS_PREFIX);
+pub fn init_step_metrics_registry(registry: &mut Registry) {
     registry.register(
-        "latest_processed_version",
-        "Latest version this step has finished processing",
+        format!("{}_{}", METRICS_PREFIX, "latest_processed_version"),
+        "Latest processed version",
         LATEST_PROCESSED_VERSION.clone(),
     );
+
     registry.register(
-        "latest_transaction_timestamp",
-        "Latest transaction timestamp this step has finished processing",
+        format!("{}_{}", METRICS_PREFIX, "latest_transaction_timestamp"),
+        "Latest transaction timestamp",
         LATEST_TRANSACTION_TIMESTAMP.clone(),
     );
+
     registry.register(
-        "num_transactions_processed_count",
-        "Number of transactions processed by this step",
+        format!("{}_{}", METRICS_PREFIX, "num_transactions_processed_count"),
+        "Number of transactions processed",
         NUM_TRANSACTIONS_PROCESSED_COUNT.clone(),
     );
+
     registry.register(
-        "processing_duration_in_secs",
-        "Duration in seconds this step has taken to process transactions",
+        format!("{}_{}", METRICS_PREFIX, "processing_duration_in_secs"),
+        "Processing duration in seconds",
         PROCESSING_DURATION_IN_SECS.clone(),
     );
+
     registry.register(
-        "transaction_size",
-        "Size in bytes of transactions processed by this step",
-        TRANSACTION_SIZE.clone(),
-    );
-    registry.register(
-        "processing_error_count",
-        "Number of errors encountered by this step",
-        PROCESSING_ERROR_COUNT.clone(),
+        format!("{}_{}", METRICS_PREFIX, "processed_size_in_bytes"),
+        "Transaction size",
+        PROCESSED_SIZE_IN_BYTES.clone(),
     );
 
-    AutometricsSettings::builder()
-        .prometheus_client_registry(registry)
-        .init();
+    registry.register(
+        format!("{}_{}", METRICS_PREFIX, "processing_error_count"),
+        "Processing error count",
+        PROCESSING_ERROR_COUNT.clone(),
+    );
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -65,8 +64,8 @@ pub static NUM_TRANSACTIONS_PROCESSED_COUNT: Lazy<Family<StepMetricLabels, Count
 pub static PROCESSING_DURATION_IN_SECS: Lazy<Family<StepMetricLabels, Gauge<f64, AtomicU64>>> =
     Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
 
-pub static TRANSACTION_SIZE: Lazy<Family<StepMetricLabels, Gauge>> =
-    Lazy::new(Family::<StepMetricLabels, Gauge>::default);
+pub static PROCESSED_SIZE_IN_BYTES: Lazy<Family<StepMetricLabels, Counter>> =
+    Lazy::new(Family::<StepMetricLabels, Counter>::default);
 
 pub static PROCESSING_ERROR_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
     Lazy::new(Family::<StepMetricLabels, Counter>::default);
@@ -82,7 +81,7 @@ pub struct StepMetrics {
     #[builder(setter(strip_option))]
     processing_duration_in_secs: Option<f64>,
     #[builder(setter(strip_option))]
-    transaction_size: Option<u64>,
+    processed_size_in_bytes: Option<u64>,
 }
 
 impl StepMetrics {
@@ -107,10 +106,10 @@ impl StepMetrics {
                 .get_or_create(&self.labels)
                 .set(duration);
         }
-        if let Some(size) = self.transaction_size {
-            TRANSACTION_SIZE
+        if let Some(size_in_bytes) = self.processed_size_in_bytes {
+            PROCESSED_SIZE_IN_BYTES
                 .get_or_create(&self.labels)
-                .set(size as i64);
+                .inc_by(size_in_bytes);
         }
     }
 
