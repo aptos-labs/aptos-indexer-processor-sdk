@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::processor_config::ProcessorConfig;
-use crate::events_processor::processor::EventsProcessor;
+use crate::processors::events::events_processor::EventsProcessor;
 use anyhow::Result;
 use aptos_indexer_transaction_stream::TransactionStreamConfig;
 use sdk_server_framework::RunnableConfig;

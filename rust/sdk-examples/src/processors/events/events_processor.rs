@@ -1,5 +1,8 @@
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
-use crate::config::indexer_processor_config::DbConfig;
+use crate::{
+    common_steps::latest_processed_version_tracker::LatestVersionProcessedTracker,
+    config::indexer_processor_config::DbConfig,
+};
 use anyhow::Result;
 use aptos_indexer_processor_sdk::{
     builder::ProcessorBuilder,
@@ -26,7 +29,8 @@ impl EventsProcessor {
     pub async fn run_processor(self) -> Result<()> {
         let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
-        let transaction_stream = TransactionStreamStep::new(self.transaction_stream_config).await?;
+        let transaction_stream =
+            TransactionStreamStep::new(self.transaction_stream_config.clone()).await?;
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
             input_receiver,
             transaction_stream.into_runnable_step(),
@@ -34,6 +38,12 @@ impl EventsProcessor {
         let events_extractor = EventsExtractor {};
         let events_storer = EventsStorer::new(self.db_config.clone()).await?;
         let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
+        let version_tracker = LatestVersionProcessedTracker::new(
+            self.db_config,
+            self.transaction_stream_config.starting_version,
+            "events_processor".to_string(),
+        )
+        .await?;
 
         let (_, buffer_receiver) = ProcessorBuilder::new_with_runnable_input_receiver_first_step(
             transaction_stream_with_input,
@@ -41,6 +51,7 @@ impl EventsProcessor {
         .connect_to(events_extractor.into_runnable_step(), 10)
         .connect_to(timed_buffer.into_runnable_step(), 10)
         .connect_to(events_storer.into_runnable_step(), 10)
+        .connect_to(version_tracker.into_runnable_step(), 10)
         .end_and_return_output_receiver(10);
 
         loop {

@@ -1,8 +1,8 @@
-use super::events_models::EventModel;
+use crate::db::models::events_models::EventModel;
 use crate::{
     config::indexer_processor_config::DbConfig,
     schema,
-    utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, PgDbPool},
+    utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, ArcDbPool},
 };
 use ahash::AHashMap;
 use anyhow::{Context, Result};
@@ -22,7 +22,7 @@ pub struct EventsStorer
 where
     Self: Sized + Send + 'static,
 {
-    conn_pool: PgDbPool,
+    conn_pool: ArcDbPool,
 }
 
 impl EventsStorer {
