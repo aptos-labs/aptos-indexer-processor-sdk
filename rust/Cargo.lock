@@ -151,7 +151,6 @@ dependencies = [
 [[package]]
 name = "aptos-indexer-transaction-stream"
 version = "0.1.0"
-source = "git+https://github.com/aptos-labs/aptos-indexer-processors.git?rev=3c8896b489062ce0510c5e4162366db753b59499#3c8896b489062ce0510c5e4162366db753b59499"
 dependencies = [
  "anyhow",
  "aptos-moving-average",
@@ -159,7 +158,7 @@ dependencies = [
  "bigdecimal",
  "chrono",
  "futures-util",
- "itertools",
+ "itertools 0.13.0",
  "kanal",
  "once_cell",
  "prometheus",
@@ -168,14 +167,12 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
- "transaction-filter",
  "url",
 ]
 
 [[package]]
 name = "aptos-moving-average"
 version = "0.1.0"
-source = "git+https://github.com/aptos-labs/aptos-indexer-processors.git?rev=3c8896b489062ce0510c5e4162366db753b59499#3c8896b489062ce0510c5e4162366db753b59499"
 dependencies = [
  "chrono",
 ]
@@ -1602,6 +1599,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2431,7 +2437,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -3541,16 +3547,6 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
-]
-
-[[package]]
-name = "transaction-filter"
-version = "0.1.0"
-source = "git+https://github.com/aptos-labs/aptos-indexer-processors.git?rev=3c8896b489062ce0510c5e4162366db753b59499#3c8896b489062ce0510c5e4162366db753b59499"
-dependencies = [
- "ahash",
- "aptos-protos",
- "serde",
 ]
 
 [[package]]
