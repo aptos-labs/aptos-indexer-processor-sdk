@@ -1,6 +1,7 @@
 // Copyright © Aptos Foundation
 
 use anyhow::{Context, Result};
+use aptos_indexer_processor_sdk::steps::step_metrics::init_step_metrics_registry;
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;
@@ -8,7 +9,6 @@ use backtrace::Backtrace;
 use clap::Parser;
 use instrumented_channel::channel_metrics::init_channel_metrics_registry;
 use prometheus_client::registry::Registry;
-use sdk::steps::step_metrics::init_step_metrics_registry;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(target_os = "linux")]
 use std::convert::Infallible;

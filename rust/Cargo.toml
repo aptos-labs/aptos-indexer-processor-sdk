@@ -13,8 +13,8 @@ repository = "https://github.com/aptos-labs/aptos-indexer-processors-sdk"
 rust-version = "1.75"
 
 [workspace.dependencies]
+aptos-indexer-processor-sdk = { path = "sdk" }
 instrumented-channel = { path = "instrumented-channel" }
-sdk = { path = "sdk" }
 sdk-server-framework = { path = 'sdk-server-framework' }
 
 ahash = { version = "0.8.7", features = ["serde"] }

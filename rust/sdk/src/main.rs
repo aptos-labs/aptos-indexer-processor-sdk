@@ -1,10 +1,10 @@
 use anyhow::Result;
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
-use sdk::{
+use aptos_indexer_processor_sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
 };
+use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
 use std::time::Duration;
 use url::Url;
 
@@ -74,15 +74,15 @@ async fn run_processor() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
-    use instrumented_channel::instrumented_bounded_channel;
-    use sdk::{
-        builder::ProcessorBuilder,
-        steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
+    use super::*;
+    use aptos_indexer_processor_sdk::{
+        steps::{AsyncStep, RunnableAsyncStep},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
-        traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
+        traits::{NamedStep, Processable, RunnableStepWithInputReceiver},
         types::transaction_context::TransactionContext,
     };
+    use async_trait::async_trait;
+    use instrumented_channel::instrumented_bounded_channel;
     use std::time::Duration;
 
     #[derive(Clone, Debug, PartialEq)]

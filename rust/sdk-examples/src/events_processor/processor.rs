@@ -1,13 +1,13 @@
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use crate::config::indexer_processor_config::DbConfig;
 use anyhow::Result;
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
-use instrumented_channel::instrumented_bounded_channel;
-use sdk::{
+use aptos_indexer_processor_sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
+use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
+use instrumented_channel::instrumented_bounded_channel;
 use std::time::Duration;
 
 pub struct EventsProcessor {

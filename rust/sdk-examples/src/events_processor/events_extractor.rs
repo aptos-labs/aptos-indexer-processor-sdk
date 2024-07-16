@@ -1,12 +1,12 @@
 use super::events_models::EventModel;
-use aptos_protos::transaction::v1::{transaction::TxnData, Transaction};
-use async_trait::async_trait;
-use rayon::prelude::*;
-use sdk::{
+use aptos_indexer_processor_sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
 };
+use aptos_protos::transaction::v1::{transaction::TxnData, Transaction};
+use async_trait::async_trait;
+use rayon::prelude::*;
 
 pub struct EventsExtractor
 where

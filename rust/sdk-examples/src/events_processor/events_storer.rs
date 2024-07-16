@@ -6,16 +6,16 @@ use crate::{
 };
 use ahash::AHashMap;
 use anyhow::{Context, Result};
+use aptos_indexer_processor_sdk::{
+    steps::{async_step::AsyncRunType, AsyncStep},
+    traits::{NamedStep, Processable},
+    types::transaction_context::TransactionContext,
+};
 use async_trait::async_trait;
 use diesel::{
     pg::{upsert::excluded, Pg},
     query_builder::QueryFragment,
     ExpressionMethods,
-};
-use sdk::{
-    steps::{async_step::AsyncRunType, AsyncStep},
-    traits::{NamedStep, Processable},
-    types::transaction_context::TransactionContext,
 };
 
 pub struct EventsStorer
