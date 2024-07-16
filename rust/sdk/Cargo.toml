@@ -1,5 +1,5 @@
 [package]
-name = "sdk"
+name = "aptos-indexer-processor-sdk"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,7 @@ aptos-protos = { workspace = true }
 async-trait = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 instrumented-channel = { workspace = true }
 kanal = { workspace = true }
 mockall = { workspace = true }
