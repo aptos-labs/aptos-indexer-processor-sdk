@@ -4,8 +4,8 @@
 //! Database-related functions
 #![allow(clippy::extra_unused_lifetimes)]
 
-use crate::utils::util::remove_null_bytes;
 use ahash::AHashMap;
+use aptos_indexer_processor_sdk::utils::convert::remove_null_bytes;
 use diesel::{
     query_builder::{AstPass, Query, QueryFragment, QueryId},
     ConnectionResult, QueryResult,
