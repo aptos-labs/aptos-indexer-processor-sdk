@@ -23,11 +23,9 @@ where
     T: Send + 'static,
 {
     conn_pool: ArcDbPool,
-    processor_name: String,
+    tracker_name: String,
     // Next version to process that we expect.
     next_version: u64,
-    // Number of batches that have been processed out of order.
-    num_gaps: u64,
     // Last successful batch of sequentially processed transactions. Includes metadata to write to storage.
     last_success_batch: Option<TransactionContext<T>>,
     // Tracks all the versions that have been processed out of order.
@@ -42,7 +40,7 @@ where
     pub async fn new(
         db_config: DbConfig,
         starting_version: u64,
-        processor_name: String,
+        tracker_name: String,
     ) -> Result<Self> {
         let conn_pool = new_db_pool(
             &db_config.postgres_connection_string,
@@ -52,9 +50,8 @@ where
         .context("Failed to create connection pool")?;
         Ok(Self {
             conn_pool,
-            processor_name,
+            tracker_name,
             next_version: starting_version,
-            num_gaps: 0,
             last_success_batch: None,
             seen_versions: AHashMap::new(),
         })
@@ -89,7 +86,12 @@ where
         // If there's a gap in the next_version and current_version, save the current_version to seen_versions for
         // later processing.
         if self.next_version != current_batch.start_version {
-            tracing::debug!("Gap detected: {}", current_batch.start_version);
+            tracing::debug!(
+                next_version = self.next_version,
+                step = self.name(),
+                "Gap detected starting from version: {}",
+                current_batch.start_version
+            );
             self.seen_versions.insert(
                 current_batch.start_version,
                 TransactionContext {
@@ -138,7 +140,7 @@ where
                 .map(|t| parse_timestamp(t, last_success_batch.end_version as i64))
                 .map(|t| t.naive_utc());
             let status = ProcessorStatus {
-                processor: self.processor_name.clone(),
+                processor: self.tracker_name.clone(),
                 last_success_version: last_success_batch.end_version as i64,
                 last_transaction_timestamp: end_timestamp,
             };
