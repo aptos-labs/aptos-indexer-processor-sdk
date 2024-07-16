@@ -4,7 +4,14 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
+use bevy_reflect::Reflect;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+#[derive(Clone, Debug, Deserialize, Reflect, Serialize)]
+pub struct TimedBufferConfig {
+    pub poll_interval_ms: u64,
+}
 
 pub struct TimedBuffer<Input>
 where
@@ -21,10 +28,10 @@ where
     Input: Send + 'static,
 {
     #[allow(dead_code)]
-    pub fn new(poll_interval: Duration) -> Self {
+    pub fn new(config: TimedBufferConfig) -> Self {
         Self {
             internal_buffer: Vec::new(),
-            poll_interval,
+            poll_interval: Duration::from_millis(config.poll_interval_ms),
         }
     }
 }

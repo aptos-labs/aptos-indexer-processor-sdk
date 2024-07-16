@@ -1,5 +1,5 @@
 [package]
-name = "sdk"
+name = "aptos-indexer-processor-sdk"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,7 @@ anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
 aptos-protos = { workspace = true }
 async-trait = { workspace = true }
+bevy_reflect = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 instrumented-channel = { workspace = true }
@@ -18,8 +19,11 @@ once_cell = { workspace = true }
 petgraph = { workspace = true }
 prometheus = { workspace = true }
 prometheus-client = { workspace = true }
+rayon = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
 url = { workspace = true }
 warp = { workspace = true }

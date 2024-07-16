@@ -4,6 +4,8 @@ use sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
+    steps::{TimedBuffer, TimedBufferConfig, TransactionStreamStep},
+    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
 use std::time::Duration;
 use url::Url;
@@ -30,7 +32,7 @@ fn main() {
 async fn run_processor() -> Result<()> {
     // let (input_sender, input_receiver) = kanal::bounded_async(1);
     let transaction_stream_config = TransactionStreamConfig {
-        indexer_grpc_data_service_address: Url::parse("https://grpc.devnet.aptoslabs.com:443")?,
+        indexer_grpc_data_service_address: "https://grpc.devnet.aptoslabs.com:443".to_string(),
         starting_version: 0,
         request_ending_version: None,
         auth_token: String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
@@ -46,7 +48,9 @@ async fn run_processor() -> Result<()> {
     // let transaction_stream_with_input =
     //     RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());
 
-    let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
+    let timed_buffer = TimedBuffer::new(TimedBufferConfig {
+        poll_interval_ms: 1000,
+    });
 
     let (_, buffer_receiver) =
         ProcessorBuilder::new_with_inputless_first_step(transaction_stream.into_runnable_step())
@@ -135,8 +139,10 @@ mod tests {
             RunnableAsyncStep::new(PassThroughStep::default()),
         );
 
-        // Create a timed buffer that outputs the input after 1 second
-        let timed_buffer_step = TimedBuffer::<usize>::new(Duration::from_millis(200));
+        // Create a timed buffer that outputs the input after 200ms.
+        let timed_buffer_step = TimedBuffer::<usize>::new(TimedBufferConfig {
+            poll_interval_ms: 200,
+        });
         let first_step = timed_buffer_step;
 
         let second_step = TestStep;

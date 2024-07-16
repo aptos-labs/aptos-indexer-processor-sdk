@@ -107,7 +107,7 @@ where
                     output_sender
                         .send(output_with_context)
                         .await
-                        .expect("Failed to send output");
+                        .expect(format!("Failed to send output for {}", step.name()).as_str());
                 }
             }
         });
