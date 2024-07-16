@@ -8,6 +8,9 @@ anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
 aptos-protos = { workspace = true }
 async-trait = { workspace = true }
+bcs = { workspace = true }
+bigdecimal = { workspace = true }
+chrono = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -20,7 +23,10 @@ petgraph = { workspace = true }
 prometheus = { workspace = true }
 prometheus-client = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
+tiny-keccak = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
 url = { workspace = true }
 warp = { workspace = true }
