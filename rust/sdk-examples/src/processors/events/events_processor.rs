@@ -1,7 +1,8 @@
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use crate::{
     common_steps::latest_processed_version_tracker::LatestVersionProcessedTracker,
-    config::indexer_processor_config::DbConfig,
+    config::indexer_processor_config::{DbConfig, IndexerProcessorConfig},
+    utils::starting_version::get_starting_version,
 };
 use anyhow::Result;
 use aptos_indexer_processor_sdk::{
@@ -14,34 +15,34 @@ use instrumented_channel::instrumented_bounded_channel;
 use std::time::Duration;
 
 pub struct EventsProcessor {
-    pub transaction_stream_config: TransactionStreamConfig,
-    pub db_config: DbConfig,
+    pub config: IndexerProcessorConfig,
 }
 
 impl EventsProcessor {
-    pub fn new(transaction_stream_config: TransactionStreamConfig, db_config: DbConfig) -> Self {
-        Self {
-            transaction_stream_config,
-            db_config,
-        }
+    pub fn new(config: IndexerProcessorConfig) -> Self {
+        Self { config }
     }
 
     pub async fn run_processor(self) -> Result<()> {
+        let starting_version = get_starting_version(self.config.clone()).await?;
         let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
-        let transaction_stream =
-            TransactionStreamStep::new(self.transaction_stream_config.clone()).await?;
+        let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
+            starting_version: Some(starting_version),
+            ..self.config.transaction_stream_config
+        })
+        .await?;
         let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
             input_receiver,
             transaction_stream.into_runnable_step(),
         );
         let events_extractor = EventsExtractor {};
-        let events_storer = EventsStorer::new(self.db_config.clone()).await?;
+        let events_storer = EventsStorer::new(self.config.db_config.clone()).await?;
         let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
         let version_tracker = LatestVersionProcessedTracker::new(
-            self.db_config,
-            self.transaction_stream_config.starting_version.unwrap(),
-            "events_processor".to_string(),
+            self.config.db_config,
+            starting_version,
+            self.config.processor_config.name().to_string(),
         )
         .await?;
 
