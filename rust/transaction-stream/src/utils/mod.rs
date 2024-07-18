@@ -3,7 +3,7 @@ use aptos_protos::util::timestamp::Timestamp;
 // 9999-12-31 23:59:59, this is the max supported by Google BigQuery
 pub const MAX_TIMESTAMP_SECS: i64 = 253_402_300_799;
 
-pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::NaiveDateTime {
+pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::DateTime<chrono::Utc> {
     let final_ts = if ts.seconds >= MAX_TIMESTAMP_SECS {
         Timestamp {
             seconds: MAX_TIMESTAMP_SECS,
@@ -12,7 +12,7 @@ pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::NaiveDateTime {
     } else {
         ts.clone()
     };
-    chrono::NaiveDateTime::from_timestamp_opt(final_ts.seconds, final_ts.nanos as u32)
+    chrono::DateTime::from_timestamp(final_ts.seconds, final_ts.nanos as u32)
         .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
 }
 
