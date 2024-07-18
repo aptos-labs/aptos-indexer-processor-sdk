@@ -1,11 +1,9 @@
 use crate::{
-    config::indexer_processor_config::DbConfig,
     db::common::models::events_models::EventModel,
     schema,
-    utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, ArcDbPool},
+    utils::database::{execute_in_chunks, get_config_table_chunk_size, ArcDbPool},
 };
 use ahash::AHashMap;
-use anyhow::{Context, Result};
 use aptos_indexer_processor_sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
@@ -26,14 +24,8 @@ where
 }
 
 impl EventsStorer {
-    pub async fn new(db_config: DbConfig) -> Result<Self> {
-        let conn_pool = new_db_pool(
-            &db_config.postgres_connection_string,
-            Some(db_config.db_pool_size),
-        )
-        .await
-        .context("Failed to create connection pool")?;
-        Ok(Self { conn_pool })
+    pub fn new(conn_pool: ArcDbPool) -> Self {
+        Self { conn_pool }
     }
 }
 
