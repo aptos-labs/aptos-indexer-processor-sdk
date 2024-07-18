@@ -1,10 +1,9 @@
+use super::database::new_db_pool;
 use crate::{
     config::indexer_processor_config::IndexerProcessorConfig,
     db::models::processor_status::ProcessorStatusQuery,
 };
 use anyhow::{Context, Result};
-
-use super::database::new_db_pool;
 
 pub async fn get_starting_version(indexer_processor_config: IndexerProcessorConfig) -> Result<u64> {
     // If starting_version is set in TransactionStreamConfig, use that

@@ -1,7 +1,7 @@
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use crate::{
     common_steps::latest_processed_version_tracker::LatestVersionProcessedTracker,
-    config::indexer_processor_config::{DbConfig, IndexerProcessorConfig},
+    config::indexer_processor_config::IndexerProcessorConfig,
     utils::starting_version::get_starting_version,
 };
 use anyhow::Result;
