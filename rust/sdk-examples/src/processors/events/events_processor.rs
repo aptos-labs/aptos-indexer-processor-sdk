@@ -5,12 +5,12 @@ use crate::{
     utils::starting_version::get_starting_version,
 };
 use anyhow::Result;
+use aptos_indexer_processor_sdk::aptos_indexer_transaction_stream::TransactionStreamConfig;
 use aptos_indexer_processor_sdk::{
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
-use aptos_indexer_transaction_stream::TransactionStreamConfig;
 use instrumented_channel::instrumented_bounded_channel;
 use std::time::Duration;
 

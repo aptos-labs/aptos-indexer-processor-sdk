@@ -2798,8 +2798,6 @@ dependencies = [
  "ahash",
  "anyhow",
  "aptos-indexer-processor-sdk",
- "aptos-indexer-transaction-stream",
- "aptos-protos",
  "async-trait",
  "bcs",
  "bigdecimal",
