@@ -5,7 +5,9 @@ use crate::{
 };
 use anyhow::{Context, Result};
 
-pub async fn get_starting_version(indexer_processor_config: IndexerProcessorConfig) -> Result<u64> {
+pub async fn get_starting_version(
+    indexer_processor_config: &IndexerProcessorConfig,
+) -> Result<u64> {
     // If starting_version is set in TransactionStreamConfig, use that
     if indexer_processor_config
         .transaction_stream_config
@@ -33,12 +35,14 @@ pub async fn get_starting_version(indexer_processor_config: IndexerProcessorConf
 
 /// Gets the start version for the processor. If not found, start from 0.
 pub async fn get_latest_processed_version_from_db(
-    indexer_processor_config: IndexerProcessorConfig,
+    indexer_processor_config: &IndexerProcessorConfig,
 ) -> Result<Option<u64>> {
-    let db_config = indexer_processor_config.db_config;
+    // let db_config = indexer_processor_config.db_config;
     let conn_pool = new_db_pool(
-        &db_config.postgres_connection_string,
-        Some(db_config.db_pool_size),
+        &indexer_processor_config
+            .db_config
+            .postgres_connection_string,
+        Some(indexer_processor_config.db_config.db_pool_size),
     )
     .await
     .context("Failed to create connection pool")?;

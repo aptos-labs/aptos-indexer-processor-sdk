@@ -24,7 +24,7 @@ impl EventsProcessor {
     }
 
     pub async fn run_processor(self) -> Result<()> {
-        let starting_version = get_starting_version(self.config.clone()).await?;
+        let starting_version = get_starting_version(&self.config).await?;
         let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
