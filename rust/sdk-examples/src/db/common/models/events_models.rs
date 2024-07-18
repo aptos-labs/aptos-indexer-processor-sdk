@@ -4,8 +4,10 @@
 #![allow(clippy::extra_unused_lifetimes)]
 
 use crate::schema::events;
-use aptos_indexer_processor_sdk::aptos_protos::transaction::v1::Event as EventPB;
-use aptos_indexer_processor_sdk::utils::convert::{standardize_address, truncate_str};
+use aptos_indexer_processor_sdk::{
+    aptos_protos::transaction::v1::Event as EventPB,
+    utils::convert::{standardize_address, truncate_str},
+};
 use diesel::{Identifiable, Insertable};
 use field_count::FieldCount;
 use serde::{Deserialize, Serialize};

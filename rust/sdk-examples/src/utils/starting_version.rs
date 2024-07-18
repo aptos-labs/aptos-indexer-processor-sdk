@@ -1,7 +1,7 @@
 use super::database::new_db_pool;
 use crate::{
     config::indexer_processor_config::IndexerProcessorConfig,
-    db::models::processor_status::ProcessorStatusQuery,
+    db::common::models::processor_status::ProcessorStatusQuery,
 };
 use anyhow::{Context, Result};
 

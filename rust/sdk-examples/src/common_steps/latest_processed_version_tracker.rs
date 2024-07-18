@@ -1,6 +1,6 @@
 use crate::{
     config::indexer_processor_config::DbConfig,
-    db::models::processor_status::ProcessorStatus,
+    db::common::models::processor_status::ProcessorStatus,
     schema::processor_status,
     utils::database::{execute_with_better_error, new_db_pool, ArcDbPool},
 };
