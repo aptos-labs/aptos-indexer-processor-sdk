@@ -1,1 +1,1 @@
-# aptos-indexer-processors-sdk
+# aptos-indexer-processor-sdk
