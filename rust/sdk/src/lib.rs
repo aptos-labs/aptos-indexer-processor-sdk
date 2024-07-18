@@ -9,3 +9,4 @@ pub mod utils;
 pub use aptos_indexer_transaction_stream;
 pub use aptos_protos;
 pub use bcs;
+pub use instrumented_channel;
