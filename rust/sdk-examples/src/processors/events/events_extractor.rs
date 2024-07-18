@@ -1,8 +1,6 @@
-use crate::db::models::events_models::EventModel;
-use aptos_indexer_processor_sdk::aptos_protos::transaction::v1::{
-    transaction::TxnData, Transaction,
-};
+use crate::db::common::models::events_models::EventModel;
 use aptos_indexer_processor_sdk::{
+    aptos_protos::transaction::v1::{transaction::TxnData, Transaction},
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,

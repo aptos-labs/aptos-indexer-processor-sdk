@@ -17,7 +17,7 @@ use diesel_async::{
     },
     AsyncPgConnection, RunQueryDsl,
 };
-// use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use futures_util::{future::BoxFuture, FutureExt};
 use std::sync::Arc;
 
@@ -28,7 +28,7 @@ pub type DbPool = Pool<MyDbConnection>;
 pub type ArcDbPool = Arc<DbPool>;
 pub type DbPoolConnection<'a> = PooledConnection<'a, MyDbConnection>;
 
-// pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/db/postgres/migrations");
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/db/postgres/migrations");
 
 pub const DEFAULT_MAX_POOL_SIZE: u32 = 150;
 
@@ -259,10 +259,53 @@ where
     Ok(())
 }
 
-// pub fn run_pending_migrations<DB: diesel::backend::Backend>(conn: &mut impl MigrationHarness<DB>) {
-//     conn.run_pending_migrations(MIGRATIONS)
-//         .expect("[Parser] Migrations failed!");
-// }
+pub fn run_pending_migrations<DB: diesel::backend::Backend>(conn: &mut impl MigrationHarness<DB>) {
+    conn.run_pending_migrations(MIGRATIONS)
+        .expect("[Parser] Migrations failed!");
+}
+
+// For the normal processor build we just use standard Diesel with the postgres
+// feature enabled (which uses libpq under the hood, hence why we named the feature
+// this way).
+#[cfg(feature = "libpq")]
+pub async fn run_migrations(postgres_connection_string: String, _conn_pool: ArcDbPool) {
+    use diesel::{Connection, PgConnection};
+
+    tracing::info!("Running migrations: {:?}", postgres_connection_string);
+    let migration_time = std::time::Instant::now();
+    let mut conn =
+        PgConnection::establish(&postgres_connection_string).expect("migrations failed!");
+    run_pending_migrations(&mut conn);
+    tracing::info!(
+        duration_in_secs = migration_time.elapsed().as_secs_f64(),
+        "[Parser] Finished migrations"
+    );
+}
+
+// If the libpq feature isn't enabled, we use diesel async instead. This is used by
+// the CLI for the local testnet, where we cannot tolerate the libpq dependency.
+#[cfg(not(feature = "libpq"))]
+pub async fn run_migrations(postgres_connection_string: String, conn_pool: ArcDbPool) {
+    use diesel_async::async_connection_wrapper::AsyncConnectionWrapper;
+
+    tracing::info!("Running migrations: {:?}", postgres_connection_string);
+    let conn = conn_pool
+        // We need to use this since AsyncConnectionWrapper doesn't know how to
+        // work with a pooled connection.
+        .dedicated_connection()
+        .await
+        .expect("[Parser] Failed to get connection");
+    // We use spawn_blocking since run_pending_migrations is a blocking function.
+    tokio::task::spawn_blocking(move || {
+        // This lets us use the connection like a normal diesel connection. See more:
+        // https://docs.rs/diesel-async/latest/diesel_async/async_connection_wrapper/type.AsyncConnectionWrapper.html
+        let mut conn: AsyncConnectionWrapper<diesel_async::AsyncPgConnection> =
+            AsyncConnectionWrapper::from(conn);
+        run_pending_migrations(&mut conn);
+    })
+    .await
+    .expect("[Parser] Failed to run migrations");
+}
 
 /// Section below is required to modify the query.
 impl<T: Query> Query for UpsertFilterLatestTransactionQuery<T> {

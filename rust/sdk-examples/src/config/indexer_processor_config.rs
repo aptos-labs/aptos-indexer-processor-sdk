@@ -24,7 +24,8 @@ impl RunnableConfig for IndexerProcessorConfig {
     async fn run(&self) -> Result<()> {
         match self.processor_config {
             ProcessorConfig::EventsProcessor => {
-                EventsProcessor::new(self.clone()).run_processor().await
+                let events_processor = EventsProcessor::new(self.clone()).await?;
+                events_processor.run_processor().await
             },
         }
     }

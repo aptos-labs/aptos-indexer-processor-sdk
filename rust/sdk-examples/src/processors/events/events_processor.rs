@@ -2,11 +2,14 @@ use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use crate::{
     common_steps::latest_processed_version_tracker::LatestVersionProcessedTracker,
     config::indexer_processor_config::IndexerProcessorConfig,
-    utils::starting_version::get_starting_version,
+    utils::{
+        database::{new_db_pool, run_migrations, ArcDbPool},
+        starting_version::get_starting_version,
+    },
 };
 use anyhow::Result;
-use aptos_indexer_processor_sdk::aptos_indexer_transaction_stream::TransactionStreamConfig;
 use aptos_indexer_processor_sdk::{
+    aptos_indexer_transaction_stream::TransactionStreamConfig,
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
@@ -16,15 +19,36 @@ use std::time::Duration;
 
 pub struct EventsProcessor {
     pub config: IndexerProcessorConfig,
+    pub db_pool: ArcDbPool,
 }
 
 impl EventsProcessor {
-    pub fn new(config: IndexerProcessorConfig) -> Self {
-        Self { config }
+    pub async fn new(config: IndexerProcessorConfig) -> Result<Self> {
+        let conn_pool = new_db_pool(
+            &config.db_config.postgres_connection_string,
+            Some(config.db_config.db_pool_size),
+        )
+        .await
+        .expect("Failed to create connection pool");
+
+        Ok(Self {
+            config,
+            db_pool: conn_pool,
+        })
     }
 
     pub async fn run_processor(self) -> Result<()> {
-        let starting_version = get_starting_version(&self.config).await?;
+        // (Optional) Run migrations
+        run_migrations(
+            self.config.db_config.postgres_connection_string.clone(),
+            self.db_pool.clone(),
+        )
+        .await;
+
+        // (Optional) Merge the starting version from config and the latest processed version from the DB
+        let starting_version = get_starting_version(&self.config, self.db_pool.clone()).await?;
+
+        // Define processor steps
         let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
         let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
@@ -37,7 +61,7 @@ impl EventsProcessor {
             transaction_stream.into_runnable_step(),
         );
         let events_extractor = EventsExtractor {};
-        let events_storer = EventsStorer::new(self.config.db_config.clone()).await?;
+        let events_storer = EventsStorer::new(self.db_pool.clone());
         let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
         let version_tracker = LatestVersionProcessedTracker::new(
             self.config.db_config,
@@ -46,6 +70,7 @@ impl EventsProcessor {
         )
         .await?;
 
+        // Connect processor steps together
         let (_, buffer_receiver) = ProcessorBuilder::new_with_runnable_input_receiver_first_step(
             transaction_stream_with_input,
         )
@@ -55,6 +80,7 @@ impl EventsProcessor {
         .connect_to(version_tracker.into_runnable_step(), 10)
         .end_and_return_output_receiver(10);
 
+        // (Optional) Parse the results
         loop {
             match buffer_receiver.recv().await {
                 Ok(txn_context) => {
