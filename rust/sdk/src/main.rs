@@ -4,7 +4,7 @@ use aptos_indexer_processor_sdk::{
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
 };
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
+use aptos_indexer_transaction_stream::TransactionStreamConfig;
 use std::time::Duration;
 use url::Url;
 

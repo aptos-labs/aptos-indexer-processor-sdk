@@ -5,8 +5,7 @@ use crate::{
 };
 use anyhow::Result;
 use aptos_indexer_transaction_stream::{
-    config::TransactionStreamConfig,
-    transaction_stream::TransactionStream as TransactionStreamInternal,
+    TransactionStream as TransactionStreamInternal, TransactionStreamConfig,
 };
 use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;

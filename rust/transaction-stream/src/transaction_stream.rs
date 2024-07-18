@@ -1,4 +1,4 @@
-use crate::{config::TransactionStreamConfig, utils::timestamp::timestamp_to_iso};
+use crate::{config::TransactionStreamConfig, utils::timestamp_to_iso};
 use anyhow::{anyhow, Result};
 use aptos_moving_average::MovingAverage;
 use aptos_protos::{
@@ -416,7 +416,6 @@ impl TransactionStream {
                                 .map(timestamp_to_iso)
                                 .unwrap_or_default(),
                             num_of_transactions = end_version - start_version + 1,
-                            // num_filtered_txns,
                             size_in_bytes,
                             duration_in_secs,
                             tps = self.fetch_ma.avg().ceil() as u64,

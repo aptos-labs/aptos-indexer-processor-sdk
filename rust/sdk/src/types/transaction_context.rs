@@ -1,4 +1,4 @@
-use aptos_indexer_transaction_stream::utils::timestamp::timestamp_to_unixtime;
+use aptos_indexer_transaction_stream::utils::timestamp_to_unixtime;
 
 /// TransactionContext is a struct that holds data processed from a set of transactions
 /// and includes metadata about the transactions that the data is associated with.
