@@ -9,7 +9,7 @@ use aptos_indexer_processor_sdk::{
     steps::{TimedBuffer, TransactionStreamStep},
     traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
 };
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
+use aptos_indexer_transaction_stream::TransactionStreamConfig;
 use instrumented_channel::instrumented_bounded_channel;
 use std::time::Duration;
 
@@ -40,7 +40,7 @@ impl EventsProcessor {
         let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
         let version_tracker = LatestVersionProcessedTracker::new(
             self.db_config,
-            self.transaction_stream_config.starting_version,
+            self.transaction_stream_config.starting_version.unwrap(),
             "events_processor".to_string(),
         )
         .await?;

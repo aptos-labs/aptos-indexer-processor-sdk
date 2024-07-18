@@ -4,7 +4,7 @@ use aptos_indexer_processor_sdk::{
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
 };
-use aptos_indexer_transaction_stream::config::TransactionStreamConfig;
+use aptos_indexer_transaction_stream::TransactionStreamConfig;
 use std::time::Duration;
 use url::Url;
 
@@ -31,7 +31,7 @@ async fn run_processor() -> Result<()> {
     // let (input_sender, input_receiver) = kanal::bounded_async(1);
     let transaction_stream_config = TransactionStreamConfig {
         indexer_grpc_data_service_address: Url::parse("https://grpc.devnet.aptoslabs.com:443")?,
-        starting_version: 0,
+        starting_version: Some(0),
         request_ending_version: None,
         auth_token: String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
         request_name_header: String::from("sdk_processor"),

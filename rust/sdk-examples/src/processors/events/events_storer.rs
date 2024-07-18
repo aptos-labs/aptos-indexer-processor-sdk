@@ -1,6 +1,6 @@
-use crate::db::models::events_models::EventModel;
 use crate::{
     config::indexer_processor_config::DbConfig,
+    db::models::events_models::EventModel,
     schema,
     utils::database::{execute_in_chunks, get_config_table_chunk_size, new_db_pool, ArcDbPool},
 };
