@@ -6,6 +6,7 @@ members = [
     "moving-average",
     "sdk",
     "sdk-examples",
+    "sdk-server-framework",
     "transaction-stream",
 ]
 
@@ -15,15 +16,15 @@ edition = "2021"
 homepage = "https://aptoslabs.com"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/aptos-labs/aptos-indexer-processors-sdk"
+repository = "https://github.com/aptos-labs/aptos-indexer-processor-sdk"
 rust-version = "1.75"
 
 [workspace.dependencies]
 aptos-indexer-processor-sdk = { path = "sdk" }
+aptos-indexer-processor-sdk-server-framework = { path = 'sdk-server-framework' }
 aptos-indexer-transaction-stream = { path = "transaction-stream" }
 instrumented-channel = { path = "instrumented-channel" }
 aptos-moving-average = { path = "moving-average" }
-sdk-server-framework = { path = 'sdk-server-framework' }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"

@@ -1,5 +1,5 @@
 [package]
-name = "sdk-server-framework"
+name = "aptos-indexer-processor-sdk-server-framework"
 version = "1.0.0"
 
 # Workspace inherited keys
