@@ -8,6 +8,7 @@ use aptos_indexer_processor_sdk::{
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;
+use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
 use backtrace::Backtrace;
 use clap::Parser;
 use prometheus_client::registry::Registry;
@@ -18,7 +19,6 @@ use std::{fs::File, io::Read, panic::PanicInfo, path::PathBuf, process};
 use tokio::runtime::Handle;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
-use warp::{http::Response, Filter};
 
 /// ServerArgs bootstraps a server with all common pieces. And then triggers the run method for
 /// the specific service.
@@ -154,9 +154,6 @@ pub fn setup_logging() {
 
 /// Register readiness and liveness probes and set up metrics endpoint.
 async fn register_probes_and_metrics_handler(port: u16) {
-    let readiness = warp::path("readiness")
-        .map(move || warp::reply::with_status("ready", warp::http::StatusCode::OK));
-
     let mut registry = <Registry>::default();
     init_step_metrics_registry(&mut registry);
     init_channel_metrics_registry(&mut registry);
@@ -164,55 +161,49 @@ async fn register_probes_and_metrics_handler(port: u16) {
         .prometheus_client_registry(registry)
         .init();
 
-    let metrics_endpoint =
-        warp::path("metrics").map(
-            || match autometrics::prometheus_exporter::encode_to_string() {
-                Ok(prometheus_client_rust_metrics) => Response::builder()
-                    .status(200)
-                    .header("Content-Type", "text/plain; version=0.0.4")
-                    .body(prometheus_client_rust_metrics)
-                    .expect("Error building response"),
-                Err(err) => Response::builder()
-                    .status(500)
-                    .body(format!("{:?}", err))
-                    .expect("Error building response"),
-            },
-        );
+    let router = Router::new()
+        .route("/readiness", get(StatusCode::OK))
+        .route("/metrics", get(metrics_handler));
 
-    if cfg!(target_os = "linux") {
-        #[cfg(target_os = "linux")]
-        let profilez = warp::path("profilez").and_then(|| async move {
-            // TODO(grao): Consider make the parameters configurable.
-            Ok::<_, Infallible>(match start_cpu_profiling(10, 99, false).await {
-                Ok(body) => {
-                    let response = Response::builder()
-                        .header("Content-Length", body.len())
-                        .header("Content-Disposition", "inline")
-                        .header("Content-Type", "image/svg+xml")
-                        .body(body);
+    #[cfg(target_os = "linux")]
+    let router = router.merge(Router::new().route("/profilez", get(profilez_handler)));
 
-                    match response {
-                        Ok(res) => warp::reply::with_status(res, warp::http::StatusCode::OK),
-                        Err(e) => warp::reply::with_status(
-                            Response::new(format!("Profiling failed: {e:?}.").as_bytes().to_vec()),
-                            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        ),
-                    }
-                },
-                Err(e) => warp::reply::with_status(
-                    Response::new(format!("Profiling failed: {e:?}.").as_bytes().to_vec()),
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ),
-            })
-        });
-        #[cfg(target_os = "linux")]
-        warp::serve(readiness.or(metrics_endpoint).or(profilez))
-            .run(([0, 0, 0, 0], port))
-            .await;
-    } else {
-        warp::serve(readiness.or(metrics_endpoint))
-            .run(([0, 0, 0, 0], port))
-            .await;
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+        .await
+        .expect("Failed to bind TCP listener");
+    axum::serve(listener, router).await.unwrap();
+}
+
+async fn metrics_handler() -> impl IntoResponse {
+    match autometrics::prometheus_exporter::encode_to_string() {
+        Ok(prometheus_client_rust_metrics) => (
+            StatusCode::OK,
+            [("Content-Type", "text/plain; version=0.0.4")],
+            prometheus_client_rust_metrics,
+        )
+            .into_response(),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", err)).into_response(),
+    }
+}
+
+#[cfg(target_os = "linux")]
+async fn profilez_handler() -> impl IntoResponse {
+    match start_cpu_profiling(10, 99, false).await {
+        Ok(body) => (
+            StatusCode::OK,
+            [
+                ("Content-Length", body.len().to_string()),
+                ("Content-Disposition", "inline".to_string()),
+                ("Content-Type", "image/svg+xml".to_string()),
+            ],
+            body,
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Profiling failed: {e:?}."),
+        )
+            .into_response(),
     }
 }
 
