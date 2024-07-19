@@ -32,6 +32,7 @@ aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", tag = "ap
 aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "4541add3fd29826ec57f22658ca286d2d6134b93" }
 async-trait = "0.1.80"
 autometrics = { version = "1.0.1", features = ["prometheus-exporter"] }
+axum = "0.7.5"
 backtrace = "0.3.58"
 bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
 bigdecimal = { version = "0.4.0", features = ["serde"] }
@@ -99,7 +100,6 @@ tonic = { version = "0.11.0", features = [
 ] }
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 url = { version = "2.5.1", features = ["serde"] }
-warp = { version = "0.3.5", features = ["tls"] }
 
 # Postgres SSL support
 native-tls = "0.2.11"
