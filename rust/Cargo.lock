@@ -149,6 +149,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "aptos-indexer-processor-sdk-server-framework"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "aptos-indexer-processor-sdk",
+ "aptos-system-utils",
+ "async-trait",
+ "autometrics",
+ "backtrace",
+ "clap",
+ "instrumented-channel",
+ "prometheus-client",
+ "serde",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "warp",
+]
+
+[[package]]
 name = "aptos-indexer-transaction-stream"
 version = "0.1.0"
 dependencies = [
@@ -2798,6 +2821,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "aptos-indexer-processor-sdk",
+ "aptos-indexer-processor-sdk-server-framework",
  "async-trait",
  "bcs",
  "bigdecimal",
@@ -2819,7 +2843,6 @@ dependencies = [
  "num_cpus",
  "postgres-native-tls",
  "rayon",
- "sdk-server-framework",
  "serde",
  "serde_json",
  "sha2 0.9.9",
@@ -2829,29 +2852,6 @@ dependencies = [
  "tokio-postgres",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "sdk-server-framework"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "aptos-indexer-processor-sdk",
- "aptos-system-utils",
- "async-trait",
- "autometrics",
- "backtrace",
- "clap",
- "instrumented-channel",
- "prometheus-client",
- "serde",
- "serde_yaml",
- "tempfile",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "warp",
 ]
 
 [[package]]
