@@ -4,7 +4,9 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use anyhow::Result;
-use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
+use instrumented_channel::{
+    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+};
 use petgraph::{
     dot::Config,
     graph::{DiGraph, EdgeReference, NodeIndex},
@@ -43,9 +45,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -53,7 +55,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            });
+            },
+        );
 
         *self.node_counter.borrow_mut() += 1;
         self.current_node_index = Some(new_node_index);
@@ -69,9 +72,9 @@ impl GraphBuilder {
     {
         let current_node_counter = *self.node_counter.borrow();
         let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
-        self.node_map
-            .borrow_mut()
-            .insert(current_node_counter, GraphNode {
+        self.node_map.borrow_mut().insert(
+            current_node_counter,
+            GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
                 step_type: step.type_name(),
@@ -79,7 +82,8 @@ impl GraphBuilder {
                 output_type: std::any::type_name::<Output>().to_string(),
                 join_handle: None,
                 end_step: false,
-            });
+            },
+        );
 
         self.add_edge_to(new_node_index);
         *self.node_counter.borrow_mut() += 1;
@@ -209,11 +213,13 @@ where
     Step: RunnableStep<Input, Output>,
 {
     pub fn new_with_inputless_first_step(step: Step) -> Self {
-        // Assumes that the first step does not actually accept any input
-        let (_, input_receiver) = instrumented_bounded_channel("input", 1);
+        // Assumes that the first step does not actually accept any input. Create a dummy channel.
+        let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
         Self {
             current_step: Some(CurrentStepHolder::RunnableStepWithInputReceiver(
-                step.add_input_receiver(input_receiver),
+                step.add_input_receiver(input_receiver)
+                    // Add the input sender of the dummy channel so the channel stays alive and the runnable step does not panic
+                    .add_input_sender(input_sender),
             )),
             graph: GraphBuilder::new(),
         }
@@ -252,7 +258,7 @@ where
             "current node index: {:?}",
             graph.current_node_index.unwrap().index(),
         );
-        let (next_output_receiver, join_handle) = next_step.spawn(None, channel_size);
+        let (next_output_receiver, join_handle) = next_step.spawn(None, channel_size, None);
         graph.set_join_handle(graph.current_node_index.unwrap().index(), join_handle);
 
         // Send the results of the fanned out steps to the channel
@@ -339,7 +345,7 @@ where
             CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
                 let step_name = current_step.step.name();
                 self.graph.add_and_connect_step(&current_step);
-                let (output_receiver, join_handle) = current_step.spawn(None, num_outputs);
+                let (output_receiver, join_handle) = current_step.spawn(None, num_outputs, None);
                 // TODO: add to graph?
                 self.graph
                     .set_join_handle(self.graph.current_node_index.unwrap().index(), join_handle);
@@ -480,7 +486,8 @@ where
             Some(current_step) => match current_step {
                 CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
                     self.graph.add_and_connect_step(&current_step);
-                    let (output_receiver, join_handle) = current_step.spawn(None, channel_size);
+                    let (output_receiver, join_handle) =
+                        current_step.spawn(None, channel_size, None);
                     self.graph.set_join_handle(
                         self.graph.current_node_index.unwrap().index(),
                         join_handle,

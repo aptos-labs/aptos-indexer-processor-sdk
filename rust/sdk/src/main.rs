@@ -1,84 +1,12 @@
-use anyhow::Result;
-use aptos_indexer_processor_sdk::{
-    builder::ProcessorBuilder,
-    steps::{TimedBuffer, TransactionStreamStep},
-    traits::IntoRunnableStep,
-};
-use aptos_indexer_transaction_stream::TransactionStreamConfig;
-use std::time::Duration;
-use url::Url;
-
-const RUNTIME_WORKER_MULTIPLIER: usize = 2;
-
-fn main() {
-    let num_cpus = num_cpus::get();
-    let worker_threads = (num_cpus * RUNTIME_WORKER_MULTIPLIER).max(16);
-
-    let mut builder = tokio::runtime::Builder::new_multi_thread();
-    builder
-        .disable_lifo_slot()
-        .enable_all()
-        .worker_threads(worker_threads)
-        .build()
-        .unwrap()
-        .block_on(async {
-            // TODO: actually launch something here
-            run_processor().await.unwrap();
-        })
-}
-
-async fn run_processor() -> Result<()> {
-    // let (input_sender, input_receiver) = kanal::bounded_async(1);
-    let transaction_stream_config = TransactionStreamConfig {
-        indexer_grpc_data_service_address: Url::parse("https://grpc.devnet.aptoslabs.com:443")?,
-        starting_version: Some(0),
-        request_ending_version: None,
-        auth_token: String::from("aptoslabs_TJs4NQU8Xf5_EJMNnZFPXRH6YNpWM7bCcurMBEUtZtRb6"),
-        request_name_header: String::from("sdk_processor"),
-        indexer_grpc_http2_ping_interval_secs: 30,
-        indexer_grpc_http2_ping_timeout_secs: 10,
-        indexer_grpc_reconnection_timeout_secs: 5,
-        indexer_grpc_response_item_timeout_secs: 60,
-    };
-
-    let transaction_stream = TransactionStreamStep::new(transaction_stream_config).await?;
-
-    // let transaction_stream_with_input =
-    //     RunnableStepWithInputReceiver::new(input_receiver, transaction_stream.into_runnable_step());
-
-    let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
-
-    let (_, buffer_receiver) =
-        ProcessorBuilder::new_with_inputless_first_step(transaction_stream.into_runnable_step())
-            .connect_to(timed_buffer.into_runnable_step(), 10)
-            .end_and_return_output_receiver(10);
-
-    loop {
-        match buffer_receiver.recv().await {
-            Ok(txn_context) => {
-                if txn_context.data.is_empty() {
-                    println!("Received no transactions");
-                    continue;
-                }
-                println!(
-                    "Received transactions: {:?} to {:?}",
-                    txn_context.start_version, txn_context.end_version,
-                );
-            },
-            Err(e) => {
-                println!("Error receiving transactions: {:?}", e);
-            },
-        }
-    }
-}
+fn main() {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use aptos_indexer_processor_sdk::{
-        steps::{AsyncStep, RunnableAsyncStep},
+        builder::ProcessorBuilder,
+        steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
-        traits::{NamedStep, Processable, RunnableStepWithInputReceiver},
+        traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
         types::transaction_context::TransactionContext,
     };
     use async_trait::async_trait;

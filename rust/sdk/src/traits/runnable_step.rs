@@ -1,5 +1,5 @@
 use crate::{traits::NamedStep, types::transaction_context::TransactionContext};
-use instrumented_channel::InstrumentedAsyncReceiver;
+use instrumented_channel::{InstrumentedAsyncReceiver, InstrumentedAsyncSender};
 use std::marker::PhantomData;
 use tokio::task::JoinHandle;
 
@@ -14,6 +14,7 @@ where
         self,
         input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Input>>>,
         output_channel_size: usize,
+        _input_sender: Option<InstrumentedAsyncSender<TransactionContext<Input>>>,
     ) -> (
         InstrumentedAsyncReceiver<TransactionContext<Output>>,
         JoinHandle<()>,
@@ -40,6 +41,7 @@ where
     pub input_receiver: InstrumentedAsyncReceiver<TransactionContext<Input>>,
     pub step: Step,
     _output: PhantomData<Output>,
+    pub _input_sender: Option<InstrumentedAsyncSender<TransactionContext<Input>>>,
 }
 
 impl<Input, Output, Step> RunnableStepWithInputReceiver<Input, Output, Step>
@@ -56,7 +58,17 @@ where
             input_receiver,
             step,
             _output: Default::default(),
+            _input_sender: None,
         }
+    }
+
+    /// This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.
+    pub fn add_input_sender(
+        mut self,
+        _input_sender: InstrumentedAsyncSender<TransactionContext<Input>>,
+    ) -> Self {
+        self._input_sender = Some(_input_sender);
+        self
     }
 }
 
@@ -89,6 +101,7 @@ where
         self,
         input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Input>>>,
         channel_size: usize,
+        _input_sender: Option<InstrumentedAsyncSender<TransactionContext<Input>>>,
     ) -> (
         InstrumentedAsyncReceiver<TransactionContext<Output>>,
         JoinHandle<()>,
@@ -96,7 +109,8 @@ where
         if input_receiver.is_some() {
             panic!("Input receiver already set for {:?}", self.name());
         }
-        self.step.spawn(Some(self.input_receiver), channel_size)
+        self.step
+            .spawn(Some(self.input_receiver), channel_size, _input_sender)
     }
 
     fn add_input_receiver(

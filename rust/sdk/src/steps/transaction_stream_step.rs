@@ -141,8 +141,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_transaction_stream() {
-        let (_, input_receiver) = instrumented_bounded_channel("input", 1);
-
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
@@ -167,17 +165,11 @@ mod tests {
 
         let pass_through_step = PassThroughStep::default();
 
-        let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
-            input_receiver,
+        let (_, mut output_receiver) = ProcessorBuilder::new_with_inputless_first_step(
             mock_transaction_stream.into_runnable_step(),
-        );
-
-        let (_, mut output_receiver) =
-            ProcessorBuilder::new_with_runnable_input_receiver_first_step(
-                transaction_stream_with_input,
-            )
-            .connect_to(pass_through_step.into_runnable_step(), 5)
-            .end_and_return_output_receiver(5);
+        )
+        .connect_to(pass_through_step.into_runnable_step(), 5)
+        .end_and_return_output_receiver(5);
 
         tokio::time::sleep(Duration::from_millis(250)).await;
         let result = receive_with_timeout(&mut output_receiver, 100)
