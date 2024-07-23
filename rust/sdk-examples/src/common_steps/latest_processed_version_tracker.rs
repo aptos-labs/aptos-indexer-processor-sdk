@@ -82,7 +82,7 @@ where
     async fn process(
         &mut self,
         current_batch: TransactionContext<T>,
-    ) -> Option<TransactionContext<T>> {
+    ) -> Result<Option<TransactionContext<T>>> {
         // If there's a gap in the next_version and current_version, save the current_version to seen_versions for
         // later processing.
         if self.next_version != current_batch.start_version {
@@ -114,7 +114,7 @@ where
             });
         }
         // Pass through
-        Some(current_batch)
+        Ok(Some(current_batch))
     }
 }
 
@@ -128,7 +128,7 @@ where
         std::time::Duration::from_secs(UPDATE_PROCESSOR_STATUS_SECS)
     }
 
-    async fn poll(&mut self) -> Option<Vec<TransactionContext<T>>> {
+    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<T>>>> {
         // TODO: Add metrics for gap count
         // Update the processor status
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
@@ -161,7 +161,7 @@ where
             .expect("Failed to update processor status");
         }
         // Nothing should be returned
-        None
+        Ok(None)
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::db::common::models::events_models::EventModel;
+use anyhow::Result;
 use aptos_indexer_processor_sdk::{
     aptos_protos::transaction::v1::{transaction::TxnData, Transaction},
     steps::{async_step::AsyncRunType, AsyncStep},
@@ -21,7 +22,7 @@ impl Processable for EventsExtractor {
     async fn process(
         &mut self,
         item: TransactionContext<Transaction>,
-    ) -> Option<TransactionContext<EventModel>> {
+    ) -> Result<Option<TransactionContext<EventModel>>> {
         let events = item
             .data
             .par_iter()
@@ -56,14 +57,14 @@ impl Processable for EventsExtractor {
             })
             .flatten()
             .collect::<Vec<EventModel>>();
-        Some(TransactionContext {
+        Ok(Some(TransactionContext {
             data: events,
             start_version: item.start_version,
             end_version: item.end_version,
             start_transaction_timestamp: item.start_transaction_timestamp,
             end_transaction_timestamp: item.end_transaction_timestamp,
             total_size_in_bytes: item.total_size_in_bytes,
-        })
+        }))
     }
 }
 

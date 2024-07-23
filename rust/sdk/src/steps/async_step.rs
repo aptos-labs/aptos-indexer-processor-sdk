@@ -6,10 +6,11 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
+use bigdecimal::Zero;
 use instrumented_channel::{
     instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 
 #[async_trait]
@@ -84,12 +85,21 @@ where
 
         let handle = tokio::spawn(async move {
             loop {
-                let input_with_context = input_receiver
-                    .recv()
-                    .await
-                    .expect("Failed to receive input");
+                let input_with_context = match input_receiver.recv().await {
+                    Ok(input_with_context) => input_with_context,
+                    Err(e) => {
+                        tracing::error!(step_name, "Failed to receive input: {:?}", e);
+                        break;
+                    },
+                };
                 let processing_duration = Instant::now();
-                let output_with_context = step.process(input_with_context).await;
+                let output_with_context = match step.process(input_with_context).await {
+                    Ok(output_with_context) => output_with_context,
+                    Err(e) => {
+                        tracing::error!(step_name, "Failed to process input: {:?}", e);
+                        break;
+                    },
+                };
                 if let Some(output_with_context) = output_with_context {
                     StepMetricsBuilder::default()
                         .labels(StepMetricLabels {
@@ -107,12 +117,30 @@ where
                         .build()
                         .unwrap()
                         .log_metrics();
-                    output_sender
-                        .send(output_with_context)
-                        .await
-                        .expect("Failed to send output");
+                    match output_sender.send(output_with_context).await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            tracing::error!(step_name, "Failed to send output: {:?}", e);
+                            break;
+                        },
+                    }
                 }
             }
+
+            // Wait for output channel to be empty before ending the task and closing the send channel
+            loop {
+                let channel_size = output_sender.len();
+                tracing::info!(
+                    step_name,
+                    channel_size,
+                    "Waiting for output channel to be empty"
+                );
+                if channel_size.is_zero() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            tracing::info!(step_name, "Output channel is empty. Closing send channel.");
         });
 
         (output_receiver, handle)

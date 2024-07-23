@@ -1,4 +1,5 @@
 use crate::{traits::NamedStep, types::transaction_context::TransactionContext};
+use anyhow::Result;
 use async_trait::async_trait;
 
 /// A trait to convince the compiler that different step types are mutually exclusive
@@ -19,11 +20,13 @@ where
 
     /// Lifecycle methods
     async fn init(&mut self) {}
-    async fn cleanup(&mut self) {}
+    async fn cleanup(&mut self) -> Result<Option<Vec<TransactionContext<Self::Output>>>> {
+        Ok(None)
+    }
 
     /// Processes a batch of input items and returns a batch of output items.
     async fn process(
         &mut self,
         items: TransactionContext<Self::Input>,
-    ) -> Option<TransactionContext<Self::Output>>;
+    ) -> Result<Option<TransactionContext<Self::Output>>>;
 }

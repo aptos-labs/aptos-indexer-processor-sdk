@@ -3,6 +3,7 @@ use crate::{
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use std::time::Duration;
 
@@ -41,9 +42,14 @@ where
     async fn process(
         &mut self,
         item: TransactionContext<Input>,
-    ) -> Option<TransactionContext<Input>> {
+    ) -> Result<Option<TransactionContext<Input>>> {
         self.internal_buffer.push(item);
-        None // No immediate output
+        Ok(None) // No immediate output
+    }
+
+    // Once polling ends, release the remaining items in buffer
+    async fn cleanup(&mut self) -> Result<Option<Vec<TransactionContext<Self::Output>>>> {
+        Ok(Some(std::mem::take(&mut self.internal_buffer)))
     }
 }
 
@@ -53,8 +59,8 @@ impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
         self.poll_interval
     }
 
-    async fn poll(&mut self) -> Option<Vec<TransactionContext<Input>>> {
-        Some(std::mem::take(&mut self.internal_buffer))
+    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Input>>>> {
+        Ok(Some(std::mem::take(&mut self.internal_buffer)))
     }
 }
 

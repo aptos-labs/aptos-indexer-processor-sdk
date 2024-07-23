@@ -88,6 +88,7 @@ impl EventsProcessor {
                 },
                 Err(e) => {
                     println!("Error receiving transactions: {:?}", e);
+                    return Ok(());
                 },
             }
         }

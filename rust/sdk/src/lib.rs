@@ -13,7 +13,8 @@ pub use instrumented_channel;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
+    use anyhow::Result;
+    use aptos_indexer_processor_sdk::{
         builder::ProcessorBuilder,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
@@ -52,16 +53,16 @@ mod tests {
         async fn process(
             &mut self,
             item: TransactionContext<usize>,
-        ) -> Option<TransactionContext<TestStruct>> {
+        ) -> Result<Option<TransactionContext<TestStruct>>> {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
-            Some(TransactionContext {
+            Ok(Some(TransactionContext {
                 data: processed,
                 start_version: item.start_version,
                 end_version: item.end_version,
                 start_transaction_timestamp: item.start_transaction_timestamp,
                 end_transaction_timestamp: item.end_transaction_timestamp,
                 total_size_in_bytes: item.total_size_in_bytes,
-            })
+            }))
         }
     }
 
