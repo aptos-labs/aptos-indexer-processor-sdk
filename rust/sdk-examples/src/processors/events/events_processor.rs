@@ -86,8 +86,8 @@ impl EventsProcessor {
                         txn_context.start_version, txn_context.end_version,
                     );
                 },
-                Err(e) => {
-                    println!("Error receiving transactions: {:?}", e);
+                Err(_) => {
+                    println!("Channel is closed");
                     return Ok(());
                 },
             }

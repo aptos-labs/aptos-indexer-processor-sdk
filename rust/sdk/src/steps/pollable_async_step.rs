@@ -114,7 +114,7 @@ where
                             break;
                         },
                     };
-                    StepMetricsBuilder::default()
+                    match StepMetricsBuilder::default()
                         .labels(StepMetricLabels {
                             step_name: step.name(),
                         })
@@ -122,11 +122,16 @@ where
                             polling_duration_for_logging.elapsed().as_secs_f64(),
                         )
                         .build()
-                        .unwrap()
-                        .log_metrics();
+                    {
+                        Ok(mut metrics) => metrics.log_metrics(),
+                        Err(e) => {
+                            error!(step_name, "Failed to log metrics: {:?}", e);
+                            break;
+                        },
+                    }
                     if let Some(outputs_with_context) = result {
                         for output_with_context in outputs_with_context {
-                            StepMetricsBuilder::default()
+                            match StepMetricsBuilder::default()
                                 .labels(StepMetricLabels {
                                     step_name: step.name(),
                                 })
@@ -139,8 +144,13 @@ where
                                 )
                                 .polled_size_in_bytes(output_with_context.total_size_in_bytes)
                                 .build()
-                                .unwrap()
-                                .log_metrics();
+                            {
+                                Ok(mut metrics) => metrics.log_metrics(),
+                                Err(e) => {
+                                    error!(step_name, "Failed to log metrics: {:?}", e);
+                                    break;
+                                },
+                            }
                             match output_sender.send(output_with_context).await {
                                 Ok(_) => {},
                                 Err(e) => {
@@ -175,17 +185,22 @@ where
                                 break;
                             }
                         };
-                        StepMetricsBuilder::default()
+                        match StepMetricsBuilder::default()
                             .labels(StepMetricLabels {
                                 step_name: step.name(),
                             })
                             .polling_duration_in_secs(polling_duration.elapsed().as_secs_f64())
                             .build()
-                            .unwrap()
-                            .log_metrics();
+                            {
+                                Ok(mut metrics) => metrics.log_metrics(),
+                                Err(e) => {
+                                    error!(step_name, "Failed to log metrics: {:?}", e);
+                                    break;
+                                },
+                            }
                         if let Some(outputs_with_context) = result {
                             for output_with_context in outputs_with_context {
-                                StepMetricsBuilder::default()
+                                match StepMetricsBuilder::default()
                                     .labels(StepMetricLabels {
                                         step_name: step.name(),
                                     })
@@ -198,8 +213,13 @@ where
                                     )
                                     .polled_size_in_bytes(output_with_context.total_size_in_bytes)
                                     .build()
-                                    .unwrap()
-                                    .log_metrics();
+                                    {
+                                        Ok(mut metrics) => metrics.log_metrics(),
+                                        Err(e) => {
+                                            error!(step_name, "Failed to log metrics: {:?}", e);
+                                            break;
+                                        },
+                                    }
 
                                 match output_sender.send(output_with_context).await {
                                     Ok(_) => {},
@@ -224,7 +244,7 @@ where
                                     }
                                 };
                                 if let Some(output_with_context) = output_with_context {
-                                    StepMetricsBuilder::default()
+                                    match StepMetricsBuilder::default()
                                     .labels(StepMetricLabels {
                                         step_name: step.name(),
                                     })
@@ -238,8 +258,13 @@ where
                                     .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
                                     .processed_size_in_bytes(output_with_context.total_size_in_bytes)
                                     .build()
-                                    .unwrap()
-                                    .log_metrics();
+                                    {
+                                        Ok(mut metrics) => metrics.log_metrics(),
+                                        Err(e) => {
+                                            error!(step_name, "Failed to log metrics: {:?}", e);
+                                            break;
+                                        },
+                                    }
 
                                     match output_sender.send(output_with_context).await {
                                         Ok(_) => {},
@@ -252,7 +277,7 @@ where
                             },
                             Err(e) => {
                                 // If the previous steps have finished and the channels have closed , we should break out of the loop
-                                warn!(step_name, "Error receiving input from channel: {:?}", e);
+                                warn!(step_name, "No input received from channel: {:?}", e);
                                 break;
                             }
                         }
@@ -267,7 +292,7 @@ where
             match res {
                 Ok(Some(outputs_with_context)) => {
                     for output_with_context in outputs_with_context {
-                        StepMetricsBuilder::default()
+                        match StepMetricsBuilder::default()
                             .labels(StepMetricLabels {
                                 step_name: step.name(),
                             })
@@ -280,8 +305,13 @@ where
                             )
                             .polled_size_in_bytes(output_with_context.total_size_in_bytes)
                             .build()
-                            .unwrap()
-                            .log_metrics();
+                        {
+                            Ok(mut metrics) => metrics.log_metrics(),
+                            Err(e) => {
+                                error!(step_name, "Failed to log metrics: {:?}", e);
+                                break;
+                            },
+                        }
 
                         match output_sender.send(output_with_context).await {
                             Ok(_) => {},

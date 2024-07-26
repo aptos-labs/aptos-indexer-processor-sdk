@@ -158,9 +158,9 @@ where
                             .eq(excluded(processor_status::last_transaction_timestamp)),
                     )),
                 Some(" WHERE processor_status.last_success_version <= EXCLUDED.last_success_version "),
-            )
-            .await
-            .expect("Failed to update processor status");
+            ).await.map_err(|e| ProcessorError::DBStoreError {
+                message: format!("Failed to update processor status: {}", e),
+            })?;
         }
         // Nothing should be returned
         Ok(None)

@@ -12,6 +12,7 @@ use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
 use std::time::Duration;
+use tracing::info;
 
 pub struct TransactionStreamStep
 where
@@ -90,7 +91,11 @@ where
     }
 
     async fn should_continue_polling(&mut self) -> bool {
-        !self.transaction_stream.is_end_of_stream()
+        let is_end = self.transaction_stream.is_end_of_stream();
+        if is_end {
+            info!("Reached ending version");
+        }
+        !is_end
     }
 }
 

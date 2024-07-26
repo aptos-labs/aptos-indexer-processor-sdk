@@ -71,7 +71,10 @@ impl Processable for EventsStorer {
         .await;
         match execute_res {
             Ok(_) => {
-                println!("Events stored successfully");
+                println!(
+                    "Events version {} to {} stored successfully",
+                    events.start_version, events.end_version
+                );
             },
             Err(e) => {
                 println!("Failed to store events: {:?}", e);
