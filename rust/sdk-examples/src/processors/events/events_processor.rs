@@ -12,9 +12,8 @@ use aptos_indexer_processor_sdk::{
     aptos_indexer_transaction_stream::TransactionStreamConfig,
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
-    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
+    traits::IntoRunnableStep,
 };
-use instrumented_channel::instrumented_bounded_channel;
 use std::time::Duration;
 
 pub struct EventsProcessor {
