@@ -5,6 +5,7 @@ use aptos_indexer_processor_sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use async_trait::async_trait;
 use rayon::prelude::*;
@@ -22,7 +23,7 @@ impl Processable for EventsExtractor {
     async fn process(
         &mut self,
         item: TransactionContext<Transaction>,
-    ) -> Result<Option<TransactionContext<EventModel>>> {
+    ) -> Result<Option<TransactionContext<EventModel>>, ProcessorError> {
         let events = item
             .data
             .par_iter()

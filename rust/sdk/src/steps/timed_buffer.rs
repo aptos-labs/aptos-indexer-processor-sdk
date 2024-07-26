@@ -2,6 +2,7 @@ use crate::{
     steps::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -42,13 +43,15 @@ where
     async fn process(
         &mut self,
         item: TransactionContext<Input>,
-    ) -> Result<Option<TransactionContext<Input>>> {
+    ) -> Result<Option<TransactionContext<Input>>, ProcessorError> {
         self.internal_buffer.push(item);
         Ok(None) // No immediate output
     }
 
     // Once polling ends, release the remaining items in buffer
-    async fn cleanup(&mut self) -> Result<Option<Vec<TransactionContext<Self::Output>>>> {
+    async fn cleanup(
+        &mut self,
+    ) -> Result<Option<Vec<TransactionContext<Self::Output>>>, ProcessorError> {
         Ok(Some(std::mem::take(&mut self.internal_buffer)))
     }
 }
@@ -59,7 +62,7 @@ impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
         self.poll_interval
     }
 
-    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Input>>>> {
+    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Input>>>, ProcessorError> {
         Ok(Some(std::mem::take(&mut self.internal_buffer)))
     }
 }

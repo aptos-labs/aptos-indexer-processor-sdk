@@ -9,6 +9,7 @@ use aptos_indexer_processor_sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use async_trait::async_trait;
 use diesel::{
@@ -59,7 +60,7 @@ impl Processable for EventsStorer {
     async fn process(
         &mut self,
         events: TransactionContext<EventModel>,
-    ) -> Result<Option<TransactionContext<EventModel>>> {
+    ) -> Result<Option<TransactionContext<EventModel>>, ProcessorError> {
         let per_table_chunk_sizes: AHashMap<String, usize> = AHashMap::new();
         let execute_res = execute_in_chunks(
             self.conn_pool.clone(),

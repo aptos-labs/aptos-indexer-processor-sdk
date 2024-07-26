@@ -1,4 +1,7 @@
-use crate::{traits::NamedStep, types::transaction_context::TransactionContext};
+use crate::{
+    traits::NamedStep, types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -20,7 +23,9 @@ where
 
     /// Lifecycle methods
     async fn init(&mut self) {}
-    async fn cleanup(&mut self) -> Result<Option<Vec<TransactionContext<Self::Output>>>> {
+    async fn cleanup(
+        &mut self,
+    ) -> Result<Option<Vec<TransactionContext<Self::Output>>>, ProcessorError> {
         Ok(None)
     }
 
@@ -28,5 +33,5 @@ where
     async fn process(
         &mut self,
         items: TransactionContext<Self::Input>,
-    ) -> Result<Option<TransactionContext<Self::Output>>>;
+    ) -> Result<Option<TransactionContext<Self::Output>>, ProcessorError>;
 }

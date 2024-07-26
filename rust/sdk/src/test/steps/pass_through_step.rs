@@ -2,6 +2,7 @@ use crate::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -49,7 +50,7 @@ impl<Input: Send + 'static> Processable for PassThroughStep<Input> {
     async fn process(
         &mut self,
         item: TransactionContext<Input>,
-    ) -> Result<Option<TransactionContext<Input>>> {
+    ) -> Result<Option<TransactionContext<Input>>, ProcessorError> {
         Ok(Some(item))
     }
 }

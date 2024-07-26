@@ -10,7 +10,7 @@ use aptos_indexer_processor_sdk::{
     steps::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
-    utils::time::parse_timestamp,
+    utils::{errors::ProcessorError, time::parse_timestamp},
 };
 use async_trait::async_trait;
 use diesel::{upsert::excluded, ExpressionMethods};
@@ -82,7 +82,7 @@ where
     async fn process(
         &mut self,
         current_batch: TransactionContext<T>,
-    ) -> Result<Option<TransactionContext<T>>> {
+    ) -> Result<Option<TransactionContext<T>>, ProcessorError> {
         // If there's a gap in the next_version and current_version, save the current_version to seen_versions for
         // later processing.
         if self.next_version != current_batch.start_version {
@@ -92,15 +92,17 @@ where
                 "Gap detected starting from version: {}",
                 current_batch.start_version
             );
-            self.seen_versions
-                .insert(current_batch.start_version, TransactionContext {
+            self.seen_versions.insert(
+                current_batch.start_version,
+                TransactionContext {
                     data: vec![], // No data is needed for tracking. This is to avoid clone.
                     start_version: current_batch.start_version,
                     end_version: current_batch.end_version,
                     start_transaction_timestamp: current_batch.start_transaction_timestamp.clone(),
                     end_transaction_timestamp: current_batch.end_transaction_timestamp.clone(),
                     total_size_in_bytes: current_batch.total_size_in_bytes,
-                });
+                },
+            );
         } else {
             tracing::debug!("No gap detected");
             // If the current_batch is the next expected version, update the last success batch
@@ -128,7 +130,7 @@ where
         std::time::Duration::from_secs(UPDATE_PROCESSOR_STATUS_SECS)
     }
 
-    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<T>>>> {
+    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<T>>>, ProcessorError> {
         // TODO: Add metrics for gap count
         // Update the processor status
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {

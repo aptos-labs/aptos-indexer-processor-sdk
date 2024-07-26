@@ -13,14 +13,15 @@ pub use instrumented_channel;
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use aptos_indexer_processor_sdk::{
+    use crate::{
         builder::ProcessorBuilder,
         steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
         types::transaction_context::TransactionContext,
+        utils::errors::ProcessorError,
     };
+    use anyhow::Result;
     use async_trait::async_trait;
     use instrumented_channel::instrumented_bounded_channel;
     use std::time::Duration;
@@ -53,7 +54,7 @@ mod tests {
         async fn process(
             &mut self,
             item: TransactionContext<usize>,
-        ) -> Result<Option<TransactionContext<TestStruct>>> {
+        ) -> Result<Option<TransactionContext<TestStruct>>, ProcessorError> {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
             Ok(Some(TransactionContext {
                 data: processed,

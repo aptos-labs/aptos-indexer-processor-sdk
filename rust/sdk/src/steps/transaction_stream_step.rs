@@ -2,6 +2,7 @@ use super::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep};
 use crate::{
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use anyhow::Result;
 use aptos_indexer_transaction_stream::{
@@ -23,9 +24,17 @@ impl TransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
-    pub async fn new(transaction_stream_config: TransactionStreamConfig) -> Result<Self> {
-        let transaction_stream = TransactionStreamInternal::new(transaction_stream_config).await?;
-        Ok(Self { transaction_stream })
+    pub async fn new(
+        transaction_stream_config: TransactionStreamConfig,
+    ) -> Result<Self, ProcessorError> {
+        let transaction_stream_res =
+            TransactionStreamInternal::new(transaction_stream_config).await;
+        match transaction_stream_res {
+            Err(e) => Err(ProcessorError::StepInitError {
+                message: format!("Error creating transaction stream: {:?}", e),
+            }),
+            Ok(transaction_stream) => Ok(Self { transaction_stream }),
+        }
     }
 }
 
@@ -41,7 +50,7 @@ where
     async fn process(
         &mut self,
         _item: TransactionContext<()>,
-    ) -> Result<Option<TransactionContext<Transaction>>> {
+    ) -> Result<Option<TransactionContext<Transaction>>, ProcessorError> {
         Ok(None)
     }
 }
@@ -55,7 +64,9 @@ where
         Duration::from_secs(0)
     }
 
-    async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Transaction>>>> {
+    async fn poll(
+        &mut self,
+    ) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError> {
         let txn_pb_response_res = self.transaction_stream.get_next_transaction_batch().await;
         match txn_pb_response_res {
             Ok(txn_pb_response) => {
@@ -102,7 +113,7 @@ mock! {
 
         async fn init(&mut self);
 
-        async fn process(&mut self, _item: TransactionContext<()> ) -> Result<Option<TransactionContext<Transaction>>>;
+        async fn process(&mut self, _item: TransactionContext<()> ) -> Result<Option<TransactionContext<Transaction>>, ProcessorError>;
     }
 
     #[async_trait]
@@ -124,7 +135,7 @@ mock! {
         //         size_in_bytes: 10,
         //     }])
         // }
-        async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Transaction>>>>;
+        async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError>;
 
         async fn should_continue_polling(&mut self) -> bool;
     }
