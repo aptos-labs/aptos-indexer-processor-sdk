@@ -18,12 +18,16 @@ where
 {
     let RunnableStepWithInputReceiver {
         input_receiver: left_input_receiver,
+        _input_sender: _left_input_sender,
         step: left_step,
         ..
     } = left_step;
 
-    let (left_output_receiver, left_handle) =
-        left_step.spawn(Some(left_input_receiver.clone()), channel_size);
+    let (left_output_receiver, left_handle) = left_step.spawn(
+        Some(left_input_receiver.clone()),
+        channel_size,
+        _left_input_sender,
+    );
 
     let right_step_with_input_receiver =
         RunnableStepWithInputReceiver::new(left_output_receiver, right_step);

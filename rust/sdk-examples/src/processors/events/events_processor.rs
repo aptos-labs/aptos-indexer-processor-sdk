@@ -12,9 +12,8 @@ use aptos_indexer_processor_sdk::{
     aptos_indexer_transaction_stream::TransactionStreamConfig,
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
-    traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
+    traits::IntoRunnableStep,
 };
-use instrumented_channel::instrumented_bounded_channel;
 use std::time::Duration;
 
 pub struct EventsProcessor {
@@ -49,17 +48,11 @@ impl EventsProcessor {
         let starting_version = get_starting_version(&self.config, self.db_pool.clone()).await?;
 
         // Define processor steps
-        let (_input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
-
         let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
             starting_version: Some(starting_version),
             ..self.config.transaction_stream_config
         })
         .await?;
-        let transaction_stream_with_input = RunnableStepWithInputReceiver::new(
-            input_receiver,
-            transaction_stream.into_runnable_step(),
-        );
         let events_extractor = EventsExtractor {};
         let events_storer = EventsStorer::new(self.db_pool.clone());
         let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
@@ -71,8 +64,8 @@ impl EventsProcessor {
         .await?;
 
         // Connect processor steps together
-        let (_, buffer_receiver) = ProcessorBuilder::new_with_runnable_input_receiver_first_step(
-            transaction_stream_with_input,
+        let (_, buffer_receiver) = ProcessorBuilder::new_with_inputless_first_step(
+            transaction_stream.into_runnable_step(),
         )
         .connect_to(events_extractor.into_runnable_step(), 10)
         .connect_to(timed_buffer.into_runnable_step(), 10)

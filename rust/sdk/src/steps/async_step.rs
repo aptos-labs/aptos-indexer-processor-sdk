@@ -6,7 +6,9 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
-use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
+use instrumented_channel::{
+    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+};
 use std::time::Instant;
 use tokio::task::JoinHandle;
 
@@ -68,6 +70,7 @@ where
         self,
         input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<Step::Input>>>,
         output_channel_size: usize,
+        _input_sender: Option<InstrumentedAsyncSender<TransactionContext<Step::Input>>>,
     ) -> (
         InstrumentedAsyncReceiver<TransactionContext<Step::Output>>,
         JoinHandle<()>,

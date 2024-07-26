@@ -6,7 +6,9 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
-use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
+use instrumented_channel::{
+    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+};
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 
@@ -74,6 +76,7 @@ where
         self,
         input_receiver: Option<InstrumentedAsyncReceiver<TransactionContext<PollableStep::Input>>>,
         output_channel_size: usize,
+        _input_sender: Option<InstrumentedAsyncSender<TransactionContext<PollableStep::Input>>>,
     ) -> (
         InstrumentedAsyncReceiver<TransactionContext<PollableStep::Output>>,
         JoinHandle<()>,
@@ -86,6 +89,8 @@ where
             instrumented_bounded_channel(&format!("{} Output", step_name), output_channel_size);
 
         let handle = tokio::spawn(async move {
+            // This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.
+            let _input_sender = _input_sender.clone();
             let poll_duration = step.poll_interval();
 
             let mut last_poll = tokio::time::Instant::now();
