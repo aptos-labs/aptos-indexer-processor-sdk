@@ -2,6 +2,7 @@ use super::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep};
 use crate::{
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use anyhow::Result;
 use aptos_indexer_transaction_stream::{
@@ -11,6 +12,7 @@ use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
 use std::time::Duration;
+use tracing::info;
 
 pub struct TransactionStreamStep
 where
@@ -23,9 +25,17 @@ impl TransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
-    pub async fn new(transaction_stream_config: TransactionStreamConfig) -> Result<Self> {
-        let transaction_stream = TransactionStreamInternal::new(transaction_stream_config).await?;
-        Ok(Self { transaction_stream })
+    pub async fn new(
+        transaction_stream_config: TransactionStreamConfig,
+    ) -> Result<Self, ProcessorError> {
+        let transaction_stream_res =
+            TransactionStreamInternal::new(transaction_stream_config).await;
+        match transaction_stream_res {
+            Err(e) => Err(ProcessorError::StepInitError {
+                message: format!("Error creating transaction stream: {:?}", e),
+            }),
+            Ok(transaction_stream) => Ok(Self { transaction_stream }),
+        }
     }
 }
 
@@ -41,8 +51,8 @@ where
     async fn process(
         &mut self,
         _item: TransactionContext<()>,
-    ) -> Option<TransactionContext<Transaction>> {
-        None
+    ) -> Result<Option<TransactionContext<Transaction>>, ProcessorError> {
+        Ok(None)
     }
 }
 
@@ -55,7 +65,9 @@ where
         Duration::from_secs(0)
     }
 
-    async fn poll(&mut self) -> Option<Vec<TransactionContext<Transaction>>> {
+    async fn poll(
+        &mut self,
+    ) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError> {
         let txn_pb_response_res = self.transaction_stream.get_next_transaction_batch().await;
         match txn_pb_response_res {
             Ok(txn_pb_response) => {
@@ -67,7 +79,7 @@ where
                     end_transaction_timestamp: txn_pb_response.end_txn_timestamp,
                     total_size_in_bytes: txn_pb_response.size_in_bytes,
                 };
-                Some(vec![transactions_with_context])
+                Ok(Some(vec![transactions_with_context]))
             },
             Err(e) => {
                 panic!(
@@ -76,6 +88,14 @@ where
                 );
             },
         }
+    }
+
+    async fn should_continue_polling(&mut self) -> bool {
+        let is_end = self.transaction_stream.is_end_of_stream();
+        if is_end {
+            info!("Reached ending version");
+        }
+        !is_end
     }
 }
 
@@ -98,7 +118,7 @@ mock! {
 
         async fn init(&mut self);
 
-        async fn process(&mut self, _item: TransactionContext<()> ) -> Option<TransactionContext<Transaction>>;
+        async fn process(&mut self, _item: TransactionContext<()> ) -> Result<Option<TransactionContext<Transaction>>, ProcessorError>;
     }
 
     #[async_trait]
@@ -120,7 +140,9 @@ mock! {
         //         size_in_bytes: 10,
         //     }])
         // }
-        async fn poll(&mut self) -> Option<Vec<TransactionContext<Transaction>>>;
+        async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError>;
+
+        async fn should_continue_polling(&mut self) -> bool;
     }
 
     impl NamedStep for TransactionStreamStep {
@@ -136,6 +158,7 @@ mod tests {
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::IntoRunnableStep,
     };
+    use mockall::Sequence;
     use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -143,14 +166,14 @@ mod tests {
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
-            Some(vec![TransactionContext {
+            Ok(Some(vec![TransactionContext {
                 data: vec![Transaction::default()],
                 start_version: 0,
                 end_version: 100,
                 start_transaction_timestamp: None,
                 end_transaction_timestamp: None,
                 total_size_in_bytes: 10,
-            }])
+            }]))
         });
         mock_transaction_stream
             .expect_poll_interval()
@@ -162,6 +185,17 @@ mod tests {
             .expect_name()
             .returning(|| "MockTransactionStream".to_string());
 
+        // Set up the mock transaction stream to poll 3 times
+        let mut seq = Sequence::new();
+        mock_transaction_stream
+            .expect_should_continue_polling()
+            .times(3)
+            .in_sequence(&mut seq)
+            .return_const(true);
+        mock_transaction_stream
+            .expect_should_continue_polling()
+            .return_const(false);
+
         let pass_through_step = PassThroughStep::default();
 
         let (_, mut output_receiver) = ProcessorBuilder::new_with_inputless_first_step(
@@ -171,10 +205,16 @@ mod tests {
         .end_and_return_output_receiver(5);
 
         tokio::time::sleep(Duration::from_millis(250)).await;
-        let result = receive_with_timeout(&mut output_receiver, 100)
-            .await
-            .unwrap();
+        for _ in 0..3 {
+            let result = receive_with_timeout(&mut output_receiver, 100)
+                .await
+                .unwrap();
 
-        assert_eq!(result.data.len(), 1);
+            assert_eq!(result.data.len(), 1);
+        }
+
+        // After receiving 3 outputs, the channel should be empty
+        let result = receive_with_timeout(&mut output_receiver, 100).await;
+        assert!(result.is_none());
     }
 }

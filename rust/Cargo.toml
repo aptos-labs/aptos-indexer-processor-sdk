@@ -17,7 +17,7 @@ homepage = "https://aptoslabs.com"
 license = "Apache-2.0"
 publish = false
 repository = "https://github.com/aptos-labs/aptos-indexer-processor-sdk"
-rust-version = "1.75"
+rust-version = "1.79"
 
 [workspace.dependencies]
 aptos-indexer-processor-sdk = { path = "sdk" }

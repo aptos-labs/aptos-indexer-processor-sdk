@@ -19,7 +19,9 @@ mod tests {
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
         types::transaction_context::TransactionContext,
+        utils::errors::ProcessorError,
     };
+    use anyhow::Result;
     use async_trait::async_trait;
     use instrumented_channel::instrumented_bounded_channel;
     use std::time::Duration;
@@ -52,16 +54,16 @@ mod tests {
         async fn process(
             &mut self,
             item: TransactionContext<usize>,
-        ) -> Option<TransactionContext<TestStruct>> {
+        ) -> Result<Option<TransactionContext<TestStruct>>, ProcessorError> {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
-            Some(TransactionContext {
+            Ok(Some(TransactionContext {
                 data: processed,
                 start_version: item.start_version,
                 end_version: item.end_version,
                 start_transaction_timestamp: item.start_transaction_timestamp,
                 end_transaction_timestamp: item.end_transaction_timestamp,
                 total_size_in_bytes: item.total_size_in_bytes,
-            })
+            }))
         }
     }
 

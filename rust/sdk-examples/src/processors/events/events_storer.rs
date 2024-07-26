@@ -4,10 +4,12 @@ use crate::{
     utils::database::{execute_in_chunks, get_config_table_chunk_size, ArcDbPool},
 };
 use ahash::AHashMap;
+use anyhow::Result;
 use aptos_indexer_processor_sdk::{
     steps::{async_step::AsyncRunType, AsyncStep},
     traits::{NamedStep, Processable},
     types::transaction_context::TransactionContext,
+    utils::errors::ProcessorError,
 };
 use async_trait::async_trait;
 use diesel::{
@@ -58,7 +60,7 @@ impl Processable for EventsStorer {
     async fn process(
         &mut self,
         events: TransactionContext<EventModel>,
-    ) -> Option<TransactionContext<EventModel>> {
+    ) -> Result<Option<TransactionContext<EventModel>>, ProcessorError> {
         let per_table_chunk_sizes: AHashMap<String, usize> = AHashMap::new();
         let execute_res = execute_in_chunks(
             self.conn_pool.clone(),
@@ -69,13 +71,16 @@ impl Processable for EventsStorer {
         .await;
         match execute_res {
             Ok(_) => {
-                println!("Events stored successfully");
+                println!(
+                    "Events version {} to {} stored successfully",
+                    events.start_version, events.end_version
+                );
             },
             Err(e) => {
                 println!("Failed to store events: {:?}", e);
             },
         }
-        Some(events)
+        Ok(Some(events))
     }
 }
 

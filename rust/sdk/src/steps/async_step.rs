@@ -6,11 +6,13 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use async_trait::async_trait;
+use bigdecimal::Zero;
 use instrumented_channel::{
     instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
+use tracing::{error, info, warn};
 
 #[async_trait]
 pub trait AsyncStep
@@ -84,14 +86,24 @@ where
 
         let handle = tokio::spawn(async move {
             loop {
-                let input_with_context = input_receiver
-                    .recv()
-                    .await
-                    .expect("Failed to receive input");
+                let input_with_context = match input_receiver.recv().await {
+                    Ok(input_with_context) => input_with_context,
+                    Err(e) => {
+                        // If the previous steps have finished and the channels have closed , we should break out of the loop
+                        warn!(step_name, "No input received from channel: {:?}", e);
+                        break;
+                    },
+                };
                 let processing_duration = Instant::now();
-                let output_with_context = step.process(input_with_context).await;
+                let output_with_context = match step.process(input_with_context).await {
+                    Ok(output_with_context) => output_with_context,
+                    Err(e) => {
+                        error!(step_name, "Failed to process input: {:?}", e);
+                        break;
+                    },
+                };
                 if let Some(output_with_context) = output_with_context {
-                    StepMetricsBuilder::default()
+                    match StepMetricsBuilder::default()
                         .labels(StepMetricLabels {
                             step_name: step.name(),
                         })
@@ -105,14 +117,36 @@ where
                         .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
                         .processed_size_in_bytes(output_with_context.total_size_in_bytes)
                         .build()
-                        .unwrap()
-                        .log_metrics();
-                    output_sender
-                        .send(output_with_context)
-                        .await
-                        .expect("Failed to send output");
+                    {
+                        Ok(mut metrics) => metrics.log_metrics(),
+                        Err(e) => {
+                            error!(step_name, "Failed to log metrics: {:?}", e);
+                            break;
+                        },
+                    }
+                    match output_sender.send(output_with_context).await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!(step_name, "Error sending output to channel: {:?}", e);
+                            break;
+                        },
+                    }
                 }
             }
+
+            // Wait for output channel to be empty before ending the task and closing the send channel
+            loop {
+                let channel_size = output_sender.len();
+                info!(
+                    step_name,
+                    channel_size, "Waiting for output channel to be empty"
+                );
+                if channel_size.is_zero() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            info!(step_name, "Output channel is empty. Closing send channel.");
         });
 
         (output_receiver, handle)
