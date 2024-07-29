@@ -159,7 +159,7 @@ pub fn setup_logging() {
 }
 
 /// Register readiness and liveness probes and set up metrics endpoint.
-async fn register_probes_and_metrics_handler(port: u16) {
+pub async fn register_probes_and_metrics_handler(port: u16) {
     let mut registry = <Registry>::default();
     init_step_metrics_registry(&mut registry);
     init_channel_metrics_registry(&mut registry);
