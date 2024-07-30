@@ -12,12 +12,13 @@ use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
 use std::time::Duration;
-use tracing::info;
+use tracing::{error, info, warn};
 
 pub struct TransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
+    transaction_stream_config: TransactionStreamConfig,
     pub transaction_stream: TransactionStreamInternal,
 }
 
@@ -29,12 +30,15 @@ where
         transaction_stream_config: TransactionStreamConfig,
     ) -> Result<Self, ProcessorError> {
         let transaction_stream_res =
-            TransactionStreamInternal::new(transaction_stream_config).await;
+            TransactionStreamInternal::new(transaction_stream_config.clone()).await;
         match transaction_stream_res {
             Err(e) => Err(ProcessorError::StepInitError {
                 message: format!("Error creating transaction stream: {:?}", e),
             }),
-            Ok(transaction_stream) => Ok(Self { transaction_stream }),
+            Ok(transaction_stream) => Ok(Self {
+                transaction_stream,
+                transaction_stream_config,
+            }),
         }
     }
 }
@@ -82,10 +86,42 @@ where
                 Ok(Some(vec![transactions_with_context]))
             },
             Err(e) => {
-                panic!(
-                    "Error getting transactions in TransactionStreamStep: {:?}",
-                    e
+                warn!(
+                    stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
+                    error = ?e,
+                    "Error fetching transactions from TransactionStream. Attempting to reconnect."
                 );
+
+                // TransactionStream closes connections every 5 minutes. We should try to reconnect
+                match self
+                    .transaction_stream
+                    .reconnect_to_grpc_with_retries()
+                    .await
+                {
+                    Ok(_) => {
+                        info!(
+                            stream_address = self
+                                .transaction_stream_config
+                                .indexer_grpc_data_service_address
+                                .to_string(),
+                            "Successfully reconnected to TransactionStream."
+                        );
+                        // Return nothing for now. The next poll will fetch the next batch of transactions.
+                        Ok(None)
+                    },
+                    Err(e) => {
+                        error!(
+                            stream_address = self.transaction_stream_config
+                                .indexer_grpc_data_service_address
+                                .to_string(),
+                            error = ?e,
+                            " Error reconnecting transaction stream."
+                        );
+                        Err(ProcessorError::PollError {
+                            message: format!("Error reconnecting to TransactionStream: {:?}", e),
+                        })
+                    },
+                }
             },
         }
     }
