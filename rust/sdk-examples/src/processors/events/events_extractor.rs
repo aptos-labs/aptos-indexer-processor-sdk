@@ -7,8 +7,10 @@ use aptos_indexer_processor_sdk::{
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,
 };
+use aptos_logger::{sample, sample::SampleRate, warn};
 use async_trait::async_trait;
 use rayon::prelude::*;
+use std::time::Duration;
 
 pub struct EventsExtractor
 where
@@ -34,13 +36,13 @@ impl Processable for EventsExtractor {
                 let txn_data = match txn.txn_data.as_ref() {
                     Some(data) => data,
                     None => {
-                        tracing::warn!(
-                            transaction_version = txn_version,
-                            "Transaction data doesn't exist"
+                        sample!(
+                            SampleRate::Duration(Duration::from_secs(1)),
+                            warn!(
+                                transaction_version = txn_version,
+                                "Transaction data doesn't exist"
+                            )
                         );
-                        // PROCESSOR_UNKNOWN_TYPE_COUNT
-                        //     .with_label_values(&["EventsProcessor"])
-                        //     .inc();
                         return vec![];
                     },
                 };

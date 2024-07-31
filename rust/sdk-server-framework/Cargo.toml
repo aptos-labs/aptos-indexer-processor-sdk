@@ -15,6 +15,7 @@ rust-version = { workspace = true }
 aptos-indexer-processor-sdk = { workspace = true }
 
 anyhow = { workspace = true }
+aptos-logger = { workspace = true }
 async-trait = { workspace = true }
 autometrics = { workspace = true }
 axum = { workspace = true }

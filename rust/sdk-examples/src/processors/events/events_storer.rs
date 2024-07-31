@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     db::common::models::events_models::EventModel,
     schema,
@@ -11,6 +13,7 @@ use aptos_indexer_processor_sdk::{
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,
 };
+use aptos_logger::{error, info, sample, sample::SampleRate};
 use async_trait::async_trait;
 use diesel::{
     pg::{upsert::excluded, Pg},
@@ -71,13 +74,16 @@ impl Processable for EventsStorer {
         .await;
         match execute_res {
             Ok(_) => {
-                println!(
-                    "Events version {} to {} stored successfully",
-                    events.start_version, events.end_version
+                sample!(
+                    SampleRate::Duration(Duration::from_secs(1)),
+                    info!(
+                        "Events version [{}, {}] stored successfully",
+                        events.start_version, events.end_version
+                    )
                 );
             },
             Err(e) => {
-                println!("Failed to store events: {:?}", e);
+                error!("Failed to store events: {:?}", e);
             },
         }
         Ok(Some(events))

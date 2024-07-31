@@ -14,6 +14,7 @@ use aptos_indexer_processor_sdk::{
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
 };
+use aptos_logger::{info, sample, sample::SampleRate};
 use std::time::Duration;
 
 pub struct EventsProcessor {
@@ -78,16 +79,18 @@ impl EventsProcessor {
             match buffer_receiver.recv().await {
                 Ok(txn_context) => {
                     if txn_context.data.is_empty() {
-                        println!("Received no transactions");
                         continue;
                     }
-                    println!(
-                        "Received events versions: {:?} to {:?}",
-                        txn_context.start_version, txn_context.end_version,
+                    sample!(
+                        SampleRate::Duration(Duration::from_secs(1)),
+                        info!(
+                            "Finished processing events from versions [{:?}, {:?}]",
+                            txn_context.start_version, txn_context.end_version,
+                        )
                     );
                 },
                 Err(_) => {
-                    println!("Channel is closed");
+                    info!("Channel is closed");
                     return Ok(());
                 },
             }

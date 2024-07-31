@@ -6,6 +6,7 @@
 
 use ahash::AHashMap;
 use aptos_indexer_processor_sdk::utils::convert::remove_null_bytes;
+use aptos_logger::{debug, info, warn};
 use diesel::{
     query_builder::{AstPass, Query, QueryFragment, QueryId},
     ConnectionResult, QueryResult,
@@ -175,9 +176,9 @@ where
         where_clause: additional_where_clause,
     };
     let debug_string = diesel::debug_query::<Backend, _>(&final_query).to_string();
-    tracing::debug!("Executing query: {:?}", debug_string);
+    debug!("Executing query: {:?}", debug_string);
     let conn = &mut pool.get().await.map_err(|e| {
-        tracing::warn!("Error getting connection from pool: {:?}", e);
+        warn!("Error getting connection from pool: {:?}", e);
         diesel::result::Error::DatabaseError(
             diesel::result::DatabaseErrorKind::UnableToSendCommand,
             Box::new(e.to_string()),
@@ -185,7 +186,7 @@ where
     })?;
     let res = final_query.execute(conn).await;
     if let Err(ref e) = res {
-        tracing::warn!("Error running query: {:?}\n{:?}", e, debug_string);
+        warn!("Error running query: {:?}\n{:?}", e, debug_string);
     }
     res
 }
@@ -222,10 +223,10 @@ where
         where_clause: additional_where_clause,
     };
     let debug_string = diesel::debug_query::<Backend, _>(&final_query).to_string();
-    tracing::debug!("Executing query: {:?}", debug_string);
+    debug!("Executing query: {:?}", debug_string);
     let res = final_query.execute(conn).await;
     if let Err(ref e) = res {
-        tracing::warn!("Error running query: {:?}\n{:?}", e, debug_string);
+        warn!("Error running query: {:?}\n{:?}", e, debug_string);
     }
     res
 }
@@ -271,12 +272,12 @@ pub fn run_pending_migrations<DB: diesel::backend::Backend>(conn: &mut impl Migr
 pub async fn run_migrations(postgres_connection_string: String, _conn_pool: ArcDbPool) {
     use diesel::{Connection, PgConnection};
 
-    tracing::info!("Running migrations: {:?}", postgres_connection_string);
+    info!("Running migrations: {:?}", postgres_connection_string);
     let migration_time = std::time::Instant::now();
     let mut conn =
         PgConnection::establish(&postgres_connection_string).expect("migrations failed!");
     run_pending_migrations(&mut conn);
-    tracing::info!(
+    info!(
         duration_in_secs = migration_time.elapsed().as_secs_f64(),
         "[Parser] Finished migrations"
     );
@@ -288,7 +289,7 @@ pub async fn run_migrations(postgres_connection_string: String, _conn_pool: ArcD
 pub async fn run_migrations(postgres_connection_string: String, conn_pool: ArcDbPool) {
     use diesel_async::async_connection_wrapper::AsyncConnectionWrapper;
 
-    tracing::info!("Running migrations: {:?}", postgres_connection_string);
+    info!("Running migrations: {:?}", postgres_connection_string);
     let conn = conn_pool
         // We need to use this since AsyncConnectionWrapper doesn't know how to
         // work with a pooled connection.
