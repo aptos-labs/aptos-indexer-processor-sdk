@@ -307,7 +307,6 @@ dependencies = [
  "thiserror",
  "tiny-keccak",
  "tokio",
- "tracing",
  "url",
 ]
 
@@ -317,6 +316,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "aptos-indexer-processor-sdk",
+ "aptos-logger",
  "aptos-system-utils",
  "async-trait",
  "autometrics",
@@ -353,7 +353,6 @@ dependencies = [
  "serde",
  "tokio",
  "tonic",
- "tracing",
  "url",
 ]
 
@@ -4788,6 +4787,7 @@ dependencies = [
  "anyhow",
  "aptos-indexer-processor-sdk",
  "aptos-indexer-processor-sdk-server-framework",
+ "aptos-logger",
  "async-trait",
  "bcs",
  "bigdecimal",

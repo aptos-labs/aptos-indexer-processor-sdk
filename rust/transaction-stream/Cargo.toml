@@ -28,5 +28,4 @@ prost = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
-tracing = { workspace = true }
 url = { workspace = true }
