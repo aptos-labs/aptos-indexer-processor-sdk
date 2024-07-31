@@ -1,5 +1,6 @@
 use crate::{config::TransactionStreamConfig, utils::timestamp_to_iso};
 use anyhow::{anyhow, Result};
+use aptos_logger::{error, info, sample, sample::SampleRate, warn};
 use aptos_moving_average::MovingAverage;
 use aptos_protos::{
     indexer::v1::{raw_data_client::RawDataClient, GetTransactionsRequest, TransactionsResponse},
@@ -11,7 +12,6 @@ use prost::Message;
 use std::time::Duration;
 use tokio::time::timeout;
 use tonic::{Response, Streaming};
-use tracing::{error, info};
 
 /// GRPC request metadata key for the token ID.
 const GRPC_API_GATEWAY_API_KEY_HEADER: &str = "authorization";
@@ -258,7 +258,8 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
         stream_address = transaction_stream_config
             .indexer_grpc_data_service_address
             .to_string(),
-        connection_id, "[Transaction Stream] Successfully connected to GRPC stream to get chain id",
+        connection_id = connection_id,
+        "[Transaction Stream] Successfully connected to GRPC stream to get chain id",
     );
 
     match resp_stream.next().await {
@@ -269,7 +270,8 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
                     stream_address = transaction_stream_config
                         .indexer_grpc_data_service_address
                         .to_string(),
-                    connection_id, "[Transaction Stream] Chain Id doesn't exist."
+                    connection_id = connection_id,
+                    "[Transaction Stream] Chain Id doesn't exist."
                 );
                 Err(anyhow!("Chain Id doesn't exist"))
             },
@@ -277,7 +279,7 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
         Some(Err(rpc_error)) => {
             error!(
                 stream_address = transaction_stream_config.indexer_grpc_data_service_address.to_string(),
-                connection_id,
+                connection_id = connection_id,
                 error = ?rpc_error,
                 "[Transaction Stream] Error receiving datastream response for chain id"
             );
@@ -288,7 +290,7 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
                 stream_address = transaction_stream_config
                     .indexer_grpc_data_service_address
                     .to_string(),
-                connection_id,
+                connection_id = connection_id,
                 "[Transaction Stream] Stream ended before getting response fo for chain id"
             );
             Err(anyhow!("Stream ended before getting response for chain id"))
@@ -399,35 +401,38 @@ impl TransactionStream {
                         let duration_in_secs = grpc_channel_recv_latency.elapsed().as_secs_f64();
                         self.fetch_ma.tick_now(num_txns as u64);
 
-                        info!(
-                            stream_address = self
-                                .transaction_stream_config
-                                .indexer_grpc_data_service_address
-                                .to_string(),
-                            connection_id = self.connection_id,
-                            start_version,
-                            end_version,
-                            start_txn_timestamp_iso = start_txn_timestamp
-                                .as_ref()
-                                .map(timestamp_to_iso)
-                                .unwrap_or_default(),
-                            end_txn_timestamp_iso = end_txn_timestamp
-                                .as_ref()
-                                .map(timestamp_to_iso)
-                                .unwrap_or_default(),
-                            num_of_transactions = end_version - start_version + 1,
-                            size_in_bytes,
-                            duration_in_secs,
-                            tps = self.fetch_ma.avg().ceil() as u64,
-                            bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
-                            "[Transaction Stream] Received transactions from GRPC.",
+                        sample!(
+                            SampleRate::Frequency(10),
+                            info!(
+                                stream_address = self
+                                    .transaction_stream_config
+                                    .indexer_grpc_data_service_address
+                                    .to_string(),
+                                connection_id = self.connection_id,
+                                start_version = start_version,
+                                end_version = end_version,
+                                start_txn_timestamp_iso = start_txn_timestamp
+                                    .as_ref()
+                                    .map(timestamp_to_iso)
+                                    .unwrap_or_default(),
+                                end_txn_timestamp_iso = end_txn_timestamp
+                                    .as_ref()
+                                    .map(timestamp_to_iso)
+                                    .unwrap_or_default(),
+                                num_of_transactions = end_version - start_version + 1,
+                                size_in_bytes = size_in_bytes,
+                                duration_in_secs = duration_in_secs,
+                                tps = self.fetch_ma.avg().ceil() as u64,
+                                bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
+                                "[Transaction Stream] Received transactions from GRPC.",
+                            )
                         );
 
                         if let Some(last_fetched_version) = self.last_fetched_version {
                             if last_fetched_version + 1 != start_version as i64 {
                                 error!(
                                     batch_start_version = self.last_fetched_version.map(|v| v + 1),
-                                    self.last_fetched_version,
+                                    last_fetched_version = self.last_fetched_version,
                                     current_fetched_version = start_version,
                                     "[Transaction Stream] Received batch with gap from GRPC stream"
                                 );
@@ -450,9 +455,9 @@ impl TransactionStream {
                     },
                     // Error receiving datastream response
                     Some(Err(rpc_error)) => {
-                        tracing::warn!(
+                        warn!(
                             stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
-                            self.connection_id,
+                            connection_id = self.connection_id,
                             start_version = self.transaction_stream_config.starting_version,
                             end_version = self.transaction_stream_config.request_ending_version,
                             error = ?rpc_error,
@@ -462,7 +467,7 @@ impl TransactionStream {
                     },
                     // Stream is finished
                     None => {
-                        tracing::warn!(
+                        warn!(
                             stream_address = self
                                 .transaction_stream_config
                                 .indexer_grpc_data_service_address
@@ -478,7 +483,7 @@ impl TransactionStream {
             },
             // Timeout receiving datastream response
             Err(e) => {
-                tracing::warn!(
+                warn!(
                     stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
                     connection_id = self.connection_id,
                     start_version = self.transaction_stream_config.starting_version,
