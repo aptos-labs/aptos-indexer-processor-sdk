@@ -7,7 +7,6 @@ use crate::{
     utils::errors::ProcessorError,
 };
 use anyhow::Result;
-use aptos_logger::{error, info, warn};
 use async_trait::async_trait;
 use bigdecimal::Zero;
 use instrumented_channel::{
@@ -15,6 +14,7 @@ use instrumented_channel::{
 };
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
+use tracing::{error, info, warn};
 
 #[async_trait]
 pub trait PollableAsyncStep

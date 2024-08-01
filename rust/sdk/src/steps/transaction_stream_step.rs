@@ -8,11 +8,11 @@ use anyhow::Result;
 use aptos_indexer_transaction_stream::{
     TransactionStream as TransactionStreamInternal, TransactionStreamConfig,
 };
-use aptos_logger::{error, info, warn};
 use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
 use std::time::Duration;
+use tracing::{error, info, warn};
 
 pub struct TransactionStreamStep
 where

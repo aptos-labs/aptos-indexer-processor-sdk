@@ -6,7 +6,6 @@
 
 use ahash::AHashMap;
 use aptos_indexer_processor_sdk::utils::convert::remove_null_bytes;
-use aptos_logger::{debug, info, warn};
 use diesel::{
     query_builder::{AstPass, Query, QueryFragment, QueryId},
     ConnectionResult, QueryResult,
@@ -21,6 +20,7 @@ use diesel_async::{
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use futures_util::{future::BoxFuture, FutureExt};
 use std::sync::Arc;
+use tracing::{debug, info, warn};
 
 pub type Backend = diesel::pg::Pg;
 

@@ -4,7 +4,6 @@
 //! Helpers for extracting data from transactions.
 
 use super::convert::{deserialize_from_string, truncate_str};
-use aptos_logger::{error, warn};
 use aptos_protos::transaction::v1::{
     multisig_transaction_payload::Payload as MultisigPayloadType,
     transaction_payload::Payload as PayloadType, write_set::WriteSet as WriteSetType,
@@ -14,6 +13,7 @@ use aptos_protos::transaction::v1::{
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::{error, warn};
 
 /// Max length of entry function id string to ensure that db doesn't explode
 pub const MAX_ENTRY_FUNCTION_LENGTH: usize = 1000;
