@@ -3,13 +3,14 @@ use crate::{
     common_steps::latest_processed_version_tracker::LatestVersionProcessedTracker,
     config::indexer_processor_config::IndexerProcessorConfig,
     utils::{
+        chain_id::check_or_update_chain_id,
         database::{new_db_pool, run_migrations, ArcDbPool},
         starting_version::get_starting_version,
     },
 };
 use anyhow::Result;
 use aptos_indexer_processor_sdk::{
-    aptos_indexer_transaction_stream::TransactionStreamConfig,
+    aptos_indexer_transaction_stream::{TransactionStream, TransactionStreamConfig},
     builder::ProcessorBuilder,
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
@@ -47,6 +48,13 @@ impl EventsProcessor {
 
         // (Optional) Merge the starting version from config and the latest processed version from the DB
         let starting_version = get_starting_version(&self.config, self.db_pool.clone()).await?;
+
+        // (Optional) Check and update the ledger chain id to ensure we're indexing the correct chain
+        let grpc_chain_id = TransactionStream::new(self.config.transaction_stream_config.clone())
+            .await?
+            .get_chain_id()
+            .await?;
+        check_or_update_chain_id(grpc_chain_id as i64, self.db_pool.clone()).await?;
 
         // Define processor steps
         let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
