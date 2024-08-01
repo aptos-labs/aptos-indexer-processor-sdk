@@ -9,7 +9,6 @@ use aptos_indexer_processor_sdk::{
 };
 use async_trait::async_trait;
 use rayon::prelude::*;
-use std::time::Duration;
 use tracing::warn;
 
 pub struct EventsExtractor

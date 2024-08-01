@@ -17,7 +17,6 @@ use diesel::{
     query_builder::QueryFragment,
     ExpressionMethods,
 };
-use std::time::Duration;
 use tracing::{error, info};
 
 pub struct EventsStorer
