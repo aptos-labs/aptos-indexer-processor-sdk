@@ -1,6 +1,5 @@
 use crate::{config::TransactionStreamConfig, utils::timestamp_to_iso};
 use anyhow::{anyhow, Result};
-use aptos_logger::{error, info, sample, sample::SampleRate, warn};
 use aptos_moving_average::MovingAverage;
 use aptos_protos::{
     indexer::v1::{raw_data_client::RawDataClient, GetTransactionsRequest, TransactionsResponse},
@@ -12,6 +11,7 @@ use prost::Message;
 use std::time::Duration;
 use tokio::time::timeout;
 use tonic::{Response, Streaming};
+use tracing::{error, info, warn};
 
 /// GRPC request metadata key for the token ID.
 const GRPC_API_GATEWAY_API_KEY_HEADER: &str = "authorization";
@@ -397,31 +397,28 @@ impl TransactionStream {
                         let duration_in_secs = grpc_channel_recv_latency.elapsed().as_secs_f64();
                         self.fetch_ma.tick_now(num_txns as u64);
 
-                        sample!(
-                            SampleRate::Frequency(10),
-                            info!(
-                                stream_address = self
-                                    .transaction_stream_config
-                                    .indexer_grpc_data_service_address
-                                    .to_string(),
-                                connection_id = self.connection_id,
-                                start_version = start_version,
-                                end_version = end_version,
-                                start_txn_timestamp_iso = start_txn_timestamp
-                                    .as_ref()
-                                    .map(timestamp_to_iso)
-                                    .unwrap_or_default(),
-                                end_txn_timestamp_iso = end_txn_timestamp
-                                    .as_ref()
-                                    .map(timestamp_to_iso)
-                                    .unwrap_or_default(),
-                                num_of_transactions = end_version - start_version + 1,
-                                size_in_bytes = size_in_bytes,
-                                duration_in_secs = duration_in_secs,
-                                tps = self.fetch_ma.avg().ceil() as u64,
-                                bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
-                                "[Transaction Stream] Received transactions from GRPC.",
-                            )
+                        info!(
+                            stream_address = self
+                                .transaction_stream_config
+                                .indexer_grpc_data_service_address
+                                .to_string(),
+                            connection_id = self.connection_id,
+                            start_version = start_version,
+                            end_version = end_version,
+                            start_txn_timestamp_iso = start_txn_timestamp
+                                .as_ref()
+                                .map(timestamp_to_iso)
+                                .unwrap_or_default(),
+                            end_txn_timestamp_iso = end_txn_timestamp
+                                .as_ref()
+                                .map(timestamp_to_iso)
+                                .unwrap_or_default(),
+                            num_of_transactions = end_version - start_version + 1,
+                            size_in_bytes = size_in_bytes,
+                            duration_in_secs = duration_in_secs,
+                            tps = self.fetch_ma.avg().ceil() as u64,
+                            bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
+                            "[Transaction Stream] Received transactions from GRPC.",
                         );
 
                         if let Some(last_fetched_version) = self.last_fetched_version {

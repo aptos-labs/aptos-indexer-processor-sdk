@@ -14,8 +14,8 @@ use aptos_indexer_processor_sdk::{
     steps::{TimedBuffer, TransactionStreamStep},
     traits::IntoRunnableStep,
 };
-use aptos_logger::{info, sample, sample::SampleRate};
 use std::time::Duration;
+use tracing::info;
 
 pub struct EventsProcessor {
     pub config: IndexerProcessorConfig,
@@ -81,12 +81,9 @@ impl EventsProcessor {
                     if txn_context.data.is_empty() {
                         continue;
                     }
-                    sample!(
-                        SampleRate::Duration(Duration::from_secs(1)),
-                        info!(
-                            "Finished processing events from versions [{:?}, {:?}]",
-                            txn_context.start_version, txn_context.end_version,
-                        )
+                    info!(
+                        "Finished processing events from versions [{:?}, {:?}]",
+                        txn_context.start_version, txn_context.end_version,
                     );
                 },
                 Err(_) => {

@@ -20,6 +20,7 @@ use std::convert::Infallible;
 use std::{fs::File, io::Read, panic::PanicInfo, path::PathBuf, process};
 use tokio::runtime::Handle;
 use tracing::error;
+use tracing_subscriber::EnvFilter;
 
 /// ServerArgs bootstraps a server with all common pieces. And then triggers the run method for
 /// the specific service.
@@ -143,7 +144,19 @@ fn handle_panic(panic_info: &PanicInfo<'_>) {
 
 /// Set up logging for the server.
 pub fn setup_logging() {
-    aptos_logger::Logger::new().init();
+    let env_filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap();
+    tracing_subscriber::fmt()
+        .json()
+        .with_file(true)
+        .with_line_number(true)
+        .with_thread_ids(true)
+        .with_target(false)
+        .with_thread_names(true)
+        .with_env_filter(env_filter)
+        .flatten_event(true)
+        .init();
 }
 
 /// Register readiness and liveness probes and set up metrics endpoint.
