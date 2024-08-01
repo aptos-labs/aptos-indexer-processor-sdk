@@ -59,7 +59,6 @@ diesel-async = { git = "https://github.com/weiznich/diesel_async.git", rev = "d0
     "tokio",
 ] }
 diesel_migrations = { version = "2.1.0", features = ["postgres"] }
-diesel_async_migrations = { git = "https://github.com/niroco/diesel_async_migrations", rev = "11f331b73c5cfcc894380074f748d8fda710ac12" }
 field_count = "0.1.1"
 futures = "0.3.30"
 futures-util = "0.3.21"
