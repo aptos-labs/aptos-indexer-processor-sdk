@@ -309,7 +309,6 @@ pub struct TransactionStream {
     transaction_stream_config: TransactionStreamConfig,
     stream: Streaming<TransactionsResponse>,
     connection_id: String,
-    next_version_to_fetch: Option<u64>,
     reconnection_retries: u64,
     last_fetched_version: Option<i64>,
     fetch_ma: MovingAverage,
@@ -322,7 +321,6 @@ impl TransactionStream {
             transaction_stream_config: transaction_stream_config.clone(),
             stream,
             connection_id,
-            next_version_to_fetch: transaction_stream_config.starting_version,
             reconnection_retries: 0,
             last_fetched_version: transaction_stream_config
                 .starting_version
@@ -391,8 +389,6 @@ impl TransactionStream {
                         let end_txn_timestamp =
                             r.transactions.as_slice().last().unwrap().timestamp.clone();
 
-                        self.next_version_to_fetch = Some(end_version + 1);
-
                         let size_in_bytes = r.encoded_len() as u64;
                         let chain_id: u64 = r
                             .chain_id
@@ -431,9 +427,10 @@ impl TransactionStream {
                         if let Some(last_fetched_version) = self.last_fetched_version {
                             if last_fetched_version + 1 != start_version as i64 {
                                 error!(
-                                    batch_start_version = self.last_fetched_version.map(|v| v + 1),
-                                    last_fetched_version = self.last_fetched_version,
-                                    current_fetched_version = start_version,
+                                    last_fetched_version = self.last_fetched_version, // last fetched version
+                                    expected_start_version =
+                                        self.last_fetched_version.map(|v| v + 1), // expected start version
+                                    actual_start_version = start_version, // actual start version
                                     "[Transaction Stream] Received batch with gap from GRPC stream"
                                 );
                                 return Err(anyhow!("Received batch with gap from GRPC stream"));
@@ -499,11 +496,12 @@ impl TransactionStream {
 
     /// Helper function to signal that we've fetched all the transactions up to the ending version that was requested.
     pub fn is_end_of_stream(&self) -> bool {
-        if let (Some(ending_version), Some(next_version_to_fetch)) = (
+        if let (Some(ending_version), Some(last_fetched_version)) = (
             self.transaction_stream_config.request_ending_version,
-            self.next_version_to_fetch,
+            self.last_fetched_version,
         ) {
-            next_version_to_fetch > ending_version
+            // If we've already fetched ending_version inclusive, then we're done
+            last_fetched_version >= ending_version as i64
         } else {
             false
         }
@@ -549,17 +547,23 @@ impl TransactionStream {
     }
 
     pub async fn reconnect_to_grpc(&mut self) -> Result<()> {
+        // Upon reconnection, requested starting version should be the last fetched version + 1
+        let request_starting_version = self.last_fetched_version.map(|v| (v + 1) as u64);
         info!(
             stream_address = self
                 .transaction_stream_config
                 .indexer_grpc_data_service_address
                 .to_string(),
-            starting_version = self.next_version_to_fetch,
-            ending_version = self.transaction_stream_config.request_ending_version,
+            requested_starting_version = request_starting_version,
+            requested_ending_version = self.transaction_stream_config.request_ending_version,
             reconnection_retries = self.reconnection_retries,
             "[Transaction Stream] Reconnecting to GRPC stream"
         );
-        let response = get_stream(self.transaction_stream_config.clone()).await?;
+        let response = get_stream(TransactionStreamConfig {
+            starting_version: request_starting_version,
+            ..self.transaction_stream_config.clone()
+        })
+        .await?;
         let connection_id = match response.metadata().get(GRPC_CONNECTION_ID) {
             Some(connection_id) => connection_id.to_str().unwrap().to_string(),
             None => "".to_string(),
@@ -572,7 +576,7 @@ impl TransactionStream {
                 .indexer_grpc_data_service_address
                 .to_string(),
             connection_id = self.connection_id,
-            starting_version = self.next_version_to_fetch,
+            starting_version = request_starting_version,
             ending_version = self.transaction_stream_config.request_ending_version,
             reconnection_retries = self.reconnection_retries,
             "[Transaction Stream] Successfully reconnected to GRPC stream"
