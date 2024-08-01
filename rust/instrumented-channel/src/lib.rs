@@ -63,10 +63,12 @@ impl<T> InstrumentedAsyncSender<T> {
         if res.is_err() {
             self.channel_metrics
                 .log_send_duration(send_duration.as_secs_f64())
+                .log_channel_size(self.sender.len() as u64)
                 .inc_failed_sends_count();
         } else {
             self.channel_metrics
                 .log_send_duration(send_duration.as_secs_f64())
+                .log_channel_size(self.sender.len() as u64)
                 .inc_sent_messages_count();
         }
 
@@ -121,10 +123,12 @@ impl<T> InstrumentedAsyncReceiver<T> {
         if result.is_err() {
             self.channel_metrics
                 .log_receive_duration(receive_duration.as_secs_f64())
+                .log_channel_size(self.receiver.len() as u64)
                 .inc_failed_receives_count();
         } else {
             self.channel_metrics
                 .log_receive_duration(receive_duration.as_secs_f64())
+                .log_channel_size(self.receiver.len() as u64)
                 .inc_received_messages_count();
         }
 
