@@ -5,10 +5,10 @@ pub mod pollable_async_step;
 pub mod processable;
 pub mod runnable_step;
 
-// Re-export the traits
-pub use async_step::{AsyncStep, RunnableAsyncStep};
+// Re-export the structs and traits
+pub use async_step::{AsyncRunType, AsyncStep, RunnableAsyncStep};
 pub use instrumentation::NamedStep;
 pub use into_runnable_step::IntoRunnableStep;
-pub use pollable_async_step::{PollableAsyncRunType, PollableAsyncStep};
-pub use processable::Processable;
+pub use pollable_async_step::{PollableAsyncRunType, PollableAsyncStep, RunnablePollableStep};
+pub use processable::{Processable, RunnableStepType};
 pub use runnable_step::{RunnableStep, RunnableStepWithInputReceiver};
