@@ -43,6 +43,65 @@ where
     T: Send + Sync + 'static,
 {
     fn name(&self) -> String {
-        "Arcify".to_string()
+        format!("Arcify<{}>", std::any::type_name::<T>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generate_transaction_context() -> TransactionContext<usize> {
+        TransactionContext {
+            data: vec![1, 2, 3],
+            start_version: 0,
+            end_version: 0,
+            start_transaction_timestamp: None,
+            end_transaction_timestamp: None,
+            total_size_in_bytes: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_arcify_step_process() {
+        let mut step = ArcifyStep::<usize> {
+            _marker: PhantomData,
+        };
+        let input = generate_transaction_context();
+
+        let result = step.process(input).await.unwrap().unwrap();
+        assert_eq!(result.data.len(), 3);
+        assert_eq!(*result.data[0], 1);
+        assert_eq!(*result.data[1], 2);
+        assert_eq!(*result.data[2], 3);
+    }
+
+    #[tokio::test]
+    async fn test_arcify_strong_count() {
+        let mut step = ArcifyStep::<usize> {
+            _marker: PhantomData,
+        };
+        let input = generate_transaction_context();
+
+        let result = step.process(input).await.unwrap().unwrap();
+        assert_eq!(Arc::strong_count(&result.data[0]), 1);
+
+        let arc_clone = result.data[0].clone();
+        assert_eq!(Arc::strong_count(&arc_clone), 2);
+
+        drop(arc_clone);
+        assert_eq!(Arc::strong_count(&result.data[0]), 1);
+    }
+
+    #[tokio::test]
+    async fn test_arcify_ptr_eq() {
+        let mut step = ArcifyStep::<usize> {
+            _marker: PhantomData,
+        };
+        let input = generate_transaction_context();
+
+        let result = step.process(input).await.unwrap().unwrap();
+        let arc_clone = result.data[0].clone();
+        assert!(Arc::ptr_eq(&result.data[0], &arc_clone));
     }
 }
