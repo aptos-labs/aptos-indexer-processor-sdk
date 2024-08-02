@@ -1,9 +1,9 @@
-use super::step_metrics::{StepMetricLabels, StepMetricsBuilder};
 use crate::{
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
     },
     types::transaction_context::TransactionContext,
+    utils::step_metrics::{StepMetricLabels, StepMetricsBuilder},
 };
 use async_trait::async_trait;
 use bigdecimal::Zero;

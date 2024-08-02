@@ -12,7 +12,7 @@ use anyhow::Result;
 use aptos_indexer_processor_sdk::{
     aptos_indexer_transaction_stream::{TransactionStream, TransactionStreamConfig},
     builder::ProcessorBuilder,
-    steps::{TimedBuffer, TransactionStreamStep},
+    common_steps::{TimedBufferStep, TransactionStreamStep},
     traits::IntoRunnableStep,
 };
 use std::time::Duration;
@@ -64,7 +64,7 @@ impl EventsProcessor {
         .await?;
         let events_extractor = EventsExtractor {};
         let events_storer = EventsStorer::new(self.db_pool.clone());
-        let timed_buffer = TimedBuffer::new(Duration::from_secs(1));
+        let timed_buffer = TimedBufferStep::new(Duration::from_secs(1));
         let version_tracker = LatestVersionProcessedTracker::new(
             self.config.db_config,
             starting_version,

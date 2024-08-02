@@ -2,8 +2,7 @@ use crate::db::common::models::events_models::EventModel;
 use anyhow::Result;
 use aptos_indexer_processor_sdk::{
     aptos_protos::transaction::v1::{transaction::TxnData, Transaction},
-    steps::{async_step::AsyncRunType, AsyncStep},
-    traits::{NamedStep, Processable},
+    traits::{async_step::AsyncRunType, AsyncStep, NamedStep, Processable},
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,
 };

@@ -1,10 +1,12 @@
 use crate::{
-    steps::step_metrics::{StepMetricLabels, StepMetricsBuilder},
     traits::{
         processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
     },
     types::transaction_context::TransactionContext,
-    utils::errors::ProcessorError,
+    utils::{
+        errors::ProcessorError,
+        step_metrics::{StepMetricLabels, StepMetricsBuilder},
+    },
 };
 use anyhow::Result;
 use async_trait::async_trait;

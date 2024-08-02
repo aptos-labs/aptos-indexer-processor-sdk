@@ -1,5 +1,5 @@
 pub mod builder;
-pub mod steps;
+pub mod common_steps;
 pub mod test;
 pub mod traits;
 pub mod types;
@@ -15,9 +15,12 @@ pub use instrumented_channel;
 mod tests {
     use crate::{
         builder::ProcessorBuilder,
-        steps::{AsyncStep, RunnableAsyncStep, TimedBuffer},
+        common_steps::TimedBufferStep,
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
-        traits::{IntoRunnableStep, NamedStep, Processable, RunnableStepWithInputReceiver},
+        traits::{
+            AsyncStep, IntoRunnableStep, NamedStep, Processable, RunnableAsyncStep,
+            RunnableStepWithInputReceiver,
+        },
         types::transaction_context::TransactionContext,
         utils::errors::ProcessorError,
     };
@@ -77,7 +80,7 @@ mod tests {
         );
 
         // Create a timed buffer that outputs the input after 1 second
-        let timed_buffer_step = TimedBuffer::<usize>::new(Duration::from_millis(200));
+        let timed_buffer_step = TimedBufferStep::<usize>::new(Duration::from_millis(200));
         let first_step = timed_buffer_step;
 
         let second_step = TestStep;
