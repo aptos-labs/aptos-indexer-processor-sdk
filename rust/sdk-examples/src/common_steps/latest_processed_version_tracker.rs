@@ -7,8 +7,7 @@ use crate::{
 use ahash::AHashMap;
 use anyhow::{Context, Result};
 use aptos_indexer_processor_sdk::{
-    steps::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep},
-    traits::{NamedStep, Processable},
+    traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable},
     types::transaction_context::TransactionContext,
     utils::{errors::ProcessorError, time::parse_timestamp},
 };

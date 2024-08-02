@@ -1,6 +1,7 @@
 use crate::{
-    steps::{pollable_async_step::PollableAsyncRunType, PollableAsyncStep},
-    traits::{NamedStep, Processable},
+    traits::{
+        pollable_async_step::PollableAsyncRunType, NamedStep, PollableAsyncStep, Processable,
+    },
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,
 };
@@ -8,7 +9,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::time::Duration;
 
-pub struct TimedBuffer<Input>
+pub struct TimedBufferStep<Input>
 where
     Self: Sized + Send + 'static,
     Input: Send + 'static,
@@ -17,7 +18,7 @@ where
     pub poll_interval: Duration,
 }
 
-impl<Input> TimedBuffer<Input>
+impl<Input> TimedBufferStep<Input>
 where
     Self: Sized + Send + 'static,
     Input: Send + 'static,
@@ -32,7 +33,7 @@ where
 }
 
 #[async_trait]
-impl<Input> Processable for TimedBuffer<Input>
+impl<Input> Processable for TimedBufferStep<Input>
 where
     Input: Send + 'static,
 {
@@ -57,7 +58,7 @@ where
 }
 
 #[async_trait]
-impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
+impl<Input: Send + 'static> PollableAsyncStep for TimedBufferStep<Input> {
     fn poll_interval(&self) -> Duration {
         self.poll_interval
     }
@@ -67,7 +68,7 @@ impl<Input: Send + 'static> PollableAsyncStep for TimedBuffer<Input> {
     }
 }
 
-impl<Input: Send + 'static> NamedStep for TimedBuffer<Input> {
+impl<Input: Send + 'static> NamedStep for TimedBufferStep<Input> {
     // TODO: oncecell this somehow? Likely in wrapper struct...
     fn name(&self) -> String {
         format!("TimedBuffer: {}", std::any::type_name::<Input>())
