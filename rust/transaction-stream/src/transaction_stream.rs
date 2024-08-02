@@ -8,6 +8,7 @@ use aptos_protos::{
 };
 use futures_util::StreamExt;
 use prost::Message;
+use sample::{sample, SampleRate};
 use std::time::Duration;
 use tokio::time::timeout;
 use tonic::{Response, Streaming};
@@ -397,28 +398,31 @@ impl TransactionStream {
                         let duration_in_secs = grpc_channel_recv_latency.elapsed().as_secs_f64();
                         self.fetch_ma.tick_now(num_txns as u64);
 
-                        info!(
-                            stream_address = self
-                                .transaction_stream_config
-                                .indexer_grpc_data_service_address
-                                .to_string(),
-                            connection_id = self.connection_id,
-                            start_version = start_version,
-                            end_version = end_version,
-                            start_txn_timestamp_iso = start_txn_timestamp
-                                .as_ref()
-                                .map(timestamp_to_iso)
-                                .unwrap_or_default(),
-                            end_txn_timestamp_iso = end_txn_timestamp
-                                .as_ref()
-                                .map(timestamp_to_iso)
-                                .unwrap_or_default(),
-                            num_of_transactions = end_version - start_version + 1,
-                            size_in_bytes = size_in_bytes,
-                            duration_in_secs = duration_in_secs,
-                            tps = self.fetch_ma.avg().ceil() as u64,
-                            bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
-                            "[Transaction Stream] Received transactions from GRPC.",
+                        sample!(
+                            SampleRate::Duration(Duration::from_secs(1)),
+                            info!(
+                                stream_address = self
+                                    .transaction_stream_config
+                                    .indexer_grpc_data_service_address
+                                    .to_string(),
+                                connection_id = self.connection_id,
+                                start_version = start_version,
+                                end_version = end_version,
+                                start_txn_timestamp_iso = start_txn_timestamp
+                                    .as_ref()
+                                    .map(timestamp_to_iso)
+                                    .unwrap_or_default(),
+                                end_txn_timestamp_iso = end_txn_timestamp
+                                    .as_ref()
+                                    .map(timestamp_to_iso)
+                                    .unwrap_or_default(),
+                                num_of_transactions = end_version - start_version + 1,
+                                size_in_bytes = size_in_bytes,
+                                duration_in_secs = duration_in_secs,
+                                tps = self.fetch_ma.avg().ceil() as u64,
+                                bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
+                                "[Transaction Stream] Received transactions from GRPC.",
+                            )
                         );
 
                         if let Some(last_fetched_version) = self.last_fetched_version {
