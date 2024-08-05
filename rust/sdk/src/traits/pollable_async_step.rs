@@ -105,9 +105,6 @@ where
         let handle = tokio::spawn(async move {
             // This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.
             let _input_sender = _input_sender.clone();
-            let poll_duration = step.poll_interval();
-
-            let mut last_poll = tokio::time::Instant::now();
             let step_name = step.name();
 
             step.init().await;
@@ -120,6 +117,9 @@ where
             let poll_step_name = step_name.clone();
             let poll_output_sender = output_sender.clone();
             join_set.spawn(async move {
+                let mut last_poll = tokio::time::Instant::now();
+                let poll_duration = poll_step.lock().await.poll_interval();
+
                 while poll_step.lock().await.should_continue_polling().await {
                     // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
                     if last_poll.elapsed() >= poll_duration {
@@ -272,98 +272,99 @@ where
                 }
             });
 
-            // Spawn main task to wait for both polling and processing tasks to finish and cleanup
-            tokio::spawn(async move {
-                // This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.
-                let _input_sender = _input_sender.clone();
-
-                match join_set.join_next().await {
-                    None => {
-                        error!(step_name = step_name, "No result. JoinSet is empty.");
-                    },
-                    Some(Ok(_)) => {},
-                    Some(Err(e)) => {
-                        error!(
-                            step_name = step_name,
-                            error = e.to_string(),
-                            "Error joining tasks"
-                        );
-                    },
-                }
-
-                info!(step_name = step_name, "Polling has ended.");
-
-                // Do any additional cleanup
-                let res = arc_step.lock().await.cleanup().await;
-                match res {
-                    Ok(Some(outputs_with_context)) => {
-                        for output_with_context in outputs_with_context {
-                            match StepMetricsBuilder::default()
-                                .labels(StepMetricLabels {
-                                    step_name: step_name.clone(),
-                                })
-                                .latest_polled_version(output_with_context.end_version)
-                                .latest_polled_transaction_timestamp(
-                                    output_with_context.get_start_transaction_timestamp_unix(),
-                                )
-                                .num_polled_transactions_count(
-                                    output_with_context.get_num_transactions(),
-                                )
-                                .polled_size_in_bytes(output_with_context.total_size_in_bytes)
-                                .build()
-                            {
-                                Ok(mut metrics) => metrics.log_metrics(),
-                                Err(e) => {
-                                    error!(
-                                        step_name = step_name,
-                                        error = e.to_string(),
-                                        "Failed to log metrics"
-                                    );
-                                    break;
-                                },
-                            }
-
-                            match output_sender.send(output_with_context).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    error!(
-                                        step_name = step_name,
-                                        error = e.to_string(),
-                                        "Error sending output to channel"
-                                    );
-                                    break;
-                                },
-                            }
-                        }
-                    },
-                    Ok(None) => (),
-                    Err(e) => {
-                        error!(
-                            step_name = step_name,
-                            error = e.to_string(),
-                            "Error cleaning up step"
-                        );
-                    },
-                }
-
-                // Wait for output channel to be empty before ending the task and closing the send channel
-                loop {
-                    let channel_size = output_sender.len();
-                    info!(
+            // If either polling or processing task ends, we should stop the other one.
+            match join_set.join_next().await {
+                None => {
+                    error!(step_name = step_name, "No result. JoinSet is empty.");
+                },
+                Some(Ok(_)) => {
+                    // Shutdown the other task
+                    info!(step_name = step_name, "Shutting down tasks.");
+                    join_set.shutdown().await;
+                },
+                Some(Err(e)) => {
+                    error!(
                         step_name = step_name,
-                        channel_size = channel_size,
-                        "Waiting for output channel to be empty"
+                        error = e.to_string(),
+                        "Error joining tasks"
                     );
-                    if channel_size.is_zero() {
-                        break;
+                    return;
+                },
+            }
+
+            info!(step_name = step_name, "Polling has ended.");
+
+            // Do any additional cleanup
+            let res = arc_step.lock().await.cleanup().await;
+            match res {
+                Ok(Some(outputs_with_context)) => {
+                    for output_with_context in outputs_with_context {
+                        match StepMetricsBuilder::default()
+                            .labels(StepMetricLabels {
+                                step_name: step_name.clone(),
+                            })
+                            .latest_polled_version(output_with_context.end_version)
+                            .latest_polled_transaction_timestamp(
+                                output_with_context.get_start_transaction_timestamp_unix(),
+                            )
+                            .num_polled_transactions_count(
+                                output_with_context.get_num_transactions(),
+                            )
+                            .polled_size_in_bytes(output_with_context.total_size_in_bytes)
+                            .build()
+                        {
+                            Ok(mut metrics) => metrics.log_metrics(),
+                            Err(e) => {
+                                error!(
+                                    step_name = step_name,
+                                    error = e.to_string(),
+                                    "Failed to log metrics"
+                                );
+                                return;
+                            },
+                        }
+
+                        match output_sender.send(output_with_context).await {
+                            Ok(_) => {},
+                            Err(e) => {
+                                error!(
+                                    step_name = step_name,
+                                    error = e.to_string(),
+                                    "Error sending output to channel"
+                                );
+                                return;
+                            },
+                        }
                     }
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
+                },
+                Ok(None) => (),
+                Err(e) => {
+                    error!(
+                        step_name = step_name,
+                        error = e.to_string(),
+                        "Error cleaning up step"
+                    );
+                    return;
+                },
+            }
+
+            // Wait for output channel to be empty before ending the task and closing the send channel
+            loop {
+                let channel_size = output_sender.len();
                 info!(
                     step_name = step_name,
-                    "Output channel is empty. Closing send channel."
+                    channel_size = channel_size,
+                    "Waiting for output channel to be empty"
                 );
-            });
+                if channel_size.is_zero() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            info!(
+                step_name = step_name,
+                "Output channel is empty. Closing send channel."
+            );
         });
 
         (output_receiver, handle)

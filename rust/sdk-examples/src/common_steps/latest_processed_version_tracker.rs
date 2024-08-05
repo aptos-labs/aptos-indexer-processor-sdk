@@ -66,6 +66,40 @@ where
         self.next_version = new_prev_batch.end_version + 1;
         self.last_success_batch = Some(new_prev_batch);
     }
+
+    async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
+        // Update the processor status
+        if let Some(last_success_batch) = self.last_success_batch.as_ref() {
+            let end_timestamp = last_success_batch
+                .end_transaction_timestamp
+                .as_ref()
+                .map(|t| parse_timestamp(t, last_success_batch.end_version as i64))
+                .map(|t| t.naive_utc());
+            let status = ProcessorStatus {
+                processor: self.tracker_name.clone(),
+                last_success_version: last_success_batch.end_version as i64,
+                last_transaction_timestamp: end_timestamp,
+            };
+            execute_with_better_error(
+                self.conn_pool.clone(),
+                diesel::insert_into(processor_status::table)
+                    .values(&status)
+                    .on_conflict(processor_status::processor)
+                    .do_update()
+                    .set((
+                        processor_status::last_success_version
+                            .eq(excluded(processor_status::last_success_version)),
+                        processor_status::last_updated.eq(excluded(processor_status::last_updated)),
+                        processor_status::last_transaction_timestamp
+                            .eq(excluded(processor_status::last_transaction_timestamp)),
+                    )),
+                Some(" WHERE processor_status.last_success_version <= EXCLUDED.last_success_version "),
+            ).await.map_err(|e| ProcessorError::DBStoreError {
+                message: format!("Failed to update processor status: {}", e),
+            })?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -115,6 +149,14 @@ where
         // Pass through
         Ok(Some(current_batch))
     }
+
+    async fn cleanup(
+        &mut self,
+    ) -> Result<Option<Vec<TransactionContext<Self::Output>>>, ProcessorError> {
+        // If processing or polling ends, save the last successful batch to the database.
+        self.save_processor_status().await?;
+        Ok(None)
+    }
 }
 
 #[async_trait]
@@ -129,36 +171,7 @@ where
 
     async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<T>>>, ProcessorError> {
         // TODO: Add metrics for gap count
-        // Update the processor status
-        if let Some(last_success_batch) = self.last_success_batch.as_ref() {
-            let end_timestamp = last_success_batch
-                .end_transaction_timestamp
-                .as_ref()
-                .map(|t| parse_timestamp(t, last_success_batch.end_version as i64))
-                .map(|t| t.naive_utc());
-            let status = ProcessorStatus {
-                processor: self.tracker_name.clone(),
-                last_success_version: last_success_batch.end_version as i64,
-                last_transaction_timestamp: end_timestamp,
-            };
-            execute_with_better_error(
-                self.conn_pool.clone(),
-                diesel::insert_into(processor_status::table)
-                    .values(&status)
-                    .on_conflict(processor_status::processor)
-                    .do_update()
-                    .set((
-                        processor_status::last_success_version
-                            .eq(excluded(processor_status::last_success_version)),
-                        processor_status::last_updated.eq(excluded(processor_status::last_updated)),
-                        processor_status::last_transaction_timestamp
-                            .eq(excluded(processor_status::last_transaction_timestamp)),
-                    )),
-                Some(" WHERE processor_status.last_success_version <= EXCLUDED.last_success_version "),
-            ).await.map_err(|e| ProcessorError::DBStoreError {
-                message: format!("Failed to update processor status: {}", e),
-            })?;
-        }
+        self.save_processor_status().await?;
         // Nothing should be returned
         Ok(None)
     }
