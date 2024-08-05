@@ -12,6 +12,14 @@ where
     _marker: PhantomData<T>,
 }
 
+impl<T: Send + Sync + 'static> ArcifyStep<T> {
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl<T> Processable for ArcifyStep<T>
 where
@@ -64,9 +72,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_arcify_step_process() {
-        let mut step = ArcifyStep::<usize> {
-            _marker: PhantomData,
-        };
+        let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
 
         let result = step.process(input).await.unwrap().unwrap();
@@ -78,9 +84,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_arcify_strong_count() {
-        let mut step = ArcifyStep::<usize> {
-            _marker: PhantomData,
-        };
+        let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
 
         let result = step.process(input).await.unwrap().unwrap();
@@ -95,9 +99,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_arcify_ptr_eq() {
-        let mut step = ArcifyStep::<usize> {
-            _marker: PhantomData,
-        };
+        let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
 
         let result = step.process(input).await.unwrap().unwrap();
