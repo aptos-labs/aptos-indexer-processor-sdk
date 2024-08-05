@@ -182,6 +182,7 @@ dependencies = [
  "once_cell",
  "prometheus",
  "prost",
+ "sample",
  "serde",
  "tokio",
  "tonic",
@@ -2776,6 +2777,10 @@ name = "ryu"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
+
+[[package]]
+name = "sample"
+version = "0.1.0"
 
 [[package]]
 name = "schannel"
