@@ -12,6 +12,14 @@ where
     _marker: PhantomData<T>,
 }
 
+impl<T: Send + Sync + 'static> ArcifyStep<T> {
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl<T> Processable for ArcifyStep<T>
 where
