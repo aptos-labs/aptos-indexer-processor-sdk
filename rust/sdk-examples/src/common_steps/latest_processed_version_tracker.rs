@@ -120,7 +120,7 @@ where
 #[async_trait]
 impl<T: Send + 'static> PollableAsyncStep for LatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
+    Self: Sized + Send + Sync + 'static,
     T: Send + 'static,
 {
     fn poll_interval(&self) -> std::time::Duration {

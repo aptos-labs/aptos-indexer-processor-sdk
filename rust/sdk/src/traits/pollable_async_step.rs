@@ -14,14 +14,20 @@ use bigdecimal::Zero;
 use instrumented_channel::{
     instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
 };
-use std::time::{Duration, Instant};
-use tokio::task::JoinHandle;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::{
+    sync::Mutex,
+    task::{JoinHandle, JoinSet},
+};
 use tracing::{error, info, warn};
 
 #[async_trait]
 pub trait PollableAsyncStep
 where
-    Self: Processable + NamedStep + Send + Sized + 'static,
+    Self: Processable + NamedStep + Send + Sized + Sync + 'static,
 {
     /// Returns the duration between poll attempts.
     fn poll_interval(&self) -> Duration;
@@ -78,7 +84,7 @@ where
 impl<PollableStep> RunnableStep<PollableStep::Input, PollableStep::Output>
     for RunnablePollableStep<PollableStep>
 where
-    PollableStep: PollableAsyncStep + Send + Sized + 'static,
+    PollableStep: PollableAsyncStep + Send + Sized + Sync + 'static,
 {
     fn spawn(
         self,
@@ -102,48 +108,199 @@ where
             let poll_duration = step.poll_interval();
 
             let mut last_poll = tokio::time::Instant::now();
+            let step_name = step.name();
 
             step.init().await;
 
-            while step.should_continue_polling().await {
-                // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
-                if last_poll.elapsed() >= poll_duration {
-                    let polling_duration_for_logging = Instant::now();
-                    let result = match step.poll().await {
-                        Ok(result) => result,
+            let arc_step = Arc::new(Mutex::new(step));
+            let mut join_set = JoinSet::new();
+
+            // Spawn polling task
+            let poll_step = Arc::clone(&arc_step);
+            let poll_step_name = step_name.clone();
+            let poll_output_sender = output_sender.clone();
+            join_set.spawn(async move {
+                while poll_step.lock().await.should_continue_polling().await {
+                    // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
+                    if last_poll.elapsed() >= poll_duration {
+                        let polling_duration_for_logging = Instant::now();
+                        let result = match poll_step.lock().await.poll().await {
+                            Ok(result) => result,
+                            Err(e) => {
+                                error!(
+                                    step_name = poll_step_name,
+                                    error = e.to_string(),
+                                    "Failed to poll"
+                                );
+                                break;
+                            },
+                        };
+                        match StepMetricsBuilder::default()
+                            .labels(StepMetricLabels {
+                                step_name: poll_step_name.clone(),
+                            })
+                            .polling_duration_in_secs(
+                                polling_duration_for_logging.elapsed().as_secs_f64(),
+                            )
+                            .build()
+                        {
+                            Ok(mut metrics) => metrics.log_metrics(),
+                            Err(e) => {
+                                error!(
+                                    step_name = poll_step_name,
+                                    error = e.to_string(),
+                                    "Failed to log metrics"
+                                );
+                                break;
+                            },
+                        }
+                        if let Some(outputs_with_context) = result {
+                            for output_with_context in outputs_with_context {
+                                match StepMetricsBuilder::default()
+                                    .labels(StepMetricLabels {
+                                        step_name: poll_step_name.clone(),
+                                    })
+                                    .latest_polled_version(output_with_context.end_version)
+                                    .latest_polled_transaction_timestamp(
+                                        output_with_context.get_start_transaction_timestamp_unix(),
+                                    )
+                                    .num_polled_transactions_count(
+                                        output_with_context.get_num_transactions(),
+                                    )
+                                    .polled_size_in_bytes(output_with_context.total_size_in_bytes)
+                                    .build()
+                                {
+                                    Ok(mut metrics) => metrics.log_metrics(),
+                                    Err(e) => {
+                                        error!(
+                                            step_name = poll_step_name,
+                                            error = e.to_string(),
+                                            "Failed to log metrics"
+                                        );
+                                        break;
+                                    },
+                                }
+                                match poll_output_sender.send(output_with_context).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        error!(
+                                            step_name = poll_step_name,
+                                            error = e.to_string(),
+                                            "Error sending output to channel"
+                                        );
+                                        break;
+                                    },
+                                }
+                            }
+                        };
+                        last_poll = tokio::time::Instant::now();
+                    }
+                }
+            });
+
+            // Spawn processing task
+            let process_step = Arc::clone(&arc_step);
+            let process_step_name = step_name.clone();
+            let process_output_sender = output_sender.clone();
+            join_set.spawn(async move {
+                loop {
+                    let input_with_context = match input_receiver.recv().await {
+                        Ok(input_with_context) => input_with_context,
                         Err(e) => {
-                            error!(
-                                step_name = step_name,
+                            // If the previous steps have finished and the channels have closed , we should break out of the loop
+                            warn!(
+                                step_name = process_step_name,
                                 error = e.to_string(),
-                                "Failed to poll"
+                                "No input received from channel"
                             );
                             break;
                         },
                     };
-                    match StepMetricsBuilder::default()
-                        .labels(StepMetricLabels {
-                            step_name: step.name(),
-                        })
-                        .polling_duration_in_secs(
-                            polling_duration_for_logging.elapsed().as_secs_f64(),
-                        )
-                        .build()
-                    {
-                        Ok(mut metrics) => metrics.log_metrics(),
-                        Err(e) => {
-                            error!(
-                                step_name = step_name,
-                                error = e.to_string(),
-                                "Failed to log metrics"
-                            );
-                            break;
-                        },
+                    let processing_duration = Instant::now();
+                    let output_with_context =
+                        match process_step.lock().await.process(input_with_context).await {
+                            Ok(output_with_context) => output_with_context,
+                            Err(e) => {
+                                error!(
+                                    step_name = process_step_name,
+                                    error = e.to_string(),
+                                    "Failed to process input"
+                                );
+                                break;
+                            },
+                        };
+                    if let Some(output_with_context) = output_with_context {
+                        match StepMetricsBuilder::default()
+                            .labels(StepMetricLabels {
+                                step_name: process_step_name.clone(),
+                            })
+                            .latest_processed_version(output_with_context.end_version)
+                            .latest_transaction_timestamp(
+                                output_with_context.get_start_transaction_timestamp_unix(),
+                            )
+                            .num_transactions_processed_count(
+                                output_with_context.get_num_transactions(),
+                            )
+                            .processing_duration_in_secs(
+                                processing_duration.elapsed().as_secs_f64(),
+                            )
+                            .processed_size_in_bytes(output_with_context.total_size_in_bytes)
+                            .build()
+                        {
+                            Ok(mut metrics) => metrics.log_metrics(),
+                            Err(e) => {
+                                error!(
+                                    step_name = process_step_name,
+                                    error = e.to_string(),
+                                    "Failed to log metrics"
+                                );
+                                break;
+                            },
+                        }
+                        match process_output_sender.send(output_with_context).await {
+                            Ok(_) => (),
+                            Err(e) => {
+                                error!(
+                                    step_name = process_step_name,
+                                    error = e.to_string(),
+                                    "Error sending output to channel"
+                                );
+                                break;
+                            },
+                        }
                     }
-                    if let Some(outputs_with_context) = result {
+                }
+            });
+
+            // Spawn main task to wait for both polling and processing tasks to finish and cleanup
+            tokio::spawn(async move {
+                // This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.
+                let _input_sender = _input_sender.clone();
+
+                match join_set.join_next().await {
+                    None => {
+                        error!(step_name = step_name, "No result. JoinSet is empty.");
+                    },
+                    Some(Ok(_)) => {},
+                    Some(Err(e)) => {
+                        error!(
+                            step_name = step_name,
+                            error = e.to_string(),
+                            "Error joining tasks"
+                        );
+                    },
+                }
+
+                info!(step_name = step_name, "Polling has ended.");
+
+                // Do any additional cleanup
+                let res = arc_step.lock().await.cleanup().await;
+                match res {
+                    Ok(Some(outputs_with_context)) => {
                         for output_with_context in outputs_with_context {
                             match StepMetricsBuilder::default()
                                 .labels(StepMetricLabels {
-                                    step_name: step.name(),
+                                    step_name: step_name.clone(),
                                 })
                                 .latest_polled_version(output_with_context.end_version)
                                 .latest_polled_transaction_timestamp(
@@ -165,6 +322,7 @@ where
                                     break;
                                 },
                             }
+
                             match output_sender.send(output_with_context).await {
                                 Ok(_) => {},
                                 Err(e) => {
@@ -177,212 +335,35 @@ where
                                 },
                             }
                         }
-                    };
-                    last_poll = tokio::time::Instant::now();
+                    },
+                    Ok(None) => (),
+                    Err(e) => {
+                        error!(
+                            step_name = step_name,
+                            error = e.to_string(),
+                            "Error cleaning up step"
+                        );
+                    },
                 }
 
-                // Since we just polled, we should check if we need to continue polling
-                if !step.should_continue_polling().await {
-                    break;
-                }
-
-                let elapsed = last_poll.elapsed();
-                let time_to_next_poll = if elapsed >= poll_duration {
-                    Duration::from_secs(0)
-                } else {
-                    poll_duration - elapsed
-                };
-
-                tokio::select! {
-                    _ = tokio::time::sleep(time_to_next_poll) => {
-                        let polling_duration = Instant::now();
-                        let result = match step.poll().await {
-                            Ok(result) => result,
-                            Err(e) => {
-                                error!(step_name = step_name, error = e.to_string(), "Failed to poll");
-                                break;
-                            }
-                        };
-                        match StepMetricsBuilder::default()
-                            .labels(StepMetricLabels {
-                                step_name: step.name(),
-                            })
-                            .polling_duration_in_secs(polling_duration.elapsed().as_secs_f64())
-                            .build()
-                            {
-                                Ok(mut metrics) => metrics.log_metrics(),
-                                Err(e) => {
-                                    error!(step_name = step_name, error = e.to_string(), "Failed to log metrics");
-                                    break;
-                                },
-                            }
-                        if let Some(outputs_with_context) = result {
-                            for output_with_context in outputs_with_context {
-                                match StepMetricsBuilder::default()
-                                    .labels(StepMetricLabels {
-                                        step_name: step.name(),
-                                    })
-                                    .latest_polled_version(output_with_context.end_version)
-                                    .latest_polled_transaction_timestamp(
-                                        output_with_context.get_start_transaction_timestamp_unix(),
-                                    )
-                                    .num_polled_transactions_count(
-                                        output_with_context.get_num_transactions(),
-                                    )
-                                    .polled_size_in_bytes(output_with_context.total_size_in_bytes)
-                                    .build()
-                                    {
-                                        Ok(mut metrics) => metrics.log_metrics(),
-                                        Err(e) => {
-                                            error!(step_name = step_name, error = e.to_string(), "Failed to log metrics");
-                                            break;
-                                        },
-                                    }
-
-                                match output_sender.send(output_with_context).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        error!(step_name = step_name, error = e.to_string(), "Error sending output to channel");
-                                        break;
-                                    }
-                                }
-                            }
-                        };
-                        last_poll = tokio::time::Instant::now();
-                    }
-                    input_with_context_res = input_receiver.recv() => {
-                        match input_with_context_res {
-                            Ok(input_with_context) => {
-                                let processing_duration = Instant::now();
-                                let output_with_context = match step.process(input_with_context).await {
-                                    Ok(output_with_context) => output_with_context,
-                                    Err(e) => {
-                                        error!(step_name = step_name, error = e.to_string(), "Failed to process input");
-                                        break;
-                                    }
-                                };
-                                if let Some(output_with_context) = output_with_context {
-                                    match StepMetricsBuilder::default()
-                                    .labels(StepMetricLabels {
-                                        step_name: step.name(),
-                                    })
-                                    .latest_processed_version(output_with_context.end_version)
-                                    .latest_transaction_timestamp(
-                                        output_with_context.get_start_transaction_timestamp_unix(),
-                                    )
-                                    .num_transactions_processed_count(
-                                        output_with_context.get_num_transactions(),
-                                    )
-                                    .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
-                                    .processed_size_in_bytes(output_with_context.total_size_in_bytes)
-                                    .build()
-                                    {
-                                        Ok(mut metrics) => metrics.log_metrics(),
-                                        Err(e) => {
-                                            error!(
-                                        step_name = step_name,
-                                        error = e.to_string(),
-                                        "Failed to log metrics"
-                                    );
-                                            break;
-                                        },
-                                    }
-
-                                    match output_sender.send(output_with_context).await {
-                                        Ok(_) => {},
-                                        Err(e) => {
-                                            error!(
-                                        step_name = step_name,
-                                        error = e.to_string(),
-                                        "Error sending output to channel"
-                                    );
-                                            break;
-                                        }
-                                    }
-                                }
-                            },
-                            Err(e) => {
-                                // If the previous steps have finished and the channels have closed , we should break out of the loop
-                                warn!(step_name = step_name, error = e.to_string(), "No input received from channel");
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            info!(step_name = step_name, "Polling has ended.");
-
-            // Do any additional cleanup
-            let res = step.cleanup().await;
-            match res {
-                Ok(Some(outputs_with_context)) => {
-                    for output_with_context in outputs_with_context {
-                        match StepMetricsBuilder::default()
-                            .labels(StepMetricLabels {
-                                step_name: step.name(),
-                            })
-                            .latest_polled_version(output_with_context.end_version)
-                            .latest_polled_transaction_timestamp(
-                                output_with_context.get_start_transaction_timestamp_unix(),
-                            )
-                            .num_polled_transactions_count(
-                                output_with_context.get_num_transactions(),
-                            )
-                            .polled_size_in_bytes(output_with_context.total_size_in_bytes)
-                            .build()
-                        {
-                            Ok(mut metrics) => metrics.log_metrics(),
-                            Err(e) => {
-                                error!(
-                                    step_name = step_name,
-                                    error = e.to_string(),
-                                    "Failed to log metrics"
-                                );
-                                break;
-                            },
-                        }
-
-                        match output_sender.send(output_with_context).await {
-                            Ok(_) => {},
-                            Err(e) => {
-                                error!(
-                                    step_name = step_name,
-                                    error = e.to_string(),
-                                    "Error sending output to channel"
-                                );
-                                break;
-                            },
-                        }
-                    }
-                },
-                Ok(None) => (),
-                Err(e) => {
-                    error!(
+                // Wait for output channel to be empty before ending the task and closing the send channel
+                loop {
+                    let channel_size = output_sender.len();
+                    info!(
                         step_name = step_name,
-                        error = e.to_string(),
-                        "Error cleaning up step"
+                        channel_size = channel_size,
+                        "Waiting for output channel to be empty"
                     );
-                },
-            }
-
-            // Wait for output channel to be empty before ending the task and closing the send channel
-            loop {
-                let channel_size = output_sender.len();
+                    if channel_size.is_zero() {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
                 info!(
                     step_name = step_name,
-                    channel_size = channel_size,
-                    "Waiting for output channel to be empty"
+                    "Output channel is empty. Closing send channel."
                 );
-                if channel_size.is_zero() {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-            info!(
-                step_name = step_name,
-                "Output channel is empty. Closing send channel."
-            );
+            });
         });
 
         (output_receiver, handle)
