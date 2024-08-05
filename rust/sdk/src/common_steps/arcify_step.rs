@@ -72,9 +72,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_arcify_step_process() {
-        let mut step = ArcifyStep::<usize> {
-            _marker: PhantomData,
-        };
+        let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
 
         let result = step.process(input).await.unwrap().unwrap();
@@ -86,9 +84,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_arcify_strong_count() {
-        let mut step = ArcifyStep::<usize> {
-            _marker: PhantomData,
-        };
+        let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
 
         let result = step.process(input).await.unwrap().unwrap();
@@ -103,9 +99,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_arcify_ptr_eq() {
-        let mut step = ArcifyStep::<usize> {
-            _marker: PhantomData,
-        };
+        let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
 
         let result = step.process(input).await.unwrap().unwrap();
