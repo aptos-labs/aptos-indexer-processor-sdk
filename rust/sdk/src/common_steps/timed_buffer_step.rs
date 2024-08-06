@@ -35,7 +35,7 @@ where
 #[async_trait]
 impl<Input> Processable for TimedBufferStep<Input>
 where
-    Input: Send + 'static,
+    Input: Send + Sync + 'static,
 {
     type Input = Input;
     type Output = Input;
@@ -58,7 +58,7 @@ where
 }
 
 #[async_trait]
-impl<Input: Send + 'static> PollableAsyncStep for TimedBufferStep<Input> {
+impl<Input: Send + Sync + 'static> PollableAsyncStep for TimedBufferStep<Input> {
     fn poll_interval(&self) -> Duration {
         self.poll_interval
     }
