@@ -18,10 +18,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::{
-    sync::Mutex,
-    task::{JoinHandle, JoinSet},
-};
+use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{error, info, warn};
 
 #[async_trait]
@@ -110,13 +107,13 @@ where
             step.init().await;
 
             let arc_step = Arc::new(Mutex::new(step));
-            let mut join_set = JoinSet::new();
 
             // Spawn polling task
+            info!(step_name = step_name, "Spawning polling task");
             let poll_step = Arc::clone(&arc_step);
             let poll_step_name = step_name.clone();
             let poll_output_sender = output_sender.clone();
-            join_set.spawn(async move {
+            let mut polling_task = tokio::spawn(async move {
                 let mut last_poll = tokio::time::Instant::now();
                 let poll_duration = poll_step.lock().await.poll_interval();
 
@@ -199,10 +196,11 @@ where
             });
 
             // Spawn processing task
+            info!(step_name = step_name, "Spawning processing task");
             let process_step = Arc::clone(&arc_step);
             let process_step_name = step_name.clone();
             let process_output_sender = output_sender.clone();
-            join_set.spawn(async move {
+            let mut processing_task = tokio::spawn(async move {
                 loop {
                     let input_with_context = match input_receiver.recv().await {
                         Ok(input_with_context) => input_with_context,
@@ -273,27 +271,18 @@ where
             });
 
             // If either polling or processing task ends, we should stop the other one.
-            match join_set.join_next().await {
-                None => {
-                    error!(step_name = step_name, "No result. JoinSet is empty.");
+            tokio::select! {
+                _ = &mut polling_task => {
+                    info!(step_name = step_name, "Polling task has ended. Stopping processing task.");
+                    processing_task.abort();
                 },
-                Some(Ok(_)) => {
-                    // Shutdown the other task
-                    info!(step_name = step_name, "Shutting down tasks.");
-                    join_set.shutdown().await;
-                },
-                Some(Err(e)) => {
-                    error!(
-                        step_name = step_name,
-                        error = e.to_string(),
-                        "Error joining tasks"
-                    );
-                    return;
+                _ = &mut processing_task => {
+                    info!(step_name = step_name, "Processing task has ended. Stopping polling task.");
+                    polling_task.abort();
                 },
             }
 
-            info!(step_name = step_name, "Polling has ended.");
-
+            info!(step_name = step_name, "Cleaning up step");
             // Do any additional cleanup
             let res = arc_step.lock().await.cleanup().await;
             match res {
