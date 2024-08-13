@@ -55,7 +55,7 @@ pub fn init_channel_metrics_registry(registry: &mut Registry) {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub struct ChannelMetricLabels {
-    pub channel_name: String,
+    pub output_of: String,
 }
 
 pub static SENT_MESSAGES_COUNT: Lazy<Family<ChannelMetricLabels, Counter>> =
@@ -85,9 +85,9 @@ pub struct ChannelMetrics {
 }
 
 impl ChannelMetrics {
-    pub fn new(name: String) -> Self {
+    pub fn new(output_of: String) -> Self {
         Self {
-            labels: ChannelMetricLabels { channel_name: name },
+            labels: ChannelMetricLabels { output_of },
         }
     }
 }
