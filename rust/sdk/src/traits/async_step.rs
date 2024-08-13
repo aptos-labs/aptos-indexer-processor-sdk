@@ -84,6 +84,7 @@ where
         let (output_sender, output_receiver) =
             instrumented_bounded_channel(&format!("{}: Output", step_name), output_channel_size);
 
+        info!(step_name = step_name, "Spawning processing task");
         let handle = tokio::spawn(async move {
             loop {
                 let input_with_context = match input_receiver.recv().await {

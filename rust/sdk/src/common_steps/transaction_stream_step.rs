@@ -11,6 +11,7 @@ use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 pub struct TransactionStreamStep
@@ -18,7 +19,7 @@ where
     Self: Sized + Send + 'static,
 {
     transaction_stream_config: TransactionStreamConfig,
-    pub transaction_stream: TransactionStreamInternal,
+    pub transaction_stream: Mutex<TransactionStreamInternal>,
 }
 
 impl TransactionStreamStep
@@ -35,7 +36,7 @@ where
                 message: format!("Error creating transaction stream: {:?}", e),
             }),
             Ok(transaction_stream) => Ok(Self {
-                transaction_stream,
+                transaction_stream: Mutex::new(transaction_stream),
                 transaction_stream_config,
             }),
         }
@@ -62,7 +63,7 @@ where
 #[async_trait]
 impl PollableAsyncStep for TransactionStreamStep
 where
-    Self: Sized + Send + 'static,
+    Self: Sized + Send + Sync + 'static,
 {
     fn poll_interval(&self) -> std::time::Duration {
         Duration::from_secs(0)
@@ -71,7 +72,12 @@ where
     async fn poll(
         &mut self,
     ) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError> {
-        let txn_pb_response_res = self.transaction_stream.get_next_transaction_batch().await;
+        let txn_pb_response_res = self
+            .transaction_stream
+            .lock()
+            .await
+            .get_next_transaction_batch()
+            .await;
         match txn_pb_response_res {
             Ok(txn_pb_response) => {
                 let transactions_with_context = TransactionContext {
@@ -94,6 +100,8 @@ where
                 // TransactionStream closes connections every 5 minutes. We should try to reconnect
                 match self
                     .transaction_stream
+                    .lock()
+                    .await
                     .reconnect_to_grpc_with_retries()
                     .await
                 {
@@ -126,7 +134,7 @@ where
     }
 
     async fn should_continue_polling(&mut self) -> bool {
-        let is_end = self.transaction_stream.is_end_of_stream();
+        let is_end = self.transaction_stream.lock().await.is_end_of_stream();
         if is_end {
             info!("Reached ending version");
         }
