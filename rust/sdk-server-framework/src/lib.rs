@@ -13,8 +13,6 @@ use backtrace::Backtrace;
 use clap::Parser;
 use prometheus_client::registry::Registry;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-#[cfg(target_os = "linux")]
-use std::convert::Infallible;
 // TODO: remove deprecated lint when new clippy nightly is released
 #[allow(deprecated)]
 use std::{fs::File, io::Read, panic::PanicInfo, path::PathBuf, process};

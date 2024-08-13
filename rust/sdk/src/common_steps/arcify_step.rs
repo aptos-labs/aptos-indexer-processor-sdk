@@ -20,6 +20,12 @@ impl<T: Send + Sync + 'static> ArcifyStep<T> {
     }
 }
 
+impl<T: Send + Sync + 'static> Default for ArcifyStep<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait::async_trait]
 impl<T> Processable for ArcifyStep<T>
 where
