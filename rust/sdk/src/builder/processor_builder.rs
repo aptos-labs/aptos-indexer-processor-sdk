@@ -141,8 +141,6 @@ impl GraphBuilder {
 
         let _last_node_index = self.graph.borrow().node_count() - 1;
         let node_attribute_getter = |_graph, (_node_index, &node_val)| {
-            //println!("node_index: {:?}, node_val: {:?}", node_index, node_val);
-            //println!("node_map: {:?}", self.node_map);
             let node_map = self.node_map.borrow_mut();
             let node = node_map.get(&node_val).unwrap();
 
@@ -242,18 +240,16 @@ where
         Input: Clone + Send + 'static,
         Step: RunnableStep<Input, Output>,
     {
-        // Channel connects the output of fanout steps to the input of the next step
-        let (connector_sender, connector_receiver) =
-            instrumented_bounded_channel(&format!("{}: Fanin", next_step.name()), channel_size);
+        // Channel connects the output of fanin steps to the input of the next step
+        let (connector_sender, connector_receiver) = instrumented_bounded_channel(
+            &format!("{}::FaninConnector", next_step.name()),
+            channel_size,
+        );
 
         // Spawn the next step here so that we can connect the edges of the fan in steps to it
         let next_step = next_step.add_input_receiver(connector_receiver);
         let mut graph = fanout_step_receivers_and_graphs.first().unwrap().1.clone();
         graph.add_step(&next_step);
-        println!(
-            "current node index: {:?}",
-            graph.current_node_index.unwrap().index(),
-        );
         let (next_output_receiver, join_handle) = next_step.spawn(None, channel_size, None);
         graph.set_join_handle(graph.current_node_index.unwrap().index(), join_handle);
 
@@ -274,10 +270,6 @@ where
                     }
                 }
             });
-            println!(
-                "current node index: {:?}",
-                graph.current_node_index.unwrap().index(),
-            );
 
             // Connect the fan in step to next step
             graph.add_edge_from_to(
@@ -356,7 +348,7 @@ where
         let mut output_receivers = Vec::new();
         for idx in 0..num_outputs {
             let (output_sender, output_receiver) = instrumented_bounded_channel(
-                &format!("{}: Fanout: {}", previous_step_name, idx),
+                &format!("{}::Fanout::{}", previous_step_name, idx),
                 0,
             );
             output_senders.push(output_sender);
@@ -392,83 +384,6 @@ where
             graph: self.graph,
         }
     }
-
-    // You should use connect_to(...).end_and_return_output_receiver(...) instead
-    // pub fn end_with_and_return_output_receiver<NextOutput, NextStep>(
-    //     mut self,
-    //     next_step: NextStep,
-    //     channel_size: usize,
-    // ) -> (
-    //     ProcessorBuilder<Output, NextOutput, NextStep>,
-    //     InstrumentedAsyncReceiver<Vec<NextOutput>>,
-    // )
-    // where
-    //     NextOutput: Send + 'static,
-    //     NextStep: RunnableStep<Output, NextOutput>,
-    // {
-    //     match self.current_step.take() {
-    //         None => panic!("Can not end the builder without a starting step"),
-    //         Some(current_step) => {
-    //             match current_step {
-    //                 CurrentStepHolder::RunnableStepWithInputReceiver(current_step) => {
-    //                     // Hack for connect_to piping. This is a bit ugly.
-    //                     self.current_step = Some(CurrentStepHolder::RunnableStepWithInputReceiver(
-    //                         current_step,
-    //                     ));
-    //                     let mut pb = self.connect_to(next_step, channel_size);
-
-    //                     if let CurrentStepHolder::RunnableStepWithInputReceiver(final_step) =
-    //                         pb.current_step.take().unwrap()
-    //                     {
-    //                         println!(
-    //                             "end current node index: {:?}",
-    //                             pb.graph.current_node_index.unwrap().index()
-    //                         );
-    //                         pb.graph.add_and_connect_step(&final_step);
-    //                         let (output_receiver, join_handle) =
-    //                             final_step.spawn(None, channel_size);
-    //                         pb.graph.set_join_handle(
-    //                             pb.graph.current_node_index.unwrap().index(),
-    //                             join_handle,
-    //                         );
-    //                         pb.graph.set_end_step();
-    //                         println!(
-    //                             "end final node index: {:?}",
-    //                             pb.graph.current_node_index.unwrap().index()
-    //                         );
-    //                         (pb, output_receiver)
-    //                     } else {
-    //                         unreachable!("Dangling output receiver");
-    //                     }
-    //                 },
-    //                 CurrentStepHolder::DanglingOutputReceiver(output_receiver) => {
-    //                     let final_step = next_step.add_input_receiver(output_receiver);
-    //                     println!(
-    //                         "dangling end current node index: {:?}",
-    //                         self.graph.current_node_index.unwrap().index()
-    //                     );
-    //                     self.graph.add_and_connect_step(&final_step);
-    //                     let (output_receiver, join_handle) = final_step.spawn(None, channel_size);
-    //                     self.graph.set_join_handle(
-    //                         self.graph.current_node_index.unwrap().index(),
-    //                         join_handle,
-    //                     );
-    //                     println!(
-    //                         "end final node index: {:?}",
-    //                         self.graph.current_node_index.unwrap().index()
-    //                     );
-
-    //                     let mut pb = ProcessorBuilder {
-    //                         current_step: None,
-    //                         graph: self.graph,
-    //                     };
-    //                     pb.graph.set_end_step();
-    //                     (pb, output_receiver)
-    //                 },
-    //             }
-    //         },
-    //     }
-    // }]
 
     pub fn end_and_return_output_receiver(
         mut self,

@@ -94,7 +94,7 @@ where
         let input_receiver = input_receiver.expect("Input receiver must be set");
 
         let (output_sender, output_receiver) =
-            instrumented_bounded_channel(&format!("{} Output", step_name), output_channel_size);
+            instrumented_bounded_channel(&step_name, output_channel_size);
 
         let handle = tokio::spawn(async move {
             // This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.

@@ -46,8 +46,8 @@ impl<T> InstrumentedAsyncSender<T> {
         }
     }
 
-    pub fn new(sender: AsyncSender<T>, name: &str) -> Self {
-        let channel_metrics = ChannelMetrics::new(name.to_string());
+    pub fn new(sender: AsyncSender<T>, output_of: &str) -> Self {
+        let channel_metrics = ChannelMetrics::new(output_of.to_string());
 
         Self {
             sender,
@@ -107,8 +107,8 @@ impl<T> InstrumentedAsyncReceiver<T> {
         }
     }
 
-    pub fn new(receiver: AsyncReceiver<T>, name: &str) -> Self {
-        let channel_metrics = ChannelMetrics::new(name.to_string());
+    pub fn new(receiver: AsyncReceiver<T>, output_of: &str) -> Self {
+        let channel_metrics = ChannelMetrics::new(output_of.to_string());
         Self {
             receiver,
             channel_metrics,
@@ -146,23 +146,23 @@ impl<T> Clone for InstrumentedAsyncReceiver<T> {
 }
 
 pub fn instrumented_bounded_channel<T>(
-    channel_name: &str,
+    output_of: &str,
     size: usize,
 ) -> (InstrumentedAsyncSender<T>, InstrumentedAsyncReceiver<T>) {
     let (sender, receiver) = kanal::bounded_async(size);
     (
-        InstrumentedAsyncSender::new(sender, channel_name),
-        InstrumentedAsyncReceiver::new(receiver, channel_name),
+        InstrumentedAsyncSender::new(sender, output_of),
+        InstrumentedAsyncReceiver::new(receiver, output_of),
     )
 }
 
 pub fn instrumented_unbounded_channel<T>(
-    channel_name: &str,
+    output_of: &str,
 ) -> (InstrumentedAsyncSender<T>, InstrumentedAsyncReceiver<T>) {
     let (sender, receiver) = kanal::unbounded_async();
     (
-        InstrumentedAsyncSender::new(sender, channel_name),
-        InstrumentedAsyncReceiver::new(receiver, channel_name),
+        InstrumentedAsyncSender::new(sender, output_of),
+        InstrumentedAsyncReceiver::new(receiver, output_of),
     )
 }
 
