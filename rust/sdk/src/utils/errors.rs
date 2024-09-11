@@ -9,5 +9,8 @@ pub enum ProcessorError {
     #[error("Poll Error: {message}")]
     PollError { message: String },
     #[error("DB Store Error: {message}")]
-    DBStoreError { message: String },
+    DBStoreError {
+        message: String,
+        query: Option<String>,
+    },
 }
