@@ -34,6 +34,7 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/db/postgres/mi
 pub const DEFAULT_MAX_POOL_SIZE: u32 = 150;
 
 #[derive(QueryId)]
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// Using this will append a where clause at the end of the string upsert function, e.g.
 /// INSERT INTO ... ON CONFLICT DO UPDATE SET ... WHERE "transaction_version" = excluded."transaction_version"
 /// This is needed when we want to maintain a table with only the latest state
@@ -191,6 +192,7 @@ where
     res
 }
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// Returns the entry for the config hashmap, or the default field count for the insert
 /// Given diesel has a limit of how many parameters can be inserted in a single operation (u16::MAX),
 /// we default to chunk an array of items based on how many columns are in the table.

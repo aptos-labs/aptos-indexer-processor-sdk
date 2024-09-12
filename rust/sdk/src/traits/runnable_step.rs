@@ -9,6 +9,7 @@ where
     Input: Send + 'static,
     Output: Send + 'static,
 {
+    #[allow(clippy::too_long_first_doc_paragraph)]
     /// Runs the step, forever, with the given input receiver and returns the output receiver and the join handle.
     fn spawn(
         self,
@@ -62,6 +63,7 @@ where
         }
     }
 
+    #[allow(clippy::too_long_first_doc_paragraph)]
     /// This should only be used for the inputless first step to keep the async sender in scope so the channel stays alive.
     pub fn add_input_sender(
         mut self,
