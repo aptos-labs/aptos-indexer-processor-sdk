@@ -20,7 +20,7 @@ use diesel_async::{
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use futures_util::{future::BoxFuture, FutureExt};
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 pub type Backend = diesel::pg::Pg;
 
@@ -176,22 +176,23 @@ where
         where_clause: additional_where_clause,
     };
     let debug_string = diesel::debug_query::<Backend, _>(&final_query).to_string();
-    debug!("Executing query: {:?}", debug_string);
     let conn = &mut pool.get().await.map_err(|e| {
         warn!("Error getting connection from pool: {:?}", e);
         ProcessorError::DBStoreError {
-            message: e.to_string(),
+            message: format!("{:#}", e),
             query: Some(debug_string.clone()),
         }
     })?;
-    let res = final_query.execute(conn).await;
-    if let Err(ref e) = res {
-        warn!("Error running query: {:?}\n{:?}", e, debug_string);
-    }
-    res.map_err(|e| ProcessorError::DBStoreError {
-        message: e.to_string(),
-        query: Some(debug_string),
-    })
+    final_query
+        .execute(conn)
+        .await
+        .inspect_err(|e| {
+            warn!("Error running query: {:?}\n{:?}", e, debug_string);
+        })
+        .map_err(|e| ProcessorError::DBStoreError {
+            message: format!("{:#}", e),
+            query: Some(debug_string),
+        })
 }
 
 /// Returns the entry for the config hashmap, or the default field count for the insert
@@ -226,12 +227,9 @@ where
         where_clause: additional_where_clause,
     };
     let debug_string = diesel::debug_query::<Backend, _>(&final_query).to_string();
-    debug!("Executing query: {:?}", debug_string);
-    let res = final_query.execute(conn).await;
-    if let Err(ref e) = res {
+    final_query.execute(conn).await.inspect_err(|e| {
         warn!("Error running query: {:?}\n{:?}", e, debug_string);
-    }
-    res
+    })
 }
 
 async fn execute_or_retry_cleaned<U, T>(
