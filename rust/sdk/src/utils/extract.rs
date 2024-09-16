@@ -102,9 +102,10 @@ pub fn get_payload_type(payload: &TransactionPayload) -> String {
     payload.r#type().as_str_name().to_string()
 }
 
-/// Part of the json comes escaped from the protobuf so we need to unescape in a safe way
-/// This function converts the string into json recursively and lets the diesel ORM handles
-/// the escaping.
+#[allow(clippy::too_long_first_doc_paragraph)]
+/// Part of the json comes escaped from the protobuf so we need to unescape in a safe way.
+/// This function converts the string into json recursively
+/// and lets the diesel ORM handles the escaping.
 pub fn get_clean_payload(payload: &TransactionPayload, version: i64) -> Option<Value> {
     if payload.payload.as_ref().is_none() {
         // PROCESSOR_UNKNOWN_TYPE_COUNT
@@ -167,8 +168,9 @@ pub fn get_clean_payload(payload: &TransactionPayload, version: i64) -> Option<V
     }
 }
 
-/// Part of the json comes escaped from the protobuf so we need to unescape in a safe way
-/// Note that DirectWriteSet is just events + writeset which is already represented separately
+#[allow(clippy::too_long_first_doc_paragraph)]
+/// Part of the json comes escaped from the protobuf so we need to unescape in a safe way.
+/// /// Note that DirectWriteSet is just events + writeset which is already represented separately
 pub fn get_clean_writeset(writeset: &WriteSet, version: i64) -> Option<Value> {
     match writeset.write_set.as_ref().unwrap() {
         WriteSetType::ScriptWriteSet(inner) => {
@@ -186,6 +188,7 @@ pub fn get_clean_writeset(writeset: &WriteSet, version: i64) -> Option<Value> {
     }
 }
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// Part of the json comes escaped from the protobuf so we need to unescape in a safe way
 fn get_clean_entry_function_payload(
     payload: &EntryFunctionPayload,
@@ -207,7 +210,8 @@ fn get_clean_entry_function_payload(
     }
 }
 
-/// Part of the json comes escaped from the protobuf so we need to unescape in a safe way
+/// Part of the json comes escaped from the protobuf
+/// so we need to unescape in a safe way
 fn get_clean_script_payload(payload: &ScriptPayload, version: i64) -> ScriptPayloadClean {
     ScriptPayloadClean {
         code: payload.code.clone(),

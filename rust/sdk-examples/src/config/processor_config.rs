@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// This enum captures the configs for all the different processors that are defined.
 /// The configs for each processor should only contain configuration specific to that
 /// processor. For configuration that is common to all processors, put it in

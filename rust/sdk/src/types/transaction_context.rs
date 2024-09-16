@@ -1,8 +1,10 @@
 use aptos_indexer_transaction_stream::utils::timestamp_to_unixtime;
 
-/// TransactionContext is a struct that holds data processed from a set of transactions
-/// and includes metadata about the transactions that the data is associated with.
-/// The metadata is used for metrics and logging purposes.
+/// Contains processed data and associated transaction metadata.
+///
+/// The processed data is extracted from transactions and the
+/// TransactionContext contains additional metadata about which transactions the extracted
+/// data originated from. The metadata is used for metrics and logging purposes.
 #[derive(Clone, Default)]
 pub struct TransactionContext<T> {
     pub data: Vec<T>,

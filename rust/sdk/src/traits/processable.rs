@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 
-/// A trait to convince the compiler that different step types are mutually exclusive
+/// Trait to convince the compiler that different step types are mutually exclusive
 pub trait RunnableStepType {}
 
 // This is a dummy implementation for the unit type

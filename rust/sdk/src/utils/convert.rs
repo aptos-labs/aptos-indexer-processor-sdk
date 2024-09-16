@@ -10,8 +10,8 @@ use serde_json::Value;
 use std::str::FromStr;
 use tiny_keccak::{Hasher, Sha3};
 
-/// Standardizes an address / table handle to be a string with length 66 (0x+64 length
-/// hex string).
+#[allow(clippy::too_long_first_doc_paragraph)]
+/// Standardizes an address / table handle to be a string with length 66 (0x+64 length hex string).
 pub fn standardize_address(handle: &str) -> String {
     if let Some(handle) = handle.strip_prefix("0x") {
         format!("0x{:0>64}", handle)
@@ -20,8 +20,8 @@ pub fn standardize_address(handle: &str) -> String {
     }
 }
 
-/// Standardizes an address / table handle to be a string with length 66 (0x+64 length
-/// hex string).
+#[allow(clippy::too_long_first_doc_paragraph)]
+/// Standardizes an address / table handle to be a string with length 66 (0x+64 length hex string).
 pub fn standardize_address_from_bytes(bytes: &[u8]) -> String {
     let encoded_bytes = hex::encode(bytes);
     standardize_address(&encoded_bytes)
