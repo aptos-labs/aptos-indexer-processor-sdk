@@ -18,7 +18,7 @@ homepage = "https://aptoslabs.com"
 license = "Apache-2.0"
 publish = false
 repository = "https://github.com/aptos-labs/aptos-indexer-processor-sdk"
-rust-version = "1.79"
+rust-version = "1.78"
 
 [workspace.dependencies]
 aptos-indexer-processor-sdk = { path = "sdk" }
@@ -75,7 +75,7 @@ mockall = "0.12.1"
 num_cpus = "1.16.0"
 once_cell = { version = "1.19.0" }
 petgraph = "0.6.5"
-prometheus = "0.13.4"
+prometheus = "0.13.3"
 prometheus-client = "0.22.2"
 prost = { version = "0.12.3", features = ["no-recursion-limit"] }
 rayon = "1.10.0"

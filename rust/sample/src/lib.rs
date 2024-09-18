@@ -10,8 +10,8 @@ use std::{
 ///
 /// `SampleRate` determines how often the sampled statement will occur.
 ///
-/// ```
-/// use aptos_logger::{info, sample, sample::{SampleRate, Sampling}};
+/// ```ignore
+/// use sample::{SampleRate, Sampling};
 /// use std::time::Duration;
 ///
 /// // Sampled based on frequency of events, log only every 2 logs
