@@ -10,9 +10,10 @@ use std::{
 ///
 /// `SampleRate` determines how often the sampled statement will occur.
 ///
-/// ```ignore
-/// use sample::{SampleRate, Sampling};
+/// ```
+/// use sample::{sample, SampleRate, Sampling};
 /// use std::time::Duration;
+/// use tracing::info;
 ///
 /// // Sampled based on frequency of events, log only every 2 logs
 /// sample!(SampleRate::Frequency(2), info!("Long log"));
