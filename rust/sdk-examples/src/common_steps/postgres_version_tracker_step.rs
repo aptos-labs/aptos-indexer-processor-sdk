@@ -7,7 +7,7 @@ use crate::{
 use ahash::AHashMap;
 use anyhow::{Context, Result};
 use aptos_indexer_processor_sdk::{
-    traits::{LatestVersionProcessedTracker, Processable, NamedStep, PollableAsyncRunType, PollableAsyncStep},
+    traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable, VersionTrackerStep},
     types::transaction_context::TransactionContext,
     utils::{errors::ProcessorError, time::parse_timestamp},
 };
@@ -57,25 +57,30 @@ where
 }
 
 #[async_trait]
-impl<T> LatestVersionProcessedTracker<T> for PostgresLatestVersionProcessedTracker<T>
+impl<T> VersionTrackerStep<T> for PostgresLatestVersionProcessedTracker<T>
 where
     T: Send + 'static,
 {
     fn get_next_version(&self) -> u64 {
         self.next_version
     }
+
     fn get_seen_versions(&mut self) -> &mut AHashMap<u64, TransactionContext<T>> {
         &mut self.seen_versions
     }
+
     fn get_last_success_batch(&self) -> &Option<TransactionContext<T>> {
         &self.last_success_batch
     }
+
     fn set_next_version(&mut self, next_version: u64) {
         self.next_version = next_version;
     }
+
     fn set_last_success_batch(&mut self, last_success_batch: Option<TransactionContext<T>>) {
         self.last_success_batch = last_success_batch;
     }
+
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
             let end_timestamp = last_success_batch
@@ -122,13 +127,13 @@ where
         &mut self,
         current_batch: TransactionContext<Self::Input>,
     ) -> Result<Option<TransactionContext<Self::Output>>, ProcessorError> {
-        LatestVersionProcessedTracker::<T>::process(self, current_batch).await
+        VersionTrackerStep::<T>::process(self, current_batch).await
     }
 
     async fn cleanup(
         &mut self,
     ) -> Result<Option<Vec<TransactionContext<Self::Output>>>, ProcessorError> {
-        LatestVersionProcessedTracker::<T>::cleanup(self).await
+        VersionTrackerStep::<T>::cleanup(self).await
     }
 }
 

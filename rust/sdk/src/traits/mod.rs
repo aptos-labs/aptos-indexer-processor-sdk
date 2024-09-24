@@ -13,4 +13,4 @@ pub use into_runnable_step::IntoRunnableStep;
 pub use pollable_async_step::{PollableAsyncRunType, PollableAsyncStep, RunnablePollableStep};
 pub use processable::{Processable, RunnableStepType};
 pub use runnable_step::{RunnableStep, RunnableStepWithInputReceiver};
-pub use version_tracker_step::LatestVersionProcessedTracker;
+pub use version_tracker_step::VersionTrackerStep;

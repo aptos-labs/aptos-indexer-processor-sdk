@@ -1,35 +1,31 @@
-use ahash::AHashMap;
-use anyhow::Result;
 use crate::{
-    traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable},
+    traits::{PollableAsyncRunType, Processable},
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,
 };
+use ahash::AHashMap;
+use anyhow::Result;
 use async_trait::async_trait;
-
-// Constants
-const UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
-
-
 #[async_trait]
-pub trait LatestVersionProcessedTracker<T>: Processable<Input = T, Output = T,  RunType = PollableAsyncRunType>
+pub trait VersionTrackerStep<T>:
+    Processable<Input = T, Output = T, RunType = PollableAsyncRunType>
 where
     T: Send + 'static,
 {
-    // Required method to be implemented by the structs
+    // Required methods to be implemented by a tracker.
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError>;
-
     fn get_next_version(&self) -> u64;
     fn get_seen_versions(&mut self) -> &mut AHashMap<u64, TransactionContext<T>>;
     fn get_last_success_batch(&self) -> &Option<TransactionContext<T>>;
-
     fn set_next_version(&mut self, next_version: u64);
     fn set_last_success_batch(&mut self, last_success_batch: Option<TransactionContext<T>>);
 
     fn update_last_success_batch(&mut self, current_batch: TransactionContext<T>) {
         let mut new_prev_batch = current_batch;
         // While there are batches in seen_versions that are in order, update the new_prev_batch to the next batch.
-        while let Some(next_version) = self.get_seen_versions().remove(&(new_prev_batch.end_version + 1))
+        while let Some(next_version) = self
+            .get_seen_versions()
+            .remove(&(new_prev_batch.end_version + 1))
         {
             new_prev_batch = next_version;
         }
