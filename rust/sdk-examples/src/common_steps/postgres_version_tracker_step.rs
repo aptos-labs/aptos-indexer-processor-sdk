@@ -7,7 +7,7 @@ use crate::{
 use ahash::AHashMap;
 use anyhow::{Context, Result};
 use aptos_indexer_processor_sdk::{
-    traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable},
+    traits::{LatestVersionProcessedTracker, Processable, NamedStep, PollableAsyncRunType, PollableAsyncStep},
     types::transaction_context::TransactionContext,
     utils::{errors::ProcessorError, time::parse_timestamp},
 };
@@ -16,7 +16,7 @@ use diesel::{upsert::excluded, ExpressionMethods};
 
 const UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
 
-pub struct LatestVersionProcessedTracker<T>
+pub struct PostgresLatestVersionProcessedTracker<T>
 where
     Self: Sized + Send + 'static,
     T: Send + 'static,
@@ -31,9 +31,8 @@ where
     seen_versions: AHashMap<u64, TransactionContext<T>>,
 }
 
-impl<T> LatestVersionProcessedTracker<T>
+impl<T> PostgresLatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
     T: Send + 'static,
 {
     pub async fn new(
@@ -55,20 +54,29 @@ where
             seen_versions: AHashMap::new(),
         })
     }
+}
 
-    fn update_last_success_batch(&mut self, current_batch: TransactionContext<T>) {
-        let mut new_prev_batch = current_batch;
-        // While there are batches in seen_versions that are in order, update the new_prev_batch to the next batch.
-        while let Some(next_version) = self.seen_versions.remove(&(new_prev_batch.end_version + 1))
-        {
-            new_prev_batch = next_version;
-        }
-        self.next_version = new_prev_batch.end_version + 1;
-        self.last_success_batch = Some(new_prev_batch);
+#[async_trait]
+impl<T> LatestVersionProcessedTracker<T> for PostgresLatestVersionProcessedTracker<T>
+where
+    T: Send + 'static,
+{
+    fn get_next_version(&self) -> u64 {
+        self.next_version
     }
-
+    fn get_seen_versions(&mut self) -> &mut AHashMap<u64, TransactionContext<T>> {
+        &mut self.seen_versions
+    }
+    fn get_last_success_batch(&self) -> &Option<TransactionContext<T>> {
+        &self.last_success_batch
+    }
+    fn set_next_version(&mut self, next_version: u64) {
+        self.next_version = next_version;
+    }
+    fn set_last_success_batch(&mut self, last_success_batch: Option<TransactionContext<T>>) {
+        self.last_success_batch = last_success_batch;
+    }
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
-        // Update the processor status
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
             let end_timestamp = last_success_batch
                 .end_transaction_timestamp
@@ -101,64 +109,44 @@ where
 }
 
 #[async_trait]
-impl<T> Processable for LatestVersionProcessedTracker<T>
+impl<T> Processable for PostgresLatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
     T: Send + 'static,
 {
     type Input = T;
     type Output = T;
     type RunType = PollableAsyncRunType;
 
+    // Use the default implementation from LatestVersionProcessedTracker
     async fn process(
         &mut self,
-        current_batch: TransactionContext<T>,
-    ) -> Result<Option<TransactionContext<T>>, ProcessorError> {
-        // If there's a gap in the next_version and current_version, save the current_version to seen_versions for
-        // later processing.
-        if self.next_version != current_batch.start_version {
-            tracing::debug!(
-                next_version = self.next_version,
-                step = self.name(),
-                "Gap detected starting from version: {}",
-                current_batch.start_version
-            );
-            self.seen_versions
-                .insert(current_batch.start_version, TransactionContext {
-                    data: vec![], // No data is needed for tracking. This is to avoid clone.
-                    start_version: current_batch.start_version,
-                    end_version: current_batch.end_version,
-                    start_transaction_timestamp: current_batch.start_transaction_timestamp.clone(),
-                    end_transaction_timestamp: current_batch.end_transaction_timestamp.clone(),
-                    total_size_in_bytes: current_batch.total_size_in_bytes,
-                });
-        } else {
-            tracing::debug!("No gap detected");
-            // If the current_batch is the next expected version, update the last success batch
-            self.update_last_success_batch(TransactionContext {
-                data: vec![], // No data is needed for tracking. This is to avoid clone.
-                start_version: current_batch.start_version,
-                end_version: current_batch.end_version,
-                start_transaction_timestamp: current_batch.start_transaction_timestamp.clone(),
-                end_transaction_timestamp: current_batch.end_transaction_timestamp.clone(),
-                total_size_in_bytes: current_batch.total_size_in_bytes,
-            });
-        }
-        // Pass through
-        Ok(Some(current_batch))
+        current_batch: TransactionContext<Self::Input>,
+    ) -> Result<Option<TransactionContext<Self::Output>>, ProcessorError> {
+        LatestVersionProcessedTracker::<T>::process(self, current_batch).await
     }
 
     async fn cleanup(
         &mut self,
     ) -> Result<Option<Vec<TransactionContext<Self::Output>>>, ProcessorError> {
-        // If processing or polling ends, save the last successful batch to the database.
-        self.save_processor_status().await?;
-        Ok(None)
+        LatestVersionProcessedTracker::<T>::cleanup(self).await
+    }
+}
+
+impl<T> NamedStep for PostgresLatestVersionProcessedTracker<T>
+where
+    Self: Sized + Send + 'static,
+    T: Send + 'static,
+{
+    fn name(&self) -> String {
+        format!(
+            "PostgresLatestVersionProcessedTracker: {}",
+            std::any::type_name::<T>()
+        )
     }
 }
 
 #[async_trait]
-impl<T: Send + 'static> PollableAsyncStep for LatestVersionProcessedTracker<T>
+impl<T: Send + 'static> PollableAsyncStep for PostgresLatestVersionProcessedTracker<T>
 where
     Self: Sized + Send + Sync + 'static,
     T: Send + 'static,
@@ -172,18 +160,5 @@ where
         self.save_processor_status().await?;
         // Nothing should be returned
         Ok(None)
-    }
-}
-
-impl<T> NamedStep for LatestVersionProcessedTracker<T>
-where
-    Self: Sized + Send + 'static,
-    T: Send + 'static,
-{
-    fn name(&self) -> String {
-        format!(
-            "LatestVersionProcessedTracker: {}",
-            std::any::type_name::<T>()
-        )
     }
 }

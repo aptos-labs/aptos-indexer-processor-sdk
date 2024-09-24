@@ -12,6 +12,7 @@ repository = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
+ahash = { workspace = true }
 anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
 aptos-protos = { workspace = true }

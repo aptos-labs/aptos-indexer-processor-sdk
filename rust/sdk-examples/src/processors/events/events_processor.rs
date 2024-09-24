@@ -1,6 +1,6 @@
 use super::{events_extractor::EventsExtractor, events_storer::EventsStorer};
 use crate::{
-    common_steps::latest_processed_version_tracker::LatestVersionProcessedTracker,
+    common_steps::postgres_version_tracker_step::PostgresLatestVersionProcessedTracker,
     config::indexer_processor_config::IndexerProcessorConfig,
     utils::{
         chain_id::check_or_update_chain_id,
@@ -65,7 +65,7 @@ impl EventsProcessor {
         let events_extractor = EventsExtractor {};
         let events_storer = EventsStorer::new(self.db_pool.clone());
         let timed_buffer = TimedBufferStep::new(Duration::from_secs(1));
-        let version_tracker = LatestVersionProcessedTracker::new(
+        let version_tracker = PostgresLatestVersionProcessedTracker::new(
             self.config.db_config,
             starting_version,
             self.config.processor_config.name().to_string(),
