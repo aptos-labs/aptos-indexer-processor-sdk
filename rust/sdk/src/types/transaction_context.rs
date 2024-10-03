@@ -29,9 +29,22 @@ impl<T> TransactionContext<T> {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct TransactionContextMultipleBatch<T> {
-    pub data: Vec<T>,
-    // Metadata about the transactions that the data is associated with
-    // TODO: Implement this
+impl<T> Ord for TransactionContext<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.start_version.cmp(&other.start_version)
+    }
+}
+
+impl<T> PartialOrd for TransactionContext<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Eq for TransactionContext<T> {}
+
+impl<T> PartialEq for TransactionContext<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.start_version == other.start_version
+    }
 }

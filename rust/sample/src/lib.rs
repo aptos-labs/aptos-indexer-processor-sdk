@@ -20,8 +20,7 @@ use std::{
 ///
 /// // Sampled based on time passed, log at most once a minute
 /// sample!(SampleRate::Duration(Duration::from_secs(60)), info!("Long log"));
-/// ```
-
+///
 /// The rate at which a `sample!` macro will run it's given function
 #[derive(Debug)]
 pub enum SampleRate {
