@@ -1,15 +1,14 @@
 use crate::{
-    config::indexer_processor_config::DbConfig,
-    db::common::models::processor_status::ProcessorStatus,
+    config::indexer_processor_config::{BackfillConfig, DbConfig, IndexerProcessorConfig},
+    db::common::models::{backfill_processor_status::BackfillProcessorStatus, processor_status::ProcessorStatus},
     schema::processor_status,
+    schema::backfill_processor_status,
     utils::database::{execute_with_better_error, new_db_pool, ArcDbPool},
 };
 use ahash::AHashMap;
 use anyhow::{Context, Result};
 use aptos_indexer_processor_sdk::{
-    traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable},
-    types::transaction_context::TransactionContext,
-    utils::{errors::ProcessorError, time::parse_timestamp},
+    aptos_protos::indexer, traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable}, types::transaction_context::TransactionContext, utils::{errors::ProcessorError, time::parse_timestamp}
 };
 use async_trait::async_trait;
 use diesel::{upsert::excluded, ExpressionMethods};
@@ -29,6 +28,11 @@ where
     last_success_batch: Option<TransactionContext<T>>,
     // Tracks all the versions that have been processed out of order.
     seen_versions: AHashMap<u64, TransactionContext<T>>,
+    // Changes behavior given backfill mode.
+    backfill_mode: bool,
+    backfill_start_version: Option<u64>,
+    backfill_end_version: Option<u64>,
+
 }
 
 impl<T> LatestVersionProcessedTracker<T>
@@ -37,22 +41,51 @@ where
     T: Send + 'static,
 {
     pub async fn new(
-        db_config: DbConfig,
+        indexer_processor_config: IndexerProcessorConfig,
         starting_version: u64,
-        tracker_name: String,
+        // tracker_name: String,
     ) -> Result<Self> {
+        let db_config: DbConfig = indexer_processor_config.db_config;
         let conn_pool = new_db_pool(
             &db_config.postgres_connection_string,
             Some(db_config.db_pool_size),
         )
         .await
         .context("Failed to create connection pool")?;
+        
+        if let Some(backfill_config) = indexer_processor_config.backfill_config {
+            let txn_stream_cfg = indexer_processor_config.transaction_stream_config;
+            let backfill_start_version = txn_stream_cfg
+                .starting_version;
+            let backfill_end_version = txn_stream_cfg
+            .request_ending_version;
+            
+            if backfill_start_version.is_none() || backfill_end_version.is_none() {
+                return Err(anyhow::anyhow!("Backfilling requires starting_version and request_ending_version to be set"));
+            }
+
+            return Ok(Self {
+                conn_pool,
+                tracker_name: backfill_config.backfill_alias,
+                next_version: starting_version,
+                last_success_batch: None,
+                seen_versions: AHashMap::new(),
+                backfill_mode: true,
+                backfill_start_version: backfill_start_version,
+                backfill_end_version: backfill_end_version,
+            });
+        }
+
+        let tracker_name = indexer_processor_config.processor_config.name().to_string();
         Ok(Self {
             conn_pool,
             tracker_name,
             next_version: starting_version,
             last_success_batch: None,
             seen_versions: AHashMap::new(),
+            backfill_mode: false,
+            backfill_start_version: None,
+            backfill_end_version: None,
         })
     }
 
@@ -75,6 +108,33 @@ where
                 .as_ref()
                 .map(|t| parse_timestamp(t, last_success_batch.end_version as i64))
                 .map(|t| t.naive_utc());
+
+            if self.backfill_mode {
+                let status = BackfillProcessorStatus {
+                    processor_name: self.tracker_name.clone(),
+                    last_success_version: last_success_batch.end_version as i64,
+                    last_transaction_timestamp: end_timestamp,
+                    backfill_start_version: self.backfill_start_version.unwrap() as i64,
+                    backfill_end_version: self.backfill_end_version.unwrap() as i64,
+                };
+
+                execute_with_better_error(
+                    self.conn_pool.clone(),
+                    diesel::insert_into(backfill_processor_status::table)
+                        .values(&status)
+                        .on_conflict(backfill_processor_status::processor_name)
+                        .do_update()
+                        .set((
+                            backfill_processor_status::last_success_version.eq(excluded(backfill_processor_status::last_success_version)),
+                            backfill_processor_status::last_updated.eq(excluded(backfill_processor_status::last_updated)),
+                            backfill_processor_status::last_transaction_timestamp.eq(excluded(backfill_processor_status::last_transaction_timestamp)),
+                            backfill_processor_status::backfill_start_version.eq(excluded(backfill_processor_status::backfill_start_version)),
+                            backfill_processor_status::backfill_end_version.eq(excluded(backfill_processor_status::backfill_end_version)),
+                        )),
+                    Some(" WHERE backfill_processor_status.last_success_version <= EXCLUDED.last_success_version "),
+                ).await?;
+                return Ok(())
+            }
             let status = ProcessorStatus {
                 processor: self.tracker_name.clone(),
                 last_success_version: last_success_batch.end_version as i64,

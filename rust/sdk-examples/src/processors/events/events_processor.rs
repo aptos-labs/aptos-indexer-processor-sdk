@@ -57,18 +57,19 @@ impl EventsProcessor {
         check_or_update_chain_id(grpc_chain_id as i64, self.db_pool.clone()).await?;
 
         // Define processor steps
+        let transaction_stream_config = self.config.transaction_stream_config.clone();
         let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
             starting_version: Some(starting_version),
-            ..self.config.transaction_stream_config
+            ..transaction_stream_config
         })
         .await?;
         let events_extractor = EventsExtractor {};
         let events_storer = EventsStorer::new(self.db_pool.clone());
         let timed_buffer = TimedBufferStep::new(Duration::from_secs(1));
         let version_tracker = LatestVersionProcessedTracker::new(
-            self.config.db_config,
+            self.config,
             starting_version,
-            self.config.processor_config.name().to_string(),
+            // self.config.processor_config.name().to_string(),
         )
         .await?;
 
