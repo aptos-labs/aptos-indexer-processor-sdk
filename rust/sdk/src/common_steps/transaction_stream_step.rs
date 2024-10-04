@@ -205,6 +205,7 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[allow(clippy::needless_return)]
     async fn test_transaction_stream() {
         let mut mock_transaction_stream = MockTransactionStreamStep::new();
         // Testing framework can provide mocked transactions here

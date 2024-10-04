@@ -71,6 +71,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[allow(clippy::needless_return)]
     async fn test_connect_two_steps() {
         let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
@@ -146,6 +147,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[allow(clippy::needless_return)]
     async fn test_fanin() {
         let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
 
