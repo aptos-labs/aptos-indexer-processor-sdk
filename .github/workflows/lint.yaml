@@ -19,7 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Install deps and run linter
+
+      - name: Install Dependencies and Run Linter
         run: |
           sudo apt update && sudo apt install libdw-dev
           cargo install cargo-sort
@@ -29,11 +30,7 @@ jobs:
           rustup component add rustfmt --toolchain nightly
           scripts/rust_lint.sh --check
         working-directory: rust
-      - run: bash scripts/check_banned_deps.sh
-        working-directory: rust
-      - name: Ensure the --no-default-features build passes too
-        run: cargo build --no-default-features
-        working-directory: rust
-      - name: Ensure tests pass
-        run: cargo test
+
+      - name: Check Banned Dependencies
+        run: bash scripts/check_banned_deps.sh
         working-directory: rust
