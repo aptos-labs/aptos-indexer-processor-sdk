@@ -1,7 +1,10 @@
 use super::database::ArcDbPool;
 use crate::{
     config::indexer_processor_config::IndexerProcessorConfig,
-    db::common::models::processor_status::ProcessorStatusQuery,
+    db::common::models::{
+        backfill_processor_status::BackfillProcessorStatusQuery,
+        processor_status::ProcessorStatusQuery,
+    },
 };
 use anyhow::{Context, Result};
 
@@ -40,6 +43,18 @@ pub async fn get_latest_processed_version_from_db(
     conn_pool: ArcDbPool,
 ) -> Result<Option<u64>> {
     let mut conn = conn_pool.get().await?;
+
+    if let Some(backfill_config) = &indexer_processor_config.backfill_config {
+        return match BackfillProcessorStatusQuery::get_by_processor(
+            &backfill_config.backfill_alias,
+            &mut conn,
+        )
+        .await?
+        {
+            Some(status) => Ok(Some(status.last_success_version as u64 + 1)),
+            None => Ok(None),
+        };
+    }
 
     match ProcessorStatusQuery::get_by_processor(
         indexer_processor_config.processor_config.name(),

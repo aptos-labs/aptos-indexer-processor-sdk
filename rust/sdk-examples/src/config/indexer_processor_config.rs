@@ -65,4 +65,3 @@ pub struct BackfillConfig {
 }
 
 impl BackfillConfig {}
-
