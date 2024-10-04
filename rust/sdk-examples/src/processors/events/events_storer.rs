@@ -73,7 +73,7 @@ impl Processable for EventsStorer {
             Ok(_) => {
                 info!(
                     "Events version [{}, {}] stored successfully",
-                    events.start_version, events.end_version
+                    events.metadata.start_version, events.metadata.end_version
                 );
             },
             Err(e) => {

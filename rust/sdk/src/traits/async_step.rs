@@ -116,7 +116,7 @@ where
                         .labels(StepMetricLabels {
                             step_name: step.name(),
                         })
-                        .latest_processed_version(output_with_context.end_version)
+                        .latest_processed_version(output_with_context.metadata.end_version)
                         .latest_transaction_timestamp(
                             output_with_context.get_start_transaction_timestamp_unix(),
                         )
@@ -124,7 +124,7 @@ where
                             output_with_context.get_num_transactions(),
                         )
                         .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
-                        .processed_size_in_bytes(output_with_context.total_size_in_bytes)
+                        .processed_size_in_bytes(output_with_context.metadata.total_size_in_bytes)
                         .build()
                     {
                         Ok(mut metrics) => metrics.log_metrics(),

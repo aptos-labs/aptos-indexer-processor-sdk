@@ -21,7 +21,7 @@ mod tests {
             AsyncStep, IntoRunnableStep, NamedStep, Processable, RunnableAsyncStep,
             RunnableStepWithInputReceiver,
         },
-        types::transaction_context::TransactionContext,
+        types::transaction_context::{TransactionContext, TransactionMetadata},
         utils::errors::ProcessorError,
     };
     use anyhow::Result;
@@ -61,11 +61,7 @@ mod tests {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
             Ok(Some(TransactionContext {
                 data: processed,
-                start_version: item.start_version,
-                end_version: item.end_version,
-                start_transaction_timestamp: item.start_transaction_timestamp,
-                end_transaction_timestamp: item.end_transaction_timestamp,
-                total_size_in_bytes: item.total_size_in_bytes,
+                metadata: item.metadata,
             }))
         }
     }
@@ -116,11 +112,13 @@ mod tests {
 
         let left_input = TransactionContext {
             data: vec![1, 2, 3],
-            start_version: 0,
-            end_version: 1,
-            start_transaction_timestamp: None,
-            end_transaction_timestamp: None,
-            total_size_in_bytes: 0,
+            metadata: TransactionMetadata {
+                start_version: 0,
+                end_version: 1,
+                start_transaction_timestamp: None,
+                end_transaction_timestamp: None,
+                total_size_in_bytes: 0,
+            },
         };
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -196,11 +194,13 @@ mod tests {
 
         let left_input = TransactionContext {
             data: vec![1, 2, 3],
-            start_version: 0,
-            end_version: 1,
-            start_transaction_timestamp: None,
-            end_transaction_timestamp: None,
-            total_size_in_bytes: 0,
+            metadata: TransactionMetadata {
+                start_version: 0,
+                end_version: 1,
+                start_transaction_timestamp: None,
+                end_transaction_timestamp: None,
+                total_size_in_bytes: 0,
+            },
         };
         input_sender.send(left_input.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(250)).await;

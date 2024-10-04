@@ -41,11 +41,7 @@ where
     ) -> Result<Option<TransactionContext<Vec<Arc<T>>>>, ProcessorError> {
         Ok(Some(TransactionContext {
             data: item.data.into_iter().map(Arc::new).collect(),
-            start_version: item.start_version,
-            end_version: item.end_version,
-            start_transaction_timestamp: item.start_transaction_timestamp,
-            end_transaction_timestamp: item.end_transaction_timestamp,
-            total_size_in_bytes: item.total_size_in_bytes,
+            metadata: item.metadata,
         }))
     }
 }
@@ -64,15 +60,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::transaction_context::TransactionMetadata;
 
     fn generate_transaction_context() -> TransactionContext<Vec<usize>> {
         TransactionContext {
             data: vec![1, 2, 3],
-            start_version: 0,
-            end_version: 0,
-            start_transaction_timestamp: None,
-            end_transaction_timestamp: None,
-            total_size_in_bytes: 0,
+            metadata: TransactionMetadata {
+                start_version: 0,
+                end_version: 0,
+                start_transaction_timestamp: None,
+                end_transaction_timestamp: None,
+                total_size_in_bytes: 0,
+            },
         }
     }
 
