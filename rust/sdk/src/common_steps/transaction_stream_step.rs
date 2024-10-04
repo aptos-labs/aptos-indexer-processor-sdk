@@ -14,6 +14,9 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
+// TransactionStreamStep is establishes a gRPC connection with Transaction Stream
+// fetches transactions, and outputs them for processing. It also handles reconnections with retries.
+// This is usually the initial step in a processor.
 pub struct TransactionStreamStep
 where
     Self: Sized + Send + 'static,
@@ -49,6 +52,7 @@ where
     Self: Sized + Send + 'static,
 {
     type Input = ();
+    // The TransactionStreamStep will output a batch of transactions for processing
     type Output = Vec<Transaction>;
     type RunType = PollableAsyncRunType;
 
