@@ -11,6 +11,10 @@ pub trait RunnableStepType {}
 // This is a dummy implementation for the unit type
 impl RunnableStepType for () {}
 
+pub struct CustomRunType;
+
+impl RunnableStepType for CustomRunType {}
+
 #[async_trait]
 pub trait Processable
 where
