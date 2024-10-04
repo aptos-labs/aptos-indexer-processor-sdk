@@ -50,14 +50,14 @@ mod tests {
 
     #[async_trait]
     impl Processable for TestStep {
-        type Input = usize;
-        type Output = TestStruct;
+        type Input = Vec<usize>;
+        type Output = Vec<TestStruct>;
         type RunType = ();
 
         async fn process(
             &mut self,
-            item: TransactionContext<usize>,
-        ) -> Result<Option<TransactionContext<TestStruct>>, ProcessorError> {
+            item: TransactionContext<Vec<usize>>,
+        ) -> Result<Option<TransactionContext<Vec<TestStruct>>>, ProcessorError> {
             let processed = item.data.into_iter().map(|i| TestStruct { i }).collect();
             Ok(Some(TransactionContext {
                 data: processed,
@@ -81,7 +81,7 @@ mod tests {
         );
 
         // Create a timed buffer that outputs the input after 1 second
-        let timed_buffer_step = TimedBufferStep::<usize>::new(Duration::from_millis(200));
+        let timed_buffer_step = TimedBufferStep::<Vec<usize>>::new(Duration::from_millis(200));
         let first_step = timed_buffer_step;
 
         let second_step = TestStep;

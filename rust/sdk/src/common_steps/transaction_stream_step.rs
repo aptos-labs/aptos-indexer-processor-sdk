@@ -49,13 +49,13 @@ where
     Self: Sized + Send + 'static,
 {
     type Input = ();
-    type Output = Transaction;
+    type Output = Vec<Transaction>;
     type RunType = PollableAsyncRunType;
 
     async fn process(
         &mut self,
         _item: TransactionContext<()>,
-    ) -> Result<Option<TransactionContext<Transaction>>, ProcessorError> {
+    ) -> Result<Option<TransactionContext<Vec<Transaction>>>, ProcessorError> {
         Ok(None)
     }
 }
@@ -71,7 +71,7 @@ where
 
     async fn poll(
         &mut self,
-    ) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError> {
+    ) -> Result<Option<Vec<TransactionContext<Vec<Transaction>>>>, ProcessorError> {
         let txn_pb_response_res = self
             .transaction_stream
             .lock()
@@ -156,12 +156,12 @@ mock! {
     where Self: Sized + Send + 'static,
     {
         type Input = ();
-        type Output = Transaction;
+        type Output = Vec<Transaction>;
         type RunType = PollableAsyncRunType;
 
         async fn init(&mut self);
 
-        async fn process(&mut self, _item: TransactionContext<()> ) -> Result<Option<TransactionContext<Transaction>>, ProcessorError>;
+        async fn process(&mut self, _item: TransactionContext<()> ) -> Result<Option<TransactionContext<Vec<Transaction>>>, ProcessorError>;
     }
 
     #[async_trait]
@@ -183,7 +183,7 @@ mock! {
         //         size_in_bytes: 10,
         //     }])
         // }
-        async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Transaction>>>, ProcessorError>;
+        async fn poll(&mut self) -> Result<Option<Vec<TransactionContext<Vec<Transaction>>>>, ProcessorError>;
 
         async fn should_continue_polling(&mut self) -> bool;
     }
