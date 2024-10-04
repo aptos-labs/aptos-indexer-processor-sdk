@@ -7,7 +7,7 @@ use aptos_indexer_transaction_stream::utils::timestamp_to_unixtime;
 /// data originated from. The metadata is used for metrics and logging purposes.
 #[derive(Clone, Default)]
 pub struct TransactionContext<T> {
-    pub data: Vec<T>,
+    pub data: T,
 
     // Metadata about the transactions that the data is associated with
     pub start_version: u64,

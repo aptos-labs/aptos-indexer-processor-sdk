@@ -31,14 +31,14 @@ impl<T> Processable for ArcifyStep<T>
 where
     T: Send + Sync + 'static,
 {
-    type Input = T;
-    type Output = Arc<T>;
+    type Input = Vec<T>;
+    type Output = Vec<Arc<T>>;
     type RunType = AsyncRunType;
 
     async fn process(
         &mut self,
-        item: TransactionContext<T>,
-    ) -> Result<Option<TransactionContext<Arc<T>>>, ProcessorError> {
+        item: TransactionContext<Vec<T>>,
+    ) -> Result<Option<TransactionContext<Vec<Arc<T>>>>, ProcessorError> {
         Ok(Some(TransactionContext {
             data: item.data.into_iter().map(Arc::new).collect(),
             start_version: item.start_version,
@@ -65,7 +65,7 @@ where
 mod tests {
     use super::*;
 
-    fn generate_transaction_context() -> TransactionContext<usize> {
+    fn generate_transaction_context() -> TransactionContext<Vec<usize>> {
         TransactionContext {
             data: vec![1, 2, 3],
             start_version: 0,
