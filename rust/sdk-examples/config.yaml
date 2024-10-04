@@ -11,3 +11,4 @@ server_config:
     request_name_header: "events-processor"
   db_config:
     postgres_connection_string: postgresql://postgres:@localhost:5432/example
+# change
