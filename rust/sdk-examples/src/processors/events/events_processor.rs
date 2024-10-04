@@ -66,12 +66,8 @@ impl EventsProcessor {
         let events_extractor = EventsExtractor {};
         let events_storer = EventsStorer::new(self.db_pool.clone());
         let timed_buffer = TimedBufferStep::new(Duration::from_secs(1));
-        let version_tracker = LatestVersionProcessedTracker::new(
-            self.config,
-            starting_version,
-            // self.config.processor_config.name().to_string(),
-        )
-        .await?;
+        let version_tracker =
+            LatestVersionProcessedTracker::new(self.config, starting_version).await?;
 
         // Connect processor steps together
         let (_, buffer_receiver) = ProcessorBuilder::new_with_inputless_first_step(
