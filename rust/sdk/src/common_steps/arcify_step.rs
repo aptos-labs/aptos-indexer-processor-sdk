@@ -77,6 +77,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_arcify_step_process() {
         let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
@@ -89,6 +90,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_arcify_strong_count() {
         let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
@@ -104,6 +106,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_arcify_ptr_eq() {
         let mut step = ArcifyStep::<usize>::new();
         let input = generate_transaction_context();
