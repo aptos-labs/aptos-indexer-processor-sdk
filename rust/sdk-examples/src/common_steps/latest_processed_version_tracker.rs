@@ -17,7 +17,7 @@ const UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
 
 pub struct LatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
+    Self: Sized + Send + Sync + 'static,
     T: Send + 'static,
 {
     conn_pool: ArcDbPool,
@@ -37,7 +37,7 @@ where
 
 impl<T> LatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
+    Self: Sized + Send + Sync + 'static,
     T: Send + 'static,
 {
     pub async fn new(
@@ -101,14 +101,13 @@ where
     }
 
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
-        // Update the processor status
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
             let end_timestamp = last_success_batch
                 .end_transaction_timestamp
                 .as_ref()
                 .map(|t| parse_timestamp(t, last_success_batch.end_version as i64))
                 .map(|t| t.naive_utc());
-
+    
             if self.backfill_mode {
                 let status = BackfillProcessorStatus {
                     processor_name: self.tracker_name.clone(),
@@ -117,53 +116,61 @@ where
                     backfill_start_version: self.backfill_start_version.unwrap() as i64,
                     backfill_end_version: self.backfill_end_version.unwrap() as i64,
                 };
-
-                execute_with_better_error(
-                    self.conn_pool.clone(),
-                    diesel::insert_into(backfill_processor_status::table)
-                        .values(&status)
-                        .on_conflict(backfill_processor_status::processor_name)
-                        .do_update()
-                        .set((
-                            backfill_processor_status::last_success_version.eq(excluded(backfill_processor_status::last_success_version)),
-                            backfill_processor_status::last_updated.eq(excluded(backfill_processor_status::last_updated)),
-                            backfill_processor_status::last_transaction_timestamp.eq(excluded(backfill_processor_status::last_transaction_timestamp)),
-                            backfill_processor_status::backfill_start_version.eq(excluded(backfill_processor_status::backfill_start_version)),
-                            backfill_processor_status::backfill_end_version.eq(excluded(backfill_processor_status::backfill_end_version)),
-                        )),
-                    Some(" WHERE backfill_processor_status.last_success_version <= EXCLUDED.last_success_version "),
-                ).await?;
-                return Ok(())
+                self.save_backfill_status(status).await?;
+            } else {
+                let status = ProcessorStatus {
+                    processor: self.tracker_name.clone(),
+                    last_success_version: last_success_batch.end_version as i64,
+                    last_transaction_timestamp: end_timestamp,
+                };
+                self.save_normal_status(status).await?;
             }
-            let status = ProcessorStatus {
-                processor: self.tracker_name.clone(),
-                last_success_version: last_success_batch.end_version as i64,
-                last_transaction_timestamp: end_timestamp,
-            };
-            execute_with_better_error(
-                self.conn_pool.clone(),
-                diesel::insert_into(processor_status::table)
-                    .values(&status)
-                    .on_conflict(processor_status::processor)
-                    .do_update()
-                    .set((
-                        processor_status::last_success_version
-                            .eq(excluded(processor_status::last_success_version)),
-                        processor_status::last_updated.eq(excluded(processor_status::last_updated)),
-                        processor_status::last_transaction_timestamp
-                            .eq(excluded(processor_status::last_transaction_timestamp)),
-                    )),
-                Some(" WHERE processor_status.last_success_version <= EXCLUDED.last_success_version "),
-            ).await?;
         }
+        Ok(())
+    }
+    
+    async fn save_backfill_status(&self, status: BackfillProcessorStatus) -> Result<(), ProcessorError> {
+        execute_with_better_error(
+            self.conn_pool.clone(),
+            diesel::insert_into(backfill_processor_status::table)
+                .values(&status)
+                .on_conflict(backfill_processor_status::processor_name)
+                .do_update()
+                .set((
+                    backfill_processor_status::last_success_version.eq(excluded(backfill_processor_status::last_success_version)),
+                    backfill_processor_status::last_updated.eq(excluded(backfill_processor_status::last_updated)),
+                    backfill_processor_status::last_transaction_timestamp.eq(excluded(backfill_processor_status::last_transaction_timestamp)),
+                    backfill_processor_status::backfill_start_version.eq(excluded(backfill_processor_status::backfill_start_version)),
+                    backfill_processor_status::backfill_end_version.eq(excluded(backfill_processor_status::backfill_end_version)),
+                )),
+            Some(" WHERE backfill_processor_status.last_success_version <= EXCLUDED.last_success_version "),
+        ).await?;
+        Ok(())
+    }
+    
+    async fn save_normal_status(&self, status: ProcessorStatus) -> Result<(), ProcessorError> {
+        execute_with_better_error(
+            self.conn_pool.clone(),
+            diesel::insert_into(processor_status::table)
+                .values(&status)
+                .on_conflict(processor_status::processor)
+                .do_update()
+                .set((
+                    processor_status::last_success_version.eq(excluded(processor_status::last_success_version)),
+                    processor_status::last_updated.eq(excluded(processor_status::last_updated)),
+                    processor_status::last_transaction_timestamp.eq(excluded(processor_status::last_transaction_timestamp)),
+                )),
+            Some(" WHERE processor_status.last_success_version <= EXCLUDED.last_success_version "),
+        ).await?;
         Ok(())
     }
 }
 
+
 #[async_trait]
 impl<T> Processable for LatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
+    Self: Sized + Send + Sync + 'static,
     T: Send + 'static,
 {
     type Input = T;
@@ -237,7 +244,7 @@ where
 
 impl<T> NamedStep for LatestVersionProcessedTracker<T>
 where
-    Self: Sized + Send + 'static,
+    Self: Sized + Send + Sync + 'static,
     T: Send + 'static,
 {
     fn name(&self) -> String {
