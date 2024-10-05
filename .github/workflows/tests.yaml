@@ -1,0 +1,33 @@
+name: "Tests"
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update && sudo apt install libdw-dev
+          cargo install cargo-sort
+          rustup update
+          rustup toolchain install nightly
+        working-directory: rust
+
+      - name: Build with No Default Features
+        run: cargo build --no-default-features
+        working-directory: rust
+
+      - name: Run Tests
+        run: cargo test
+        working-directory: rust
