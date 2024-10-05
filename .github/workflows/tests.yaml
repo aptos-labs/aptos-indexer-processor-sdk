@@ -22,7 +22,6 @@ jobs:
           cargo install cargo-sort
           rustup update
           rustup toolchain install nightly
-          rustup component add clippy --toolchain nightly
         working-directory: rust
 
       - name: Build with No Default Features
