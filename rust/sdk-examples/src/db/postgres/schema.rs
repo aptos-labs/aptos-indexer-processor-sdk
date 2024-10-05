@@ -1,9 +1,9 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    backfill_processor_status (processor_name) {
+    backfill_processor_status (backfill_alias) {
         #[max_length = 50]
-        processor_name -> Varchar,
+        backfill_alias -> Varchar,
         last_success_version -> Int8,
         last_updated -> Timestamp,
         last_transaction_timestamp -> Nullable<Timestamp>,

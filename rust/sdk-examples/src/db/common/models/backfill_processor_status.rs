@@ -11,7 +11,7 @@ use diesel_async::RunQueryDsl;
 #[diesel(table_name = backfill_processor_status)]
 /// Only tracking the latest version successfully processed
 pub struct BackfillProcessorStatus {
-    pub processor_name: String,
+    pub backfill_alias: String,
     pub last_success_version: i64,
     pub last_transaction_timestamp: Option<chrono::NaiveDateTime>,
     pub backfill_start_version: i64,
@@ -22,7 +22,7 @@ pub struct BackfillProcessorStatus {
 #[diesel(table_name = backfill_processor_status)]
 /// Only tracking the latest version successfully processed
 pub struct BackfillProcessorStatusQuery {
-    pub processor_name: String,
+    pub backfill_alias: String,
     pub last_success_version: i64,
     pub last_updated: chrono::NaiveDateTime,
     pub last_transaction_timestamp: Option<chrono::NaiveDateTime>,
@@ -32,11 +32,11 @@ pub struct BackfillProcessorStatusQuery {
 
 impl BackfillProcessorStatusQuery {
     pub async fn get_by_processor(
-        processor_name: &str,
+        backfill_alias: &str,
         conn: &mut DbPoolConnection<'_>,
     ) -> diesel::QueryResult<Option<Self>> {
         backfill_processor_status::table
-            .filter(backfill_processor_status::processor_name.eq(processor_name))
+            .filter(backfill_processor_status::backfill_alias.eq(backfill_alias))
             .first::<Self>(conn)
             .await
             .optional()

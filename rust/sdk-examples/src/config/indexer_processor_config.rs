@@ -63,5 +63,3 @@ impl DbConfig {
 pub struct BackfillConfig {
     pub backfill_alias: String,
 }
-
-impl BackfillConfig {}

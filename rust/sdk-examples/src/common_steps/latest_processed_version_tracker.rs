@@ -114,7 +114,7 @@ where
 
             if self.backfill_mode {
                 let status = BackfillProcessorStatus {
-                    processor_name: self.tracker_name.clone(),
+                    backfill_alias: self.tracker_name.clone(),
                     last_success_version: last_success_batch.end_version as i64,
                     last_transaction_timestamp: end_timestamp,
                     backfill_start_version: self.backfill_start_version.unwrap_or(0) as i64,
@@ -164,7 +164,7 @@ where
             self.conn_pool.clone(),
             diesel::insert_into(backfill_processor_status::table)
                 .values(&status)
-                .on_conflict(backfill_processor_status::processor_name)
+                .on_conflict(backfill_processor_status::backfill_alias)
                 .do_update()
                 .set((
                     backfill_processor_status::last_success_version.eq(excluded(backfill_processor_status::last_success_version)),
