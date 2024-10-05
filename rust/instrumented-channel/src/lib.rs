@@ -179,6 +179,7 @@ mod tests {
         String::from_utf8(buffer).unwrap()
     }
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_instrumented_channel() {
         let (sender, receiver) = instrumented_bounded_channel("my_channel", 10);
         sender.send(42).await.unwrap();

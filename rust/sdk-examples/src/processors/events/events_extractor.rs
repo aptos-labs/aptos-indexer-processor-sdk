@@ -16,14 +16,14 @@ where
 
 #[async_trait]
 impl Processable for EventsExtractor {
-    type Input = Transaction;
-    type Output = EventModel;
+    type Input = Vec<Transaction>;
+    type Output = Vec<EventModel>;
     type RunType = AsyncRunType;
 
     async fn process(
         &mut self,
-        item: TransactionContext<Transaction>,
-    ) -> Result<Option<TransactionContext<EventModel>>, ProcessorError> {
+        item: TransactionContext<Vec<Transaction>>,
+    ) -> Result<Option<TransactionContext<Vec<EventModel>>>, ProcessorError> {
         let events = item
             .data
             .par_iter()
