@@ -29,8 +29,8 @@ jobs:
           rustup component add clippy --toolchain nightly
           rustup component add rustfmt --toolchain nightly
           scripts/rust_lint.sh --check
-        working-directory: rust
+        working-directory: aptos-indexer-processors-sdk
 
       - name: Check Banned Dependencies
         run: bash scripts/check_banned_deps.sh
-        working-directory: rust
+        working-directory: aptos-indexer-processors-sdk
