@@ -148,6 +148,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[allow(clippy::needless_return)]
     async fn test_order_step() {
         // Setup
         let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
@@ -171,13 +172,13 @@ mod tests {
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
 
-        for i in 0..2 {
+        for ordered_transaction_context in ordered_transaction_contexts {
             let result = receive_with_timeout(&mut output_receiver, 100)
                 .await
                 .unwrap();
             assert_eq!(
                 result.metadata.start_version,
-                ordered_transaction_contexts[i].metadata.start_version
+                ordered_transaction_context.metadata.start_version
             );
         }
     }
