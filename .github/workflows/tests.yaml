@@ -22,12 +22,12 @@ jobs:
           cargo install cargo-sort
           rustup update
           rustup toolchain install nightly
-        working-directory: rust
+        working-directory: aptos-indexer-processors-sdk
 
       - name: Build with No Default Features
         run: cargo build --no-default-features
-        working-directory: rust
+        working-directory: aptos-indexer-processors-sdk
 
       - name: Run Tests
         run: cargo test
-        working-directory: rust
+        working-directory: aptos-indexer-processors-sdk
