@@ -10,7 +10,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::time::Duration;
 
-pub struct OrderByStartingVersionStep<Input>
+pub struct OrderByVersionStep<Input>
 where
     Self: Sized + Send + 'static,
     Input: Send + 'static,
@@ -23,7 +23,7 @@ where
     pub poll_interval: Duration,
 }
 
-impl<Input> OrderByStartingVersionStep<Input>
+impl<Input> OrderByVersionStep<Input>
 where
     Self: Sized + Send + 'static,
     Input: Send + 'static,
@@ -50,7 +50,7 @@ where
 }
 
 #[async_trait]
-impl<Input> Processable for OrderByStartingVersionStep<Input>
+impl<Input> Processable for OrderByVersionStep<Input>
 where
     Input: Send + Sync + 'static,
 {
@@ -94,7 +94,7 @@ where
 }
 
 #[async_trait]
-impl<Input: Send + Sync + 'static> PollableAsyncStep for OrderByStartingVersionStep<Input> {
+impl<Input: Send + Sync + 'static> PollableAsyncStep for OrderByVersionStep<Input> {
     fn poll_interval(&self) -> Duration {
         self.poll_interval
     }
@@ -104,12 +104,81 @@ impl<Input: Send + Sync + 'static> PollableAsyncStep for OrderByStartingVersionS
     }
 }
 
-impl<Input: Send + 'static> NamedStep for OrderByStartingVersionStep<Input> {
+impl<Input: Send + 'static> NamedStep for OrderByVersionStep<Input> {
     // TODO: oncecell this somehow? Likely in wrapper struct...
     fn name(&self) -> String {
-        format!(
-            "OrderByStartingVersionStep: {}",
-            std::any::type_name::<Input>()
-        )
+        format!("OrderByVersionStep: {}", std::any::type_name::<Input>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        builder::ProcessorBuilder,
+        test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
+        traits::{IntoRunnableStep, RunnableStepWithInputReceiver},
+        types::transaction_context::TransactionMetadata,
+    };
+    use instrumented_channel::instrumented_bounded_channel;
+
+    fn generate_unordered_transaction_contexts() -> Vec<TransactionContext<()>> {
+        vec![
+            TransactionContext {
+                data: (),
+                metadata: TransactionMetadata {
+                    start_version: 100,
+                    end_version: 199,
+                    start_transaction_timestamp: None,
+                    end_transaction_timestamp: None,
+                    total_size_in_bytes: 0,
+                },
+            },
+            TransactionContext {
+                data: (),
+                metadata: TransactionMetadata {
+                    start_version: 0,
+                    end_version: 99,
+                    start_transaction_timestamp: None,
+                    end_transaction_timestamp: None,
+                    total_size_in_bytes: 0,
+                },
+            },
+        ]
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_order_step() {
+        // Setup
+        let (input_sender, input_receiver) = instrumented_bounded_channel("input", 1);
+        let input_step = RunnableStepWithInputReceiver::new(
+            input_receiver,
+            PassThroughStep::default().into_runnable_step(),
+        );
+        let order_step = OrderByVersionStep::<()>::new(0, Duration::from_millis(250));
+
+        let (_pb, mut output_receiver) =
+            ProcessorBuilder::new_with_runnable_input_receiver_first_step(input_step)
+                .connect_to(order_step.into_runnable_step(), 5)
+                .end_and_return_output_receiver(5);
+
+        let unordered_transaction_contexts = generate_unordered_transaction_contexts();
+        let mut ordered_transaction_contexts = unordered_transaction_contexts.clone();
+        ordered_transaction_contexts.sort();
+
+        for transaction_context in unordered_transaction_contexts {
+            input_sender.send(transaction_context).await.unwrap();
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        for i in 0..2 {
+            let result = receive_with_timeout(&mut output_receiver, 100)
+                .await
+                .unwrap();
+            assert_eq!(
+                result.metadata.start_version,
+                ordered_transaction_contexts[i].metadata.start_version
+            );
+        }
     }
 }
