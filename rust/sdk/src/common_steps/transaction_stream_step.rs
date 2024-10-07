@@ -1,6 +1,6 @@
 use crate::{
     traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable},
-    types::transaction_context::TransactionContext,
+    types::transaction_context::{TransactionContext, TransactionMetadata},
     utils::errors::ProcessorError,
 };
 use anyhow::Result;
@@ -86,11 +86,13 @@ where
             Ok(txn_pb_response) => {
                 let transactions_with_context = TransactionContext {
                     data: txn_pb_response.transactions,
-                    start_version: txn_pb_response.start_version,
-                    end_version: txn_pb_response.end_version,
-                    start_transaction_timestamp: txn_pb_response.start_txn_timestamp,
-                    end_transaction_timestamp: txn_pb_response.end_txn_timestamp,
-                    total_size_in_bytes: txn_pb_response.size_in_bytes,
+                    metadata: TransactionMetadata {
+                        start_version: txn_pb_response.start_version,
+                        end_version: txn_pb_response.end_version,
+                        start_transaction_timestamp: txn_pb_response.start_txn_timestamp,
+                        end_transaction_timestamp: txn_pb_response.end_txn_timestamp,
+                        total_size_in_bytes: txn_pb_response.size_in_bytes,
+                    },
                 };
                 Ok(Some(vec![transactions_with_context]))
             },
@@ -204,6 +206,7 @@ mod tests {
         builder::ProcessorBuilder,
         test::{steps::pass_through_step::PassThroughStep, utils::receive_with_timeout},
         traits::IntoRunnableStep,
+        types::transaction_context::TransactionMetadata,
     };
     use mockall::Sequence;
     use std::time::Duration;
@@ -216,11 +219,13 @@ mod tests {
         mock_transaction_stream.expect_poll().returning(|| {
             Ok(Some(vec![TransactionContext {
                 data: vec![Transaction::default()],
-                start_version: 0,
-                end_version: 100,
-                start_transaction_timestamp: None,
-                end_transaction_timestamp: None,
-                total_size_in_bytes: 10,
+                metadata: TransactionMetadata {
+                    start_version: 0,
+                    end_version: 100,
+                    start_transaction_timestamp: None,
+                    end_transaction_timestamp: None,
+                    total_size_in_bytes: 10,
+                },
             }]))
         });
         mock_transaction_stream

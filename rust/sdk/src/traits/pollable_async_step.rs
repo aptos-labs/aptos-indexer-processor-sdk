@@ -157,14 +157,16 @@ where
                                     .labels(StepMetricLabels {
                                         step_name: poll_step_name.clone(),
                                     })
-                                    .latest_polled_version(output_with_context.end_version)
+                                    .latest_polled_version(output_with_context.metadata.end_version)
                                     .latest_polled_transaction_timestamp(
                                         output_with_context.get_start_transaction_timestamp_unix(),
                                     )
                                     .num_polled_transactions_count(
                                         output_with_context.get_num_transactions(),
                                     )
-                                    .polled_size_in_bytes(output_with_context.total_size_in_bytes)
+                                    .polled_size_in_bytes(
+                                        output_with_context.metadata.total_size_in_bytes,
+                                    )
                                     .build()
                                 {
                                     Ok(mut metrics) => metrics.log_metrics(),
@@ -232,7 +234,7 @@ where
                             .labels(StepMetricLabels {
                                 step_name: process_step_name.clone(),
                             })
-                            .latest_processed_version(output_with_context.end_version)
+                            .latest_processed_version(output_with_context.metadata.end_version)
                             .latest_transaction_timestamp(
                                 output_with_context.get_start_transaction_timestamp_unix(),
                             )
@@ -242,7 +244,9 @@ where
                             .processing_duration_in_secs(
                                 processing_duration.elapsed().as_secs_f64(),
                             )
-                            .processed_size_in_bytes(output_with_context.total_size_in_bytes)
+                            .processed_size_in_bytes(
+                                output_with_context.metadata.total_size_in_bytes,
+                            )
                             .build()
                         {
                             Ok(mut metrics) => metrics.log_metrics(),
@@ -292,14 +296,14 @@ where
                             .labels(StepMetricLabels {
                                 step_name: step_name.clone(),
                             })
-                            .latest_polled_version(output_with_context.end_version)
+                            .latest_polled_version(output_with_context.metadata.end_version)
                             .latest_polled_transaction_timestamp(
                                 output_with_context.get_start_transaction_timestamp_unix(),
                             )
                             .num_polled_transactions_count(
                                 output_with_context.get_num_transactions(),
                             )
-                            .polled_size_in_bytes(output_with_context.total_size_in_bytes)
+                            .polled_size_in_bytes(output_with_context.metadata.total_size_in_bytes)
                             .build()
                         {
                             Ok(mut metrics) => metrics.log_metrics(),
