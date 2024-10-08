@@ -12,22 +12,21 @@ use tracing::info;
 
 const UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
 
+#[async_trait]
 pub trait ProcessorStatusSaver {
+    // T represents the transaction type that the processor is tracking.
     async fn save_processor_status<T>(
         &self,
         tracker_name: &str,
         last_success_batch: &TransactionContext<T>,
-    ) -> Result<(), ProcessorError>
-    where
-        T: Send + Sync + 'static,
-        Self: Send + Sync + 'static,
+    ) -> Result<(), ProcessorError>;
 }
 
 pub struct LatestVersionProcessedTracker<T, S>
 where
     Self: Sized + Send + 'static,
-    T: Send + Sync + 'static,
-    S: ProcessorStatusSaver + Send + Sync + 'static,
+    T: Send + 'static,
+    S: ProcessorStatusSaver + Send + 'static,
 {
     tracker_name: String,
     // Next version to process that we expect.
@@ -42,8 +41,8 @@ where
 impl<T, S> LatestVersionProcessedTracker<T, S>
 where
     Self: Sized + Send + 'static,
-    T: Send + Sync + 'static,
-    S: ProcessorStatusSaver + Send + Sync + 'static,
+    T: Send + 'static,
+    S: ProcessorStatusSaver + Send + 'static,
 {
     pub fn new(starting_version: u64, tracker_name: String, processor_status_saver: S) -> Self {
         Self {
@@ -83,8 +82,8 @@ where
 impl<T, S> Processable for LatestVersionProcessedTracker<T, S>
 where
     Self: Sized + Send + 'static,
-    T: Send + Sync + 'static,
-    S: ProcessorStatusSaver + Send + Sync + 'static,
+    T: Send + 'static,
+    S: ProcessorStatusSaver + Send + 'static,
 {
     type Input = T;
     type Output = T;
@@ -94,12 +93,6 @@ where
         &mut self,
         current_batch: TransactionContext<T>,
     ) -> Result<Option<TransactionContext<T>>, ProcessorError> {
-        // info!(
-        //     start_version = current_batch.start_version,
-        //     end_version = current_batch.end_version,
-        //     step_name = self.name(),
-        //     "Processing versions"
-        // );
         // If there's a gap in the next_version and current_version, save the current_version to seen_versions for
         // later processing.
         if self.next_version != current_batch.metadata.start_version {
@@ -159,8 +152,8 @@ where
 impl<T, S> NamedStep for LatestVersionProcessedTracker<T, S>
 where
     Self: Sized + Send + 'static,
-    T: Send + Sync + 'static,
-    S: ProcessorStatusSaver + Send + Sync + 'static,
+    T: Send + 'static,
+    S: ProcessorStatusSaver + Send + 'static,
 {
     fn name(&self) -> String {
         format!(
