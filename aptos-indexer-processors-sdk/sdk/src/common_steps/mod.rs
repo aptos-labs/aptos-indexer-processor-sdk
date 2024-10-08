@@ -7,4 +7,5 @@ pub mod version_tracker_step;
 pub use arcify_step::ArcifyStep;
 pub use timed_buffer_step::TimedBufferStep;
 pub use transaction_stream_step::TransactionStreamStep;
-pub use version_tracker_step::LatestVersionProcessedTracker;
+pub use version_tracker_step::ProcessorStatusSaver;
+pub use version_tracker_step::VersionTrackerStep;

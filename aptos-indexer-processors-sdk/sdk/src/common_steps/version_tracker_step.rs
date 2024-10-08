@@ -19,7 +19,7 @@ pub trait ProcessorStatusSaver {
     ) -> Result<(), ProcessorError>;
 }
 
-pub struct LatestVersionProcessedTracker<T, S>
+pub struct VersionTrackerStep<T, S>
 where
     Self: Sized + Send + 'static,
     T: Send + 'static,
@@ -33,7 +33,7 @@ where
     _marker: PhantomData<T>,
 }
 
-impl<T, S> LatestVersionProcessedTracker<T, S>
+impl<T, S> VersionTrackerStep<T, S>
 where
     Self: Sized + Send + 'static,
     T: Send + 'static,
@@ -65,7 +65,7 @@ where
 }
 
 #[async_trait]
-impl<T, S> Processable for LatestVersionProcessedTracker<T, S>
+impl<T, S> Processable for VersionTrackerStep<T, S>
 where
     Self: Sized + Send + 'static,
     T: Send + 'static,
@@ -111,7 +111,7 @@ where
 }
 
 #[async_trait]
-impl<T: Send + 'static, S> PollableAsyncStep for LatestVersionProcessedTracker<T, S>
+impl<T: Send + 'static, S> PollableAsyncStep for VersionTrackerStep<T, S>
 where
     Self: Sized + Send + Sync + 'static,
     T: Send + Sync + 'static,
@@ -129,16 +129,13 @@ where
     }
 }
 
-impl<T, S> NamedStep for LatestVersionProcessedTracker<T, S>
+impl<T, S> NamedStep for VersionTrackerStep<T, S>
 where
     Self: Sized + Send + 'static,
     T: Send + 'static,
     S: ProcessorStatusSaver + Send + 'static,
 {
     fn name(&self) -> String {
-        format!(
-            "LatestVersionProcessedTracker: {}",
-            std::any::type_name::<T>()
-        )
+        format!("VersionTrackerStep: {}", std::any::type_name::<T>())
     }
 }
