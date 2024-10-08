@@ -12,10 +12,10 @@ use std::marker::PhantomData;
 #[async_trait]
 pub trait ProcessorStatusSaver {
     // T represents the transaction type that the processor is tracking.
-    async fn save_processor_status<T>(
+    async fn save_processor_status(
         &self,
         tracker_name: &str,
-        last_success_batch: &TransactionContext<T>,
+        last_success_batch: &TransactionContext<()>,
     ) -> Result<(), ProcessorError>;
 }
 
