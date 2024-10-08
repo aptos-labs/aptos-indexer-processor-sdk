@@ -10,6 +10,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::time::Duration;
 
+/// OrderByVersionStep is a step that orders TransactionContexts by their starting versions.
+/// It buffers ordered TransactionContexts and releases them at every poll_interval.
 pub struct OrderByVersionStep<Input>
 where
     Self: Sized + Send + 'static,
@@ -18,7 +20,6 @@ where
     pub ordered_versions: Vec<TransactionContext<Input>>,
     pub unordered_versions: AHashMap<u64, TransactionContext<Input>>,
     pub expected_next_version: u64,
-    // pub versions: BTreeSet<TransactionContext<Input>>,
     // Duration to poll and return the ordered versions
     pub poll_interval: Duration,
 }
@@ -63,7 +64,7 @@ where
         current_batch: TransactionContext<Input>,
     ) -> Result<Option<TransactionContext<Input>>, ProcessorError> {
         // If there's a gap in the expected_next_version and current_version
-        // ave the current_version to unordered_versions for later processing.
+        // have the current_version to unordered_versions for later processing.
         if self.expected_next_version != current_batch.metadata.start_version {
             tracing::debug!(
                 next_version = self.expected_next_version,
@@ -81,6 +82,9 @@ where
             // If the current_versions is the expected_next_version, update the ordered_versions
             self.update_ordered_versions();
         }
+
+        // TODO: Consider adding a metric for the number of unordered_versions for debugging, performance tesing
+
         // Pass through
         Ok(None) // No immediate output
     }
