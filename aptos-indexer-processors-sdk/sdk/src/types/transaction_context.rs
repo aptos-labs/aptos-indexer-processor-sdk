@@ -24,6 +24,28 @@ impl<T> TransactionContext<T> {
     }
 }
 
+impl<T> Ord for TransactionContext<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.metadata
+            .start_version
+            .cmp(&other.metadata.start_version)
+    }
+}
+
+impl<T> PartialOrd for TransactionContext<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Eq for TransactionContext<T> {}
+
+impl<T> PartialEq for TransactionContext<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata.start_version == other.metadata.start_version
+    }
+}
+
 // Metadata about a batch of transactions
 #[derive(Clone, Default)]
 pub struct TransactionMetadata {
