@@ -4,6 +4,7 @@ pub mod into_runnable_step;
 pub mod pollable_async_step;
 pub mod processable;
 pub mod runnable_step;
+pub mod processor_trait;
 
 // Re-export the structs and traits
 pub use async_step::{AsyncRunType, AsyncStep, RunnableAsyncStep};
