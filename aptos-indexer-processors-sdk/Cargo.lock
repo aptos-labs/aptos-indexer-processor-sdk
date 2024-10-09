@@ -3653,6 +3653,7 @@ dependencies = [
  "anyhow",
  "aptos-indexer-processor-sdk",
  "aptos-protos",
+ "async-trait",
  "diesel",
  "diesel-async",
  "diesel_migrations",

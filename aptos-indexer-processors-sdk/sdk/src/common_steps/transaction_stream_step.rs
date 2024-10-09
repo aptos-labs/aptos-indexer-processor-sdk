@@ -17,7 +17,7 @@ use tracing::{error, info, warn};
 // TransactionStreamStep is establishes a gRPC connection with Transaction Stream
 // fetches transactions, and outputs them for processing. It also handles reconnections with retries.
 // This is usually the initial step in a processor.
-pub struct TransactionStreamStep
+pub struct ProdTransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
@@ -25,7 +25,7 @@ where
     pub transaction_stream: Mutex<TransactionStreamInternal>,
 }
 
-impl TransactionStreamStep
+impl ProdTransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
@@ -47,7 +47,7 @@ where
 }
 
 #[async_trait]
-impl Processable for TransactionStreamStep
+impl Processable for ProdTransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
@@ -65,7 +65,7 @@ where
 }
 
 #[async_trait]
-impl PollableAsyncStep for TransactionStreamStep
+impl PollableAsyncStep for ProdTransactionStreamStep
 where
     Self: Sized + Send + Sync + 'static,
 {
@@ -148,7 +148,7 @@ where
     }
 }
 
-impl NamedStep for TransactionStreamStep {
+impl NamedStep for ProdTransactionStreamStep {
     fn name(&self) -> String {
         "TransactionStreamStep".to_string()
     }
@@ -198,6 +198,13 @@ mock! {
         fn name(&self) -> String;
     }
 }
+
+
+#[cfg(not(test))]
+pub type TransactionStreamStep = ProdTransactionStreamStep;
+
+#[cfg(test)]
+pub type TransactionStreamStep = MockTransactionStreamStep;
 
 #[cfg(test)]
 mod tests {

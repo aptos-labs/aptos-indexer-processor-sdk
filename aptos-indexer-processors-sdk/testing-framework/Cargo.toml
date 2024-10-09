@@ -35,6 +35,7 @@ native-tls = { workspace = true }
 postgres-native-tls = { workspace = true }
 tokio-postgres = { workspace = true }
 aptos-indexer-processor-sdk = { workspace = true }
+async-trait = { workspace = true }
 
 [features]
 libpq = ["diesel/postgres"]
