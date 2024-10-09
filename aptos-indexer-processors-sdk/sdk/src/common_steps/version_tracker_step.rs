@@ -9,6 +9,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::marker::PhantomData;
 
+pub const DEFAULT_UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
+/// The `ProcessorStatusSaver` trait object should be implemented in order to save the latest successfully
+/// processed transaction versino to storage. I.e., persisting the `processor_status` to storage.
 #[async_trait]
 pub trait ProcessorStatusSaver {
     // T represents the transaction type that the processor is tracking.
@@ -19,6 +22,11 @@ pub trait ProcessorStatusSaver {
     ) -> Result<(), ProcessorError>;
 }
 
+/// `VersionTrackerStep` tracks the versioned processing of sequential transactions, ensuring no gaps
+/// occur between them. It saves the state of the last successfully processed transaction and manages
+/// periodic polling intervals.
+/// Important: this step assumes ordered transactions. Please use the `OrederByVersionStep` before this step
+/// if the transactions are not ordered.
 pub struct VersionTrackerStep<T, S>
 where
     Self: Sized + Send + 'static,

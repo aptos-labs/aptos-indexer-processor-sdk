@@ -16,5 +16,3 @@ pub static APT_METADATA_ADDRESS_RAW: Lazy<[u8; 32]> = Lazy::new(|| {
 
 pub static APT_METADATA_ADDRESS_HEX: Lazy<String> =
     Lazy::new(|| format!("0x{}", hex::encode(*APT_METADATA_ADDRESS_RAW)));
-
-pub const UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
