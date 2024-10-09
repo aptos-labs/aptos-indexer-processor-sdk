@@ -22,9 +22,9 @@ pub trait ProcessorStatusSaver {
     ) -> Result<(), ProcessorError>;
 }
 
-/// `VersionTrackerStep` tracks the versioned processing of sequential transactions, ensuring no gaps
-/// occur between them. It saves the state of the last successfully processed transaction and manages
-/// periodic polling intervals.
+/// Tracks the versioned processing of sequential transactions, ensuring no gaps
+/// occur between them.
+///
 /// Important: this step assumes ordered transactions. Please use the `OrederByVersionStep` before this step
 /// if the transactions are not ordered.
 pub struct VersionTrackerStep<T, S>
