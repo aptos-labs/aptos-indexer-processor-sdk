@@ -13,6 +13,8 @@ use std::time::Duration;
 use tokio::time::timeout;
 use tonic::{Response, Streaming};
 use tracing::{error, info, warn};
+use mockall::mock;
+use async_trait::async_trait;
 
 /// GRPC request metadata key for the token ID.
 const GRPC_API_GATEWAY_API_KEY_HEADER: &str = "authorization";
@@ -589,3 +591,34 @@ impl TransactionStream {
         get_chain_id(self.transaction_stream_config).await
     }
 }
+//
+// mock! {
+//     struct TransactionStream {}
+//
+//     #[async_trait]
+//     impl TransactionStreamTrait for TransactionStream {
+//         async fn get_chain_id(&self, transaction_stream_config: TransactionStreamConfig) -> Result<u64> {
+//             Ok(1)
+//         }
+//
+//
+//     }
+//
+// }
+//
+//
+// #[cfg(not(test))]
+// pub type TransactionStream = ProdTransactionStream;
+//
+// #[cfg(test)]
+// pub type TransactionStream = MockTransactionStream;
+//
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::{
+//
+//
+//
+//     }
+// // Mock the `TransactionStream` struct and its `get_chain_id` method

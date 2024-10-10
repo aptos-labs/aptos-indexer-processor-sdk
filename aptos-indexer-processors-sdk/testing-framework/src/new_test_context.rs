@@ -1,3 +1,4 @@
+use aptos_protos::indexer::v1::TransactionsResponse;
 use aptos_indexer_processor_sdk::traits::processor_trait::ProcessorTrait;
 use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
@@ -6,6 +7,9 @@ use testcontainers::{
     runners::AsyncRunner,
     ContainerAsync, GenericImage, ImageExt,
 };
+use url::Url;
+use aptos_indexer_processor_sdk::aptos_indexer_transaction_stream::TransactionStreamConfig;
+use crate::mock_grpc::MockGrpcServer;
 
 pub struct SdkTestContext<D: TestDatabase> {
     pub transaction_batches: Vec<Transaction>,
@@ -37,6 +41,14 @@ impl<D: TestDatabase> SdkTestContext<D> {
     where
         F: FnOnce(&str) -> anyhow::Result<()> + Send + Sync + 'static,
     {
+        let transactions = self.transaction_batches.clone();
+        let transactions_response = vec![TransactionsResponse {
+            transactions,
+            ..TransactionsResponse::default()
+        }];
+
+        self.setup_mock_grpc(transactions_response, 1).await;
+
         // Run the processor
         processor.run_processor().await?;
 
@@ -46,6 +58,40 @@ impl<D: TestDatabase> SdkTestContext<D> {
 
         Ok(())
     }
+
+    /// Helper function to set up and run the mock GRPC server.
+    async fn setup_mock_grpc(&self, transactions: Vec<TransactionsResponse>, chain_id: u64) {
+        println!("received transactions size: {:?}", transactions.len());
+        let mock_grpc_server = MockGrpcServer {
+            transactions,
+            chain_id,
+        };
+
+        // Start the Mock GRPC server
+        tokio::spawn(async move {
+            println!("Starting Mock GRPC server");
+            mock_grpc_server.run().await;
+        });
+    }
+
+    pub fn create_transaction_stream_config(&self,
+        starting_version: u64,
+        ending_version: u64,
+    ) -> TransactionStreamConfig {
+        TransactionStreamConfig {
+            indexer_grpc_data_service_address: Url::parse("http://localhost:51254")
+                .expect("Could not parse database url"),
+            starting_version: Some(starting_version), // dynamically pass the starting version
+            request_ending_version: Some(ending_version), // dynamically pass the ending version
+            auth_token: "".to_string(),
+            request_name_header: "sdk testing".to_string(),
+            indexer_grpc_http2_ping_interval_secs: 30,
+            indexer_grpc_http2_ping_timeout_secs: 10,
+            indexer_grpc_reconnection_timeout_secs: 10,
+            indexer_grpc_response_item_timeout_secs: 60,
+        }
+    }
+
 }
 
 #[async_trait]

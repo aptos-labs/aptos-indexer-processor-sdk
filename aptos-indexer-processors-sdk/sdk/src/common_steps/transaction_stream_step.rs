@@ -199,7 +199,6 @@ mock! {
     }
 }
 
-
 #[cfg(not(test))]
 pub type TransactionStreamStep = ProdTransactionStreamStep;
 
@@ -221,7 +220,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[allow(clippy::needless_return)]
     async fn test_transaction_stream() {
-        let mut mock_transaction_stream = MockTransactionStreamStep::new();
+        let mut mock_transaction_stream = TransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
             Ok(Some(vec![TransactionContext {
