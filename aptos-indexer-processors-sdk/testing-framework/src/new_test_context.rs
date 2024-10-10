@@ -1,3 +1,4 @@
+use std::fs;
 use aptos_protos::indexer::v1::TransactionsResponse;
 use aptos_indexer_processor_sdk::traits::processor_trait::ProcessorTrait;
 use aptos_protos::transaction::v1::Transaction;
@@ -36,10 +37,12 @@ impl<D: TestDatabase> SdkTestContext<D> {
     pub async fn run<F>(
         &self,
         processor: &impl ProcessorTrait,
+        generate_files: bool, // flag to control file generation
+        output_path: Option<String>, // Optional custom output path
         verification_f: F,
-    ) -> anyhow::Result<()>
+    ) -> anyhow::Result<serde_json::Value>
     where
-        F: FnOnce(&str) -> anyhow::Result<()> + Send + Sync + 'static,
+        F: FnOnce(&str) -> anyhow::Result<serde_json::Value> + Send + Sync + 'static,
     {
         let transactions = self.transaction_batches.clone();
         let transactions_response = vec![TransactionsResponse {
@@ -54,9 +57,28 @@ impl<D: TestDatabase> SdkTestContext<D> {
 
         // Pass the DB URL for user-defined validation
         let db_url = self.database.get_db_url();
-        verification_f(&db_url)?;
+        let db_values = verification_f(&db_url)?;
 
-        Ok(())
+        // Conditionally generate output files if the `generate_files` flag is true
+        if generate_files {
+            // Use the provided output path or fall back to default
+            let processor_name = "events_processor"; //  TODO: add a function to get name in runtime
+            let txn_version = "1255836496"; //  TODO: get txn_version in runtime
+            let output_dir = output_path.unwrap_or_else(|| {
+                format!(
+                    "expected_db_output_files/imported_testnet_txns/{}/{}_{}.json",
+                    processor_name, processor_name, txn_version
+                )
+            });
+
+            // Save the database output as JSON to the specified path
+            fs::write(output_dir.clone(), serde_json::to_string_pretty(&db_values)?)?;
+            println!("[INFO] Generated output file at: {}", output_dir);
+        } else {
+            println!("[INFO] Skipping file generation as requested.");
+        }
+
+        Ok(db_values)
     }
 
     /// Helper function to set up and run the mock GRPC server.
