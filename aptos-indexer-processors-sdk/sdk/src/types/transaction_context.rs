@@ -1,5 +1,5 @@
+use crate::utils::time::time_diff_since_pb_timestamp_in_secs;
 use aptos_indexer_transaction_stream::utils::timestamp_to_unixtime;
-
 /// Contains processed data and associated transaction metadata.
 ///
 /// The processed data is extracted from transactions and the
@@ -21,6 +21,13 @@ impl<T> TransactionContext<T> {
             .start_transaction_timestamp
             .as_ref()
             .map(timestamp_to_unixtime)
+    }
+
+    pub fn get_transaction_latency(&self) -> Option<f64> {
+        self.metadata
+            .start_transaction_timestamp
+            .as_ref()
+            .map(time_diff_since_pb_timestamp_in_secs)
     }
 }
 

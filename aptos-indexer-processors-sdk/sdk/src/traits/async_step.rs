@@ -117,6 +117,9 @@ where
                             step_name: step.name(),
                         })
                         .latest_processed_version(output_with_context.metadata.end_version)
+                        .processed_transaction_latency(
+                            output_with_context.get_transaction_latency(),
+                        )
                         .latest_transaction_timestamp(
                             output_with_context.get_start_transaction_timestamp_unix(),
                         )

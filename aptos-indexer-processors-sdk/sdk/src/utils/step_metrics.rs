@@ -159,7 +159,7 @@ pub struct StepMetrics {
     latest_processed_version: Option<u64>,
     #[builder(default)]
     latest_transaction_timestamp: Option<f64>,
-    #[builder(default, setter(strip_option))]
+    #[builder(default)]
     processed_transaction_latency: Option<f64>,
     #[builder(default, setter(strip_option))]
     num_transactions_processed_count: Option<u64>,
@@ -173,7 +173,7 @@ pub struct StepMetrics {
     latest_polled_version: Option<u64>,
     #[builder(default)]
     latest_polled_transaction_timestamp: Option<f64>,
-    #[builder(default, setter(strip_option))]
+    #[builder(default)]
     polled_transaction_latency: Option<f64>,
     #[builder(default, setter(strip_option))]
     num_polled_transactions_count: Option<u64>,
