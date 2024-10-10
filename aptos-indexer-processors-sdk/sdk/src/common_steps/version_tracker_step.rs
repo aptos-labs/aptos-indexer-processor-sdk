@@ -17,7 +17,6 @@ pub trait ProcessorStatusSaver {
     // T represents the transaction type that the processor is tracking.
     async fn save_processor_status(
         &self,
-        tracker_name: &str,
         last_success_batch: &TransactionContext<()>,
     ) -> Result<(), ProcessorError>;
 }
@@ -33,7 +32,6 @@ where
     T: Send + 'static,
     S: ProcessorStatusSaver + Send + 'static,
 {
-    tracker_name: String,
     // Last successful batch of sequentially processed transactions. Includes metadata to write to storage.
     last_success_batch: Option<TransactionContext<()>>,
     polling_interval_secs: u64,
@@ -47,13 +45,8 @@ where
     T: Send + 'static,
     S: ProcessorStatusSaver + Send + 'static,
 {
-    pub fn new(
-        tracker_name: String,
-        processor_status_saver: S,
-        polling_interval_secs: u64,
-    ) -> Self {
+    pub fn new(processor_status_saver: S, polling_interval_secs: u64) -> Self {
         Self {
-            tracker_name,
             last_success_batch: None,
             processor_status_saver,
             polling_interval_secs,
@@ -64,7 +57,7 @@ where
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
             self.processor_status_saver
-                .save_processor_status(&self.tracker_name.clone(), last_success_batch)
+                .save_processor_status(last_success_batch)
                 .await
         } else {
             Ok(())
