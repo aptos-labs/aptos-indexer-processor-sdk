@@ -13,7 +13,7 @@ pub const DEFAULT_UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
 /// The `ProcessorStatusSaver` trait object should be implemented in order to save the latest successfully
 /// processed transaction versino to storage. I.e., persisting the `processor_status` to storage.
 #[async_trait]
-pub trait ProcessorStatusSaver: Send + 'static {
+pub trait ProcessorStatusSaver {
     // T represents the transaction type that the processor is tracking.
     async fn save_processor_status(
         &self,
