@@ -24,6 +24,12 @@ pub fn init_step_metrics_registry(registry: &mut Registry) {
     );
 
     registry.register(
+        format!("{}_{}", METRICS_PREFIX, "processed_transaction_latency"),
+        "Latency of the polled transactions, computed by (txn timestamp - current time)",
+        PROCESSED_TRANSACTION_LATENCY.clone(),
+    );
+
+    registry.register(
         format!("{}_{}", METRICS_PREFIX, "num_transactions_processed_count"),
         "Number of transactions processed",
         NUM_TRANSACTIONS_PROCESSED_COUNT.clone(),
@@ -64,6 +70,12 @@ pub fn init_step_metrics_registry(registry: &mut Registry) {
     );
 
     registry.register(
+        format!("{}_{}", METRICS_PREFIX, "polled_transaction_latency"),
+        "Latency of the polled transactions, computed by (txn timestamp - current time)",
+        POLLED_TRANSACTION_LATENCY.clone(),
+    );
+
+    registry.register(
         format!("{}_{}", METRICS_PREFIX, "num_polled_transactions_count"),
         "Number of transactions polled",
         NUM_POLLED_TRANSACTIONS_COUNT.clone(),
@@ -101,6 +113,9 @@ pub static LATEST_PROCESSED_TRANSACTION_TIMESTAMP: Lazy<
     Family<StepMetricLabels, Gauge<f64, AtomicU64>>,
 > = Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
 
+pub static PROCESSED_TRANSACTION_LATENCY: Lazy<Family<StepMetricLabels, Gauge<f64, AtomicU64>>> =
+    Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
+
 pub static NUM_TRANSACTIONS_PROCESSED_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
     Lazy::new(Family::<StepMetricLabels, Counter>::default);
 
@@ -120,6 +135,9 @@ pub static LATEST_POLLED_VERSION: Lazy<Family<StepMetricLabels, Gauge>> =
 pub static LATEST_POLLED_TRANSACTION_TIMESTAMP: Lazy<
     Family<StepMetricLabels, Gauge<f64, AtomicU64>>,
 > = Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
+
+pub static POLLED_TRANSACTION_LATENCY: Lazy<Family<StepMetricLabels, Gauge<f64, AtomicU64>>> =
+    Lazy::new(Family::<StepMetricLabels, Gauge<f64, AtomicU64>>::default);
 
 pub static NUM_POLLED_TRANSACTIONS_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
     Lazy::new(Family::<StepMetricLabels, Counter>::default);
@@ -142,6 +160,8 @@ pub struct StepMetrics {
     #[builder(default)]
     latest_transaction_timestamp: Option<f64>,
     #[builder(default, setter(strip_option))]
+    processed_transaction_latency: Option<f64>,
+    #[builder(default, setter(strip_option))]
     num_transactions_processed_count: Option<u64>,
     #[builder(default, setter(strip_option))]
     processing_duration_in_secs: Option<f64>,
@@ -153,6 +173,8 @@ pub struct StepMetrics {
     latest_polled_version: Option<u64>,
     #[builder(default)]
     latest_polled_transaction_timestamp: Option<f64>,
+    #[builder(default, setter(strip_option))]
+    polled_transaction_latency: Option<f64>,
     #[builder(default, setter(strip_option))]
     num_polled_transactions_count: Option<u64>,
     #[builder(default, setter(strip_option))]
@@ -173,6 +195,11 @@ impl StepMetrics {
             LATEST_PROCESSED_TRANSACTION_TIMESTAMP
                 .get_or_create(&self.labels)
                 .set(timestamp);
+        }
+        if let Some(processed_latency) = self.processed_transaction_latency {
+            PROCESSED_TRANSACTION_LATENCY
+                .get_or_create(&self.labels)
+                .set(processed_latency);
         }
         if let Some(count) = self.num_transactions_processed_count {
             NUM_TRANSACTIONS_PROCESSED_COUNT
@@ -200,6 +227,11 @@ impl StepMetrics {
             LATEST_POLLED_TRANSACTION_TIMESTAMP
                 .get_or_create(&self.labels)
                 .set(timestamp);
+        }
+        if let Some(polled_latency) = self.polled_transaction_latency {
+            POLLED_TRANSACTION_LATENCY
+                .get_or_create(&self.labels)
+                .set(polled_latency);
         }
         if let Some(count) = self.num_polled_transactions_count {
             NUM_POLLED_TRANSACTIONS_COUNT
