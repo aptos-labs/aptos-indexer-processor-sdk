@@ -161,6 +161,9 @@ where
                                     .latest_polled_transaction_timestamp(
                                         output_with_context.get_start_transaction_timestamp_unix(),
                                     )
+                                    .polled_transaction_latency(
+                                        output_with_context.get_transaction_latency(),
+                                    )
                                     .num_polled_transactions_count(
                                         output_with_context.get_num_transactions(),
                                     )
@@ -238,6 +241,9 @@ where
                             .latest_transaction_timestamp(
                                 output_with_context.get_start_transaction_timestamp_unix(),
                             )
+                            .polled_transaction_latency(
+                                output_with_context.get_transaction_latency(),
+                            )
                             .num_transactions_processed_count(
                                 output_with_context.get_num_transactions(),
                             )
@@ -299,6 +305,9 @@ where
                             .latest_polled_version(output_with_context.metadata.end_version)
                             .latest_polled_transaction_timestamp(
                                 output_with_context.get_start_transaction_timestamp_unix(),
+                            )
+                            .polled_transaction_latency(
+                                output_with_context.get_transaction_latency(),
                             )
                             .num_polled_transactions_count(
                                 output_with_context.get_num_transactions(),
