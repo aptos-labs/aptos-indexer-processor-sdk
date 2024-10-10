@@ -24,8 +24,11 @@ pub fn init_step_metrics_registry(registry: &mut Registry) {
     );
 
     registry.register(
-        format!("{}_{}", METRICS_PREFIX, "processed_transaction_latency"),
-        "Latency of the polled transactions, computed by (txn timestamp - current time)",
+        format!(
+            "{}_{}",
+            METRICS_PREFIX, "processed_transaction_latency_secs"
+        ),
+        "Latency of the processed transactions, computed by (txn timestamp - current time)",
         PROCESSED_TRANSACTION_LATENCY.clone(),
     );
 
@@ -70,7 +73,7 @@ pub fn init_step_metrics_registry(registry: &mut Registry) {
     );
 
     registry.register(
-        format!("{}_{}", METRICS_PREFIX, "polled_transaction_latency"),
+        format!("{}_{}", METRICS_PREFIX, "polled_transaction_latency_secs"),
         "Latency of the polled transactions, computed by (txn timestamp - current time)",
         POLLED_TRANSACTION_LATENCY.clone(),
     );
