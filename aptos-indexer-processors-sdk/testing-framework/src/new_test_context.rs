@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 use aptos_protos::indexer::v1::TransactionsResponse;
 use aptos_indexer_processor_sdk::traits::processor_trait::ProcessorTrait;
 use aptos_protos::transaction::v1::Transaction;
@@ -37,6 +38,7 @@ impl<D: TestDatabase> SdkTestContext<D> {
     pub async fn run<F>(
         &self,
         processor: &impl ProcessorTrait,
+        txn_verion: u64,
         generate_files: bool, // flag to control file generation
         output_path: Option<String>, // Optional custom output path
         verification_f: F,
@@ -62,14 +64,21 @@ impl<D: TestDatabase> SdkTestContext<D> {
         // Conditionally generate output files if the `generate_files` flag is true
         if generate_files {
             // Use the provided output path or fall back to default
+            let processor_name = processor.name();
             let processor_name = "events_processor"; //  TODO: add a function to get name in runtime
-            let txn_version = "1255836496"; //  TODO: get txn_version in runtime
+            let txn_version = txn_verion.to_string();
             let output_dir = output_path.unwrap_or_else(|| {
                 format!(
                     "expected_db_output_files/imported_testnet_txns/{}/{}_{}.json",
                     processor_name, processor_name, txn_version
                 )
             });
+
+            // Extract the directory path from the full file path
+            if let Some(parent_dir) = Path::new(&output_dir).parent() {
+                // Create the directory if it doesn't exist
+                fs::create_dir_all(parent_dir)?;
+            }
 
             // Save the database output as JSON to the specified path
             fs::write(output_dir.clone(), serde_json::to_string_pretty(&db_values)?)?;
