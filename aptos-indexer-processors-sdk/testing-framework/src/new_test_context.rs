@@ -10,6 +10,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use std::time::Duration;
 use url::Url;
 
 const DEFAULT_OUTPUT_FOLDER: &str = "expected_db_output_files/";
@@ -69,6 +70,8 @@ impl SdkTestContext {
             .run_processor()
             .await
             .context("Failed to run processor")?;
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
 
         let db_values = verification_f(db_url).context("Verification function failed")?;
 
