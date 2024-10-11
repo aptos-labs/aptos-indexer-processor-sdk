@@ -1,3 +1,4 @@
+use anyhow::Context;
 use aptos_protos::indexer::v1::{
     raw_data_server::{RawData, RawDataServer},
     GetTransactionsRequest, TransactionsResponse,
@@ -5,6 +6,8 @@ use aptos_protos::indexer::v1::{
 use futures::Stream;
 use std::pin::Pin;
 use tonic::{Request, Response, Status};
+
+const GRPC_ADDRESS: &str = "127.0.0.1:51254";
 
 #[derive(Default)]
 pub struct MockGrpcServer {
@@ -25,23 +28,21 @@ impl RawData for MockGrpcServer {
         let version = req.into_inner().starting_version.unwrap();
 
         // Find the specific transaction that matches the version
-        let transaction = self.transactions_response.iter().flat_map(|transactions_response| {
-            transactions_response.transactions.iter()
-        })
+        let transaction = self
+            .transactions_response
+            .iter()
+            .flat_map(|transactions_response| transactions_response.transactions.iter())
             .find(|tx| {
-                // println!("Checking transaction version: {}", tx.version);
                 tx.version == version // Return the transaction that matches the version
             });
 
         let result = match transaction {
             Some(tx) => {
                 // Build a new TransactionResponse with this matching transaction
-                let mut new_transaction_response = TransactionsResponse {
+                TransactionsResponse {
                     transactions: vec![tx.clone()],
-                    ..Default::default()
-                };
-                new_transaction_response.chain_id = Some(self.chain_id); // Set the chain_id field in the response
-                new_transaction_response
+                    chain_id: Some(self.chain_id),
+                }
             },
             None => {
                 // No matching transaction found, return a default response with the first transaction
@@ -51,22 +52,23 @@ impl RawData for MockGrpcServer {
             },
         };
 
-// Create a stream and return the response
+        // Create a stream and return the response
         let stream = futures::stream::iter(vec![Ok(result)]);
         Ok(Response::new(Box::pin(stream)))
     }
 }
 
 impl MockGrpcServer {
-    pub async fn run(self) {
+    pub async fn run(self) -> anyhow::Result<()> {
+        let addr = GRPC_ADDRESS.parse().unwrap();
         tonic::transport::Server::builder()
             .add_service(
                 RawDataServer::new(self)
                     .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
                     .send_compressed(tonic::codec::CompressionEncoding::Zstd),
             )
-            .serve("127.0.0.1:51254".parse().unwrap())
+            .serve(addr)
             .await
-            .unwrap();
+            .context("Failed to run gRPC server")
     }
 }

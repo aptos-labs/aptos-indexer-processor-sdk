@@ -3665,7 +3665,6 @@ dependencies = [
  "testcontainers",
  "tokio",
  "tokio-postgres",
- "tokio-stream",
  "tonic",
  "url",
 ]
