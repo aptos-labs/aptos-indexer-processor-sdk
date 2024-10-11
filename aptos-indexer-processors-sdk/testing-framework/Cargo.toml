@@ -11,31 +11,29 @@ publish = { workspace = true }
 repository = { workspace = true }
 rust-version = { workspace = true }
 
-
 [dependencies]
 anyhow = { workspace = true }
+aptos-indexer-processor-sdk = { workspace = true }
 aptos-protos = { workspace = true }
+async-trait = { workspace = true }
 diesel = { workspace = true }
+diesel-async = { workspace = true }
+diesel_migrations = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
+
+# Postgres SSL support
+native-tls = { workspace = true }
+postgres-native-tls = { workspace = true }
 
 serde_json = { workspace = true }
 
 testcontainers = { workspace = true }
 
 tokio = { workspace = true }
+tokio-postgres = { workspace = true }
 tonic = { workspace = true }
 url = { workspace = true }
-diesel-async = {workspace = true}
-diesel_migrations = {workspace = true}
-
-
-# Postgres SSL support
-native-tls = { workspace = true }
-postgres-native-tls = { workspace = true }
-tokio-postgres = { workspace = true }
-aptos-indexer-processor-sdk = { workspace = true }
-async-trait = { workspace = true }
 
 [features]
 libpq = ["diesel/postgres"]

@@ -7,8 +7,8 @@ members = [
     "sample",
     "sdk",
     "sdk-server-framework",
-    "transaction-stream",
     "testing-framework",
+    "transaction-stream",
 ]
 
 [workspace.package]
