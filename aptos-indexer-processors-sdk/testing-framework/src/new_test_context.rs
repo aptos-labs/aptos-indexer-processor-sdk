@@ -9,8 +9,8 @@ use serde_json::{to_string_pretty, Error as SerdeError};
 use std::{
     fs,
     path::{Path, PathBuf},
+    time::Duration,
 };
-use std::time::Duration;
 use url::Url;
 
 const DEFAULT_OUTPUT_FOLDER: &str = "expected_db_output_files/";

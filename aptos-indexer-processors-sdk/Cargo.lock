@@ -172,6 +172,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "aptos-indexer-testing-framework"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aptos-indexer-processor-sdk",
+ "aptos-protos",
+ "async-trait",
+ "diesel",
+ "diesel-async",
+ "diesel_migrations",
+ "futures",
+ "futures-util",
+ "native-tls",
+ "postgres-native-tls",
+ "serde_json",
+ "testcontainers",
+ "tokio",
+ "tokio-postgres",
+ "tonic",
+ "url",
+]
+
+[[package]]
 name = "aptos-indexer-transaction-stream"
 version = "0.1.0"
 dependencies = [
@@ -3643,29 +3666,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
- "url",
-]
-
-[[package]]
-name = "testing-framework"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "aptos-indexer-processor-sdk",
- "aptos-protos",
- "async-trait",
- "diesel",
- "diesel-async",
- "diesel_migrations",
- "futures",
- "futures-util",
- "native-tls",
- "postgres-native-tls",
- "serde_json",
- "testcontainers",
- "tokio",
- "tokio-postgres",
- "tonic",
  "url",
 ]
 
