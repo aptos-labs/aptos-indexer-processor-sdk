@@ -16,6 +16,7 @@ const INDEXER_GRPC_DATA_SERVICE_URL: &str = "http://localhost:51254";
 
 pub struct SdkTestContext{
     pub transaction_batches: Vec<Transaction>,
+    // pub port: u16,
 }
 
 impl SdkTestContext {
@@ -25,14 +26,26 @@ impl SdkTestContext {
             .map(|txn| serde_json::from_slice(txn).unwrap())
             .collect::<Vec<Transaction>>();
 
-        Ok(SdkTestContext {
+        let context = SdkTestContext {
             transaction_batches,
-        })
+        };
+
+        // Create mock GRPC transactions and setup the server
+        let transactions = context.transaction_batches.clone();
+        let transactions_response = vec![TransactionsResponse {
+            transactions,
+            ..TransactionsResponse::default()
+        }];
+
+        // Call setup_mock_grpc to start the server and get the port
+        context.setup_mock_grpc(transactions_response, 1).await;
+
+        Ok(context)
     }
 
     /// Run the processor and pass user-defined validation logic
     pub async fn run<F>(
-        &self,
+        &mut self,
         processor: &impl ProcessorTrait,
         db_url: &str,
         txn_version: u64,
@@ -43,13 +56,13 @@ impl SdkTestContext {
     where
         F: FnOnce(&str) -> anyhow::Result<serde_json::Value> + Send + Sync + 'static,
     {
-        let transactions = self.transaction_batches.clone();
-        let transactions_response = vec![TransactionsResponse {
-            transactions,
-            ..TransactionsResponse::default()
-        }];
-
-        self.setup_mock_grpc(transactions_response, 1).await;
+        // let transactions = self.transaction_batches.clone();
+        // let transactions_response = vec![TransactionsResponse {
+        //     transactions,
+        //     ..TransactionsResponse::default()
+        // }];
+        //
+        // self.setup_mock_grpc(transactions_response, 1).await;
 
         // Run the processor
         processor.run_processor().await?;
