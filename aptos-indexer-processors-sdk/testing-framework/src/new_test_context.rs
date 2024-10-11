@@ -72,10 +72,10 @@ impl SdkTestContext {
     }
 
     /// Helper function to set up and run the mock GRPC server.
-    async fn setup_mock_grpc(&self, transactions: Vec<TransactionsResponse>, chain_id: u64) {
-        println!("received transactions size: {:?}", transactions.len());
+    async fn setup_mock_grpc(&self, transactions_response: Vec<TransactionsResponse>, chain_id: u64) {
+        println!("received transactions_response size: {:?}", transactions_response.len());
         let mock_grpc_server = MockGrpcServer {
-            transactions,
+            transactions_response,
             chain_id,
         };
 

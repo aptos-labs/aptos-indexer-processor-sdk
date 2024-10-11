@@ -8,7 +8,7 @@ use tonic::{Request, Response, Status};
 
 #[derive(Default)]
 pub struct MockGrpcServer {
-    pub transactions: Vec<TransactionsResponse>,
+    pub transactions_response: Vec<TransactionsResponse>,
     pub chain_id: u64,
 }
 
@@ -23,26 +23,36 @@ impl RawData for MockGrpcServer {
         req: Request<GetTransactionsRequest>,
     ) -> Result<Response<Self::GetTransactionsStream>, Status> {
         let version = req.into_inner().starting_version.unwrap();
-        let transaction = self.transactions.iter().find(|t| {
-            t.transactions.iter().any(|tx| {
-                println!("Checking transaction version: {}", tx.version);
-                tx.version == version
-            })
-        });
+
+        // Find the specific transaction that matches the version
+        let transaction = self.transactions_response.iter().flat_map(|transactions_response| {
+            transactions_response.transactions.iter()
+        })
+            .find(|tx| {
+                // println!("Checking transaction version: {}", tx.version);
+                tx.version == version // Return the transaction that matches the version
+            });
 
         let result = match transaction {
-            Some(t) => t.clone(),
+            Some(tx) => {
+                // Build a new TransactionResponse with this matching transaction
+                let mut new_transaction_response = TransactionsResponse {
+                    transactions: vec![tx.clone()],
+                    ..Default::default()
+                };
+                new_transaction_response.chain_id = Some(self.chain_id); // Set the chain_id field in the response
+                new_transaction_response
+            },
             None => {
-                // just return what we have in self.transactions
-                println!("Transaction not found, returning first transaction");
-                self.transactions[0].clone()
+                // No matching transaction found, return a default response with the first transaction
+                let mut default_transaction_response = self.transactions_response[0].clone();
+                default_transaction_response.chain_id = Some(self.chain_id); // Set the chain_id field
+                default_transaction_response
             },
         };
 
-        let mut response = result.clone();
-        response.chain_id = Some(self.chain_id); // Set chain_id in the response
-        println!("Returning response: {:?}", response.chain_id);
-        let stream = futures::stream::iter(vec![Ok(response)]);
+// Create a stream and return the response
+        let stream = futures::stream::iter(vec![Ok(result)]);
         Ok(Response::new(Box::pin(stream)))
     }
 }

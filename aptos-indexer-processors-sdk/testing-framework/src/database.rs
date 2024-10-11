@@ -43,10 +43,9 @@ impl TestDatabase for PostgresTestDatabase {
                 .with_env_var("POSTGRES_PASSWORD", "postgres")
                 .start()
                 .await
-                .expect("Postgres started"),
+                .expect("Postgres failed to start"),
         );
 
-        // Retrieve the host and port of the container for the connection string
         let host = self
             .postgres_container
             .as_ref()
@@ -63,7 +62,6 @@ impl TestDatabase for PostgresTestDatabase {
             .await
             .expect("Failed to get port");
 
-        // Create the Postgres connection string
         self.connection_string = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
 
         Ok(())
