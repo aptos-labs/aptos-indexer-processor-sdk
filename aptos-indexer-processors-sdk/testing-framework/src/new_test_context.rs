@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+use tokio::sync::Mutex;
 use url::Url;
 
 const DEFAULT_OUTPUT_FOLDER: &str = "expected_db_output_files/";
@@ -98,7 +99,7 @@ impl SdkTestContext {
         chain_id: u64,
     ) {
         let mock_grpc_server = MockGrpcServer {
-            transactions_response,
+            transactions_response: Mutex::new(transactions_response),
             chain_id,
         };
 
