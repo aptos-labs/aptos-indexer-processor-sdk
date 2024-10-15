@@ -12,7 +12,10 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tokio::sync::Mutex;
+use tokio::{
+    sync::Mutex,
+    time::{self, Duration as TokioDuration},
+};
 use tokio_retry::{
     strategy::{jitter, ExponentialBackoff},
     Retry,
@@ -77,11 +80,13 @@ impl SdkTestContext {
     {
         let retry_strategy = ExponentialBackoff::from_millis(100).map(jitter).take(5); // Retry up to 5 times
 
+        let timeout_duration = TokioDuration::from_secs(10); // e.g., 5 seconds timeout for each retry
         let result = Retry::spawn(retry_strategy, || async {
-            processor
-                .run_processor()
-                .await
-                .context("Failed to run processor")
+            // Wrap processor call with a timeout
+            match time::timeout(timeout_duration, processor.run_processor()).await {
+                Ok(result) => result.context("Processor run failed"),
+                Err(_) => Err(anyhow::anyhow!("Processor run timed out")),
+            }
         })
         .await;
 
