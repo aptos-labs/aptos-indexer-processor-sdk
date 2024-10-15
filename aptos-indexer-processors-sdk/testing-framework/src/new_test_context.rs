@@ -5,7 +5,7 @@ use aptos_indexer_processor_sdk::{
     traits::processor_trait::ProcessorTrait,
 };
 use aptos_protos::{indexer::v1::TransactionsResponse, transaction::v1::Transaction};
-use serde_json::{to_string_pretty, Error as SerdeError};
+use serde_json::{to_string_pretty, Error as SerdeError, Value};
 use std::{
     collections::HashMap,
     fs,
@@ -22,10 +22,9 @@ use tokio_retry::{
 };
 use url::Url;
 
-const INDEXER_GRPC_DATA_SERVICE_URL: &str = "http://localhost:51254";
-
 pub struct SdkTestContext {
     pub transaction_batches: Vec<Transaction>,
+    pub port: Option<String>,
 }
 
 impl SdkTestContext {
@@ -44,8 +43,9 @@ impl SdkTestContext {
             })
             .collect::<Result<Vec<Transaction>, _>>()?;
 
-        let context = SdkTestContext {
+        let mut context = SdkTestContext {
             transaction_batches,
+            port: None,
         };
 
         // Create mock GRPC transactions and setup the server
@@ -56,8 +56,8 @@ impl SdkTestContext {
         }];
 
         // Call setup_mock_grpc to start the server and get the port
-        context.setup_mock_grpc(transactions_response, 1).await;
-
+        let port = context.setup_mock_grpc(transactions_response, 1).await;
+        context.port = Some(port.to_string());
         Ok(context)
     }
 
@@ -108,14 +108,16 @@ impl SdkTestContext {
         tokio::time::sleep(Duration::from_millis(250)).await;
 
         // Retrieve data from multiple tables using verification function
-        let db_values = verification_f(db_url).context("Verification function failed")?;
+        let mut db_values = verification_f(db_url).context("Verification function failed")?;
 
         // Conditionally generate output files for each table
         if generate_files {
             println!("[TEST] Generating output files for all tables.");
 
             // Iterate over each table's data in the HashMap and generate an output file
-            for (table_name, table_data) in &db_values {
+            for (table_name, table_data) in db_values.iter_mut() {
+                remove_inserted_at(table_data);
+
                 generate_output_file(
                     processor.name(),
                     table_name,
@@ -137,22 +139,27 @@ impl SdkTestContext {
         &self,
         transactions_response: Vec<TransactionsResponse>,
         chain_id: u64,
-    ) {
+    ) -> u16 {
         let mock_grpc_server = MockGrpcServer {
             transactions_response: Mutex::new(transactions_response),
             chain_id,
         };
 
-        tokio::spawn(async move {
+        let port = tokio::spawn(async move {
             println!("Starting Mock GRPC server");
-            let _ = mock_grpc_server.run().await;
-        });
+            mock_grpc_server.run().await.unwrap() // Get the port returned by `run`
+        })
+        .await
+        .unwrap();
+
+        println!("Mock GRPC server is running on port {}", port);
+        port
     }
 
     // TODO: follow up on txn_version whether it should be a vec or not.
     pub fn create_transaction_stream_config(&self, txn_version: u64) -> TransactionStreamConfig {
         TransactionStreamConfig {
-            indexer_grpc_data_service_address: Url::parse(INDEXER_GRPC_DATA_SERVICE_URL)
+            indexer_grpc_data_service_address: Url::parse(self.port.as_ref().unwrap())
                 .expect("Could not parse database url"),
             starting_version: Some(txn_version), // dynamically pass the starting version
             request_ending_version: Some(txn_version), // dynamically pass the ending version
@@ -213,4 +220,15 @@ fn generate_output_file(
         .context(format!("Failed to write file to {:?}", file_path))?;
     println!("[TEST] Generated output file at: {}", file_path.display());
     Ok(())
+}
+
+#[allow(dead_code)]
+pub fn remove_inserted_at(value: &mut Value) {
+    if let Some(array) = value.as_array_mut() {
+        for item in array.iter_mut() {
+            if let Some(obj) = item.as_object_mut() {
+                obj.remove("inserted_at");
+            }
+        }
+    }
 }

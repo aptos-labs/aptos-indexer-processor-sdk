@@ -6,9 +6,9 @@ use aptos_protos::indexer::v1::{
 use futures::Stream;
 use std::pin::Pin;
 use tokio::sync::Mutex;
-use tonic::{Request, Response, Status};
-
-const GRPC_ADDRESS: &str = "127.0.0.1:51254";
+use tokio_stream::wrappers::TcpListenerStream;
+use tonic::{transport::Server, Request, Response, Status};
+const GRPC_ADDRESS: &str = "127.0.0.1:0";
 
 #[derive(Default)]
 pub struct MockGrpcServer {
@@ -62,16 +62,37 @@ impl RawData for MockGrpcServer {
 }
 
 impl MockGrpcServer {
-    pub async fn run(self) -> anyhow::Result<()> {
-        let addr = GRPC_ADDRESS.parse().unwrap();
-        tonic::transport::Server::builder()
-            .add_service(
-                RawDataServer::new(self)
-                    .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
-                    .send_compressed(tonic::codec::CompressionEncoding::Zstd),
-            )
-            .serve(addr)
-            .await
-            .context("Failed to run gRPC server")
+    pub async fn run(self) -> anyhow::Result<u16> {
+        // Bind to port 0 to get a random available port
+        // let addr = GRPC_ADDRESS.parse().unwrap();
+
+        // Get the socket address the server will bind to
+        let listener = tokio::net::TcpListener::bind(GRPC_ADDRESS).await?;
+        let bound_addr = listener.local_addr()?; // Get the actual bound address
+
+        // Convert the TcpListener into a TcpListenerStream (wrapping it with `?` to handle potential errors)
+        let stream = TcpListenerStream::new(listener);
+
+        // Build and start the gRPC server without graceful shutdown
+        let server = Server::builder().add_service(
+            RawDataServer::new(self)
+                .accept_compressed(tonic::codec::CompressionEncoding::Zstd) // Enable compression for incoming requests
+                .send_compressed(tonic::codec::CompressionEncoding::Zstd), // Compress outgoing responses
+        );
+
+        tokio::spawn(async move {
+            // This server will run until the process is killed or the task is stopped
+            server
+                .serve_with_incoming(stream)
+                .await
+                .context("Failed to run gRPC server")
+                .unwrap();
+        });
+
+        // Return the port number so it can be used by other parts of the program
+        let port = bound_addr.port();
+        println!("Server is running on port {}", port);
+
+        Ok(port)
     }
 }

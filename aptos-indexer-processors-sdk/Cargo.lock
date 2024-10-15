@@ -191,6 +191,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-retry",
+ "tokio-stream",
  "tonic",
  "url",
 ]
