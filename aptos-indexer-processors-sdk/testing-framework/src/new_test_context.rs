@@ -7,13 +7,14 @@ use aptos_indexer_processor_sdk::{
 use aptos_protos::{indexer::v1::TransactionsResponse, transaction::v1::Transaction};
 use serde_json::{to_string_pretty, Error as SerdeError};
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     time::Duration,
 };
+use tokio::sync::Mutex;
 use url::Url;
 
-const DEFAULT_OUTPUT_FOLDER: &str = "expected_db_output_files/";
 const INDEXER_GRPC_DATA_SERVICE_URL: &str = "http://localhost:51254";
 
 pub struct SdkTestContext {
@@ -59,35 +60,47 @@ impl SdkTestContext {
         processor: &impl ProcessorTrait,
         db_url: &str,
         txn_version: u64,
-        generate_files: bool,        // flag to control file generation
-        output_path: Option<String>, // Optional custom output path
-        verification_f: F,
-    ) -> anyhow::Result<serde_json::Value>
+        generate_files: bool, // flag to control file generation
+        output_path: String,  // output path
+        verification_f: F,    // Modified to return a HashMap for multi-table data
+    ) -> anyhow::Result<HashMap<String, serde_json::Value>>
+    // Return HashMap for multi-table results
     where
-        F: FnOnce(&str) -> anyhow::Result<serde_json::Value> + Send + Sync + 'static,
+        F: FnOnce(&str) -> anyhow::Result<HashMap<String, serde_json::Value>>
+            + Send
+            + Sync
+            + 'static, // Modified for multi-table verification
     {
         processor
             .run_processor()
             .await
             .context("Failed to run processor")?;
 
+        // Small delay to ensure all data is processed before verification
         tokio::time::sleep(Duration::from_millis(250)).await;
 
+        // Retrieve data from multiple tables using verification function
         let db_values = verification_f(db_url).context("Verification function failed")?;
 
-        // Conditionally generate output files if the `generate_files` flag is true
+        // Conditionally generate output files for each table
         if generate_files {
-            println!("[TEST] Generating output file.");
-            generate_output_file(
-                processor.name(),
-                &txn_version.to_string(),
-                &db_values,
-                output_path,
-            )?;
+            println!("[TEST] Generating output files for all tables.");
+
+            // Iterate over each table's data in the HashMap and generate an output file
+            for (table_name, table_data) in &db_values {
+                generate_output_file(
+                    processor.name(),
+                    table_name,
+                    &format!("{}", txn_version),
+                    table_data,
+                    output_path.clone(),
+                )?;
+            }
         } else {
             println!("[TEST] Skipping file generation as requested.");
         }
 
+        // Return the HashMap containing the data from all queried tables
         Ok(db_values)
     }
 
@@ -98,7 +111,7 @@ impl SdkTestContext {
         chain_id: u64,
     ) {
         let mock_grpc_server = MockGrpcServer {
-            transactions_response,
+            transactions_response: Mutex::new(transactions_response),
             chain_id,
         };
 
@@ -135,11 +148,17 @@ fn format_serde_error(err: SerdeError) -> String {
     }
 }
 
-// Helper function to construct the output file path
-fn construct_file_path(output_dir: &str, processor_name: &str, txn_version: &str) -> PathBuf {
+// Helper function to construct the output file path with the table name
+fn construct_file_path(
+    output_dir: &str,
+    processor_name: &str,
+    table_name: &str,
+    txn_version: &str,
+) -> PathBuf {
     Path::new(output_dir)
         .join(processor_name)
-        .join(format!("{}_{}.json", processor_name, txn_version))
+        .join(txn_version)
+        .join(format!("{}.json", table_name)) // Including table_name in the format
 }
 
 // Helper function to ensure the directory exists
@@ -150,15 +169,15 @@ fn ensure_directory_exists(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-// Helper function to generate output files
+// Helper function to generate output files for each table
 fn generate_output_file(
     processor_name: &str,
+    table_name: &str,
     txn_version: &str,
     db_values: &serde_json::Value,
-    output_path: Option<String>,
+    output_dir: String,
 ) -> anyhow::Result<()> {
-    let output_dir = output_path.unwrap_or_else(|| DEFAULT_OUTPUT_FOLDER.to_string());
-    let file_path = construct_file_path(&output_dir, processor_name, txn_version);
+    let file_path = construct_file_path(&output_dir, processor_name, table_name, txn_version); // Pass table_name here
 
     ensure_directory_exists(&file_path)?;
 
