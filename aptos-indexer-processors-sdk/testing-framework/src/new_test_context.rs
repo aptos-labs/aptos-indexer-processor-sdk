@@ -13,6 +13,10 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Mutex;
+use tokio_retry::{
+    strategy::{jitter, ExponentialBackoff},
+    Retry,
+};
 use url::Url;
 
 const INDEXER_GRPC_DATA_SERVICE_URL: &str = "http://localhost:51254";
@@ -71,10 +75,29 @@ impl SdkTestContext {
             + Sync
             + 'static, // Modified for multi-table verification
     {
-        processor
-            .run_processor()
-            .await
-            .context("Failed to run processor")?;
+        let retry_strategy = ExponentialBackoff::from_millis(100).map(jitter).take(5); // Retry up to 5 times
+
+        let result = Retry::spawn(retry_strategy, || async {
+            processor
+                .run_processor()
+                .await
+                .context("Failed to run processor")
+        })
+        .await;
+
+        // Handle failure after retries
+        match result {
+            Ok(_) => {
+                println!("[INFO] Processor run succeeded");
+            },
+            Err(e) => {
+                eprintln!("[ERROR] Processor failed after retries: {:?}", e);
+                return Err(anyhow::anyhow!(
+                    "Failed to run processor after multiple retries: {}",
+                    e
+                ));
+            },
+        }
 
         // Small delay to ensure all data is processed before verification
         tokio::time::sleep(Duration::from_millis(250)).await;
