@@ -62,18 +62,15 @@ impl SdkTestContext {
     pub async fn run<F>(
         &mut self,
         processor: &impl ProcessorTrait,
-        db_url: &str,
         txn_version: u64,
         generate_files: bool, // flag to control file generation
         output_path: String,  // output path
-        verification_f: F,    // Modified to return a HashMap for multi-table data
+        is_scenario_testing: bool,
+        verification_f: F, // Modified to return a HashMap for multi-table data
     ) -> anyhow::Result<HashMap<String, serde_json::Value>>
     // Return HashMap for multi-table results
     where
-        F: FnOnce(&str) -> anyhow::Result<HashMap<String, serde_json::Value>>
-            + Send
-            + Sync
-            + 'static, // Modified for multi-table verification
+        F: FnOnce() -> anyhow::Result<HashMap<String, serde_json::Value>> + Send + Sync + 'static, // Modified for multi-table verification
     {
         let retry_strategy = ExponentialBackoff::from_millis(100).map(jitter).take(5); // Retry up to 5 times
 
@@ -105,10 +102,10 @@ impl SdkTestContext {
         tokio::time::sleep(Duration::from_millis(250)).await;
 
         // Retrieve data from multiple tables using verification function
-        let mut db_values = verification_f(db_url).context("Verification function failed")?;
+        let mut db_values = verification_f().context("Verification function failed")?;
 
         // Conditionally generate output files for each table
-        if generate_files {
+        if generate_files && !is_scenario_testing {
             println!("[TEST] Generating output files for all tables.");
 
             // Iterate over each table's data in the HashMap and generate an output file
@@ -154,7 +151,11 @@ impl SdkTestContext {
     }
 
     // TODO: follow up on txn_version whether it should be a vec or not.
-    pub fn create_transaction_stream_config(&self, txn_version: u64) -> TransactionStreamConfig {
+    pub fn create_transaction_stream_config(
+        &self,
+        starting_version: u64,
+        txn_count: u64,
+    ) -> TransactionStreamConfig {
         let data_service_address = format!(
             "http://localhost:{}",
             self.port.as_ref().expect("Port is not set")
@@ -162,8 +163,8 @@ impl SdkTestContext {
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
-            starting_version: Some(txn_version), // dynamically pass the starting version
-            request_ending_version: Some(txn_version), // dynamically pass the ending version
+            starting_version: Some(starting_version),
+            request_ending_version: Some(starting_version + txn_count - 1),
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
             indexer_grpc_http2_ping_interval_secs: 30,
