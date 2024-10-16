@@ -5,14 +5,13 @@ use aptos_protos::indexer::v1::{
 };
 use futures::Stream;
 use std::pin::Pin;
-use tokio::sync::Mutex;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
 const GRPC_ADDRESS: &str = "127.0.0.1:0";
 
 #[derive(Default)]
 pub struct MockGrpcServer {
-    pub transactions_response: Mutex<Vec<TransactionsResponse>>,
+    pub transactions_response: Vec<TransactionsResponse>,
     pub chain_id: u64,
 }
 
@@ -29,9 +28,7 @@ impl RawData for MockGrpcServer {
         let version = req.into_inner().starting_version.unwrap();
 
         // Find the specific transaction that matches the version
-        let transactions_response = self.transactions_response.lock().await;
-
-        let transaction = transactions_response
+        let transaction = self.transactions_response
             .iter()
             .flat_map(|transactions_response| transactions_response.transactions.iter())
             .find(|tx| {
@@ -48,8 +45,7 @@ impl RawData for MockGrpcServer {
             },
             None => {
                 // No matching transaction found, return a default response with the first transaction
-                let transactions_response = self.transactions_response.lock().await;
-                let mut default_transaction_response = transactions_response[0].clone();
+                let mut default_transaction_response = self.transactions_response[0].clone();
                 default_transaction_response.chain_id = Some(self.chain_id); // Set the chain_id field
                 default_transaction_response
             },

@@ -13,7 +13,6 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    sync::Mutex,
     time::{self, Duration as TokioDuration},
 };
 use tokio_retry::{
@@ -141,7 +140,7 @@ impl SdkTestContext {
         chain_id: u64,
     ) -> u16 {
         let mock_grpc_server = MockGrpcServer {
-            transactions_response: Mutex::new(transactions_response),
+            transactions_response,
             chain_id,
         };
 
@@ -158,7 +157,6 @@ impl SdkTestContext {
 
     // TODO: follow up on txn_version whether it should be a vec or not.
     pub fn create_transaction_stream_config(&self, txn_version: u64) -> TransactionStreamConfig {
-
         let data_service_address = format!("http://localhost:{}", self.port.as_ref().expect("Port is not set"));
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
