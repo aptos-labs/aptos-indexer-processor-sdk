@@ -185,6 +185,7 @@ dependencies = [
  "futures",
  "futures-util",
  "native-tls",
+ "once_cell",
  "postgres-native-tls",
  "serde_json",
  "testcontainers",
