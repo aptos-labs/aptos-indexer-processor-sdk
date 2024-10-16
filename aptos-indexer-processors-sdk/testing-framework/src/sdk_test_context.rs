@@ -36,7 +36,7 @@ impl SdkTestContext {
                     anyhow::anyhow!(
                         "Failed to parse transaction at index {}: {}",
                         idx,
-                        format_serde_error(err)
+                        Self::format_serde_error(err)
                     )
                 })
             })
@@ -115,9 +115,9 @@ impl SdkTestContext {
 
             // Iterate over each table's data in the HashMap and generate an output file
             for (table_name, table_data) in db_values.iter_mut() {
-                remove_inserted_at(table_data);
+                Self::remove_inserted_at(table_data);
 
-                generate_output_file(
+                self.generate_output_file(
                     processor.name(),
                     table_name,
                     &format!("{}", txn_version),
@@ -174,63 +174,65 @@ impl SdkTestContext {
             indexer_grpc_response_item_timeout_secs: 60,
         }
     }
-}
 
-/// Helper function to format serde_json errors for better readability.
-fn format_serde_error(err: SerdeError) -> String {
-    match err.classify() {
-        serde_json::error::Category::Io => format!("I/O error: {}", err),
-        serde_json::error::Category::Syntax => format!("Syntax error: {}", err),
-        serde_json::error::Category::Data => format!("Data error: {}", err),
-        serde_json::error::Category::Eof => format!("Unexpected end of input: {}", err),
+    /// Helper function to format serde_json errors for better readability.
+    fn format_serde_error(err: SerdeError) -> String {
+        match err.classify() {
+            serde_json::error::Category::Io => format!("I/O error: {}", err),
+            serde_json::error::Category::Syntax => format!("Syntax error: {}", err),
+            serde_json::error::Category::Data => format!("Data error: {}", err),
+            serde_json::error::Category::Eof => format!("Unexpected end of input: {}", err),
+        }
     }
-}
 
-// Helper function to construct the output file path with the table name
-fn construct_file_path(
-    output_dir: &str,
-    processor_name: &str,
-    table_name: &str,
-    txn_version: &str,
-) -> PathBuf {
-    Path::new(output_dir)
-        .join(processor_name)
-        .join(txn_version)
-        .join(format!("{}.json", table_name)) // Including table_name in the format
-}
-
-// Helper function to ensure the directory exists
-fn ensure_directory_exists(path: &Path) -> anyhow::Result<()> {
-    if let Some(parent_dir) = path.parent() {
-        fs::create_dir_all(parent_dir).context("Failed to create directory")?;
+    // Helper function to construct the output file path with the table name
+    fn construct_file_path(
+        output_dir: &str,
+        processor_name: &str,
+        table_name: &str,
+        txn_version: &str,
+    ) -> PathBuf {
+        Path::new(output_dir)
+            .join(processor_name)
+            .join(txn_version)
+            .join(format!("{}.json", table_name)) // Including table_name in the format
     }
-    Ok(())
-}
 
-// Helper function to generate output files for each table
-fn generate_output_file(
-    processor_name: &str,
-    table_name: &str,
-    txn_version: &str,
-    db_values: &serde_json::Value,
-    output_dir: String,
-) -> anyhow::Result<()> {
-    let file_path = construct_file_path(&output_dir, processor_name, table_name, txn_version); // Pass table_name here
+    // Helper function to ensure the directory exists
+    fn ensure_directory_exists(path: &Path) -> anyhow::Result<()> {
+        if let Some(parent_dir) = path.parent() {
+            fs::create_dir_all(parent_dir).context("Failed to create directory")?;
+        }
+        Ok(())
+    }
 
-    ensure_directory_exists(&file_path)?;
+    // Helper function to generate output files for each table
+    pub fn generate_output_file(
+        &self,
+        processor_name: &str,
+        table_name: &str,
+        txn_version: &str,
+        db_values: &serde_json::Value,
+        output_dir: String,
+    ) -> anyhow::Result<()> {
+        let file_path =
+            Self::construct_file_path(&output_dir, processor_name, table_name, txn_version); // Pass table_name here
 
-    fs::write(&file_path, to_string_pretty(db_values)?)
-        .context(format!("Failed to write file to {:?}", file_path))?;
-    println!("[TEST] Generated output file at: {}", file_path.display());
-    Ok(())
-}
+        Self::ensure_directory_exists(&file_path)?;
 
-#[allow(dead_code)]
-pub fn remove_inserted_at(value: &mut Value) {
-    if let Some(array) = value.as_array_mut() {
-        for item in array.iter_mut() {
-            if let Some(obj) = item.as_object_mut() {
-                obj.remove("inserted_at");
+        fs::write(&file_path, to_string_pretty(db_values)?)
+            .context(format!("Failed to write file to {:?}", file_path))?;
+        println!("[TEST] Generated output file at: {}", file_path.display());
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn remove_inserted_at(value: &mut Value) {
+        if let Some(array) = value.as_array_mut() {
+            for item in array.iter_mut() {
+                if let Some(obj) = item.as_object_mut() {
+                    obj.remove("inserted_at");
+                }
             }
         }
     }
