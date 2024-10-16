@@ -7,6 +7,7 @@ use std::pin::Pin;
 use tokio::time::{timeout, Duration};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
+use std::collections::HashMap;
 
 // Bind to port 0 to get a random available port
 const GRPC_ADDRESS: &str = "127.0.0.1:0";
@@ -35,18 +36,22 @@ impl RawData for MockGrpcServer {
         let mut collected_transactions = Vec::new();
         let mut current_version = starting_version;
 
+        // Step 1: Build a map of transactions keyed by version for quick access
+        let mut transaction_map= HashMap::new();
         for transaction_response in &self.transactions_response {
             for tx in &transaction_response.transactions {
-                if tx.version >= current_version
-                    && collected_transactions.len() < transactions_count as usize
-                {
-                    // Push transaction if it's >= current_version and we haven't collected enough yet
-                    collected_transactions.push(tx.clone());
-                    current_version += 1; // Increment expected version to fill gaps
-                }
-                if collected_transactions.len() >= transactions_count as usize {
-                    break;
-                }
+                transaction_map.insert(tx.version, tx);
+            }
+        }
+
+        // Step 2: Collect transactions in the correct sequence starting from `starting_version`
+        while collected_transactions.len() < transactions_count as usize {
+            if let Some(tx) = transaction_map.get(&current_version) {
+                collected_transactions.push((*tx).clone()); // Collect the transaction
+                current_version += 1; // Move to the next expected version
+            } else {
+                // If no transaction is found for the current version, stop looking for more
+                break;
             }
         }
 

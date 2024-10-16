@@ -167,7 +167,7 @@ impl SdkTestContext {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
             starting_version: Some(starting_version),
-            request_ending_version: Some(starting_version + txn_count),
+            request_ending_version: Some(starting_version + txn_count - 1),
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
             indexer_grpc_http2_ping_interval_secs: 30,
