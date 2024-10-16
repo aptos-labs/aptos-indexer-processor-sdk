@@ -208,7 +208,7 @@ fn ensure_directory_exists(path: &Path) -> anyhow::Result<()> {
 }
 
 // Helper function to generate output files for each table
-fn generate_output_file(
+pub fn generate_output_file(
     processor_name: &str,
     table_name: &str,
     txn_version: &str,
