@@ -24,6 +24,8 @@ pub struct SdkTestContext {
     pub port: Option<String>,
 }
 
+const SLEEP_DURATION: Duration = Duration::from_millis(250);
+
 impl SdkTestContext {
     pub async fn new(txn_bytes: &[&[u8]]) -> anyhow::Result<Self> {
         let transaction_batches = txn_bytes
@@ -102,7 +104,7 @@ impl SdkTestContext {
         }
 
         // Small delay to ensure all data is processed before verification
-        tokio::time::sleep(Duration::from_millis(250)).await;
+        tokio::time::sleep(SLEEP_DURATION).await;
 
         // Retrieve data from multiple tables using verification function
         let mut db_values = verification_f(db_url).context("Verification function failed")?;
