@@ -1,0 +1,45 @@
+[package]
+name = "aptos-indexer-testing-framework"
+version = "0.1.0"
+
+# Workspace inherited keys
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+anyhow = { workspace = true }
+aptos-indexer-processor-sdk = { workspace = true }
+aptos-protos = { workspace = true }
+async-trait = { workspace = true }
+diesel = { workspace = true }
+diesel-async = { workspace = true }
+diesel_migrations = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+
+# Postgres SSL support
+native-tls = { workspace = true }
+postgres-native-tls = { workspace = true }
+
+serde_json = { workspace = true }
+
+testcontainers = { workspace = true }
+
+tokio = { workspace = true }
+tokio-postgres = { workspace = true }
+tokio-retry = { workspace = true }
+tokio-stream = { workspace = true }
+tonic = { workspace = true }
+url = { workspace = true }
+
+[features]
+libpq = ["diesel/postgres"]
+# When using the default features we enable the diesel/postgres feature. We configure
+# it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
+# Recall that features should always be additive.
+default = ["libpq"]

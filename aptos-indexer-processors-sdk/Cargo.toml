@@ -7,6 +7,7 @@ members = [
     "sample",
     "sdk",
     "sdk-server-framework",
+    "testing-framework",
     "transaction-stream",
 ]
 
@@ -26,6 +27,7 @@ aptos-indexer-transaction-stream = { path = "transaction-stream" }
 instrumented-channel = { path = "instrumented-channel" }
 aptos-moving-average = { path = "moving-average" }
 sample = { path = "sample" }
+testing-framework = { path = "testing-framework" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"
@@ -84,10 +86,12 @@ serde_yaml = "0.8.24"
 sha2 = "0.9.3"
 strum = { version = "0.24.1", features = ["derive"] }
 tempfile = "3.3.0"
+testcontainers = "0.20.1"
 thiserror = "1.0.61"
 tiny-keccak = { version = "2.0.2", features = ["keccak", "sha3"] }
 tracing = "0.1.34"
 tokio = { version = "1.37.0", features = ["full"] }
+tokio-retry = { version = "0.3.0" }
 toml = "0.7.4"
 tonic = { version = "0.11.0", features = [
     "tls",
@@ -105,3 +109,4 @@ url = { version = "2.5.1", features = ["serde"] }
 native-tls = "0.2.11"
 postgres-native-tls = "0.5.0"
 tokio-postgres = "0.7.10"
+tokio-stream = { version = "0.1.16", features = ["net"] }
