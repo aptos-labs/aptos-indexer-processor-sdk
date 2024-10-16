@@ -1,12 +1,14 @@
-use anyhow::Context;
 use aptos_protos::indexer::v1::{
     raw_data_server::{RawData, RawDataServer},
     GetTransactionsRequest, TransactionsResponse,
 };
 use futures::Stream;
 use std::pin::Pin;
+use tokio::time::{timeout, Duration};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
+
+// Bind to port 0 to get a random available port
 const GRPC_ADDRESS: &str = "127.0.0.1:0";
 
 #[derive(Default)]
@@ -28,7 +30,8 @@ impl RawData for MockGrpcServer {
         let version = req.into_inner().starting_version.unwrap();
 
         // Find the specific transaction that matches the version
-        let transaction = self.transactions_response
+        let transaction = self
+            .transactions_response
             .iter()
             .flat_map(|transactions_response| transactions_response.transactions.iter())
             .find(|tx| {
@@ -59,10 +62,6 @@ impl RawData for MockGrpcServer {
 
 impl MockGrpcServer {
     pub async fn run(self) -> anyhow::Result<u16> {
-        // Bind to port 0 to get a random available port
-        // let addr = GRPC_ADDRESS.parse().unwrap();
-
-        // Get the socket address the server will bind to
         let listener = tokio::net::TcpListener::bind(GRPC_ADDRESS).await?;
         let bound_addr = listener.local_addr()?; // Get the actual bound address
 
@@ -78,11 +77,21 @@ impl MockGrpcServer {
 
         tokio::spawn(async move {
             // This server will run until the process is killed or the task is stopped
-            server
-                .serve_with_incoming(stream)
-                .await
-                .context("Failed to run gRPC server")
-                .unwrap();
+            let server_timeout = Duration::from_secs(60);
+
+            match timeout(server_timeout, server.serve_with_incoming(stream)).await {
+                Ok(result) => match result {
+                    Ok(_) => {
+                        println!("Server stopped successfully.");
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to run gRPC server: {:?}", e);
+                    },
+                },
+                Err(_) => {
+                    eprintln!("Server timed out and was stopped.");
+                },
+            }
         });
 
         // Return the port number so it can be used by other parts of the program

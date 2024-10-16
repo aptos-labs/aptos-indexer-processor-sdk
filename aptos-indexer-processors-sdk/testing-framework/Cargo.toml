@@ -33,9 +33,9 @@ testcontainers = { workspace = true }
 tokio = { workspace = true }
 tokio-postgres = { workspace = true }
 tokio-retry = { workspace = true }
+tokio-stream = { workspace = true }
 tonic = { workspace = true }
 url = { workspace = true }
-tokio-stream = { workspace = true }
 
 [features]
 libpq = ["diesel/postgres"]
