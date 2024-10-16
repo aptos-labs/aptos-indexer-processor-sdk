@@ -65,11 +65,11 @@ impl SdkTestContext {
         &mut self,
         processor: &impl ProcessorTrait,
         txn_version: u64,
-        generate_files: bool, // flag to control file generation
-        output_path: String,  // output path
-        verification_f: F, // Modified to return a HashMap for multi-table data
-    ) -> anyhow::Result<HashMap<String, serde_json::Value>>
-    // Return HashMap for multi-table results
+        generate_files: bool,             // flag to control file generation
+        output_path: String,              // output path
+        custom_file_name: Option<String>, // custom file name when testing multiple txns
+        verification_f: F,                // Modified to return a HashMap for multi-table data
+    ) -> anyhow::Result<HashMap<String, Value>>
     where
         F: FnOnce() -> anyhow::Result<HashMap<String, Value>> + Send + Sync + 'static, // Modified for multi-table verification
     {
@@ -118,6 +118,7 @@ impl SdkTestContext {
                     &format!("{}", txn_version),
                     table_data,
                     output_path.clone(),
+                    custom_file_name.clone(),
                 )?;
             }
         } else {
@@ -210,10 +211,22 @@ pub fn generate_output_file(
     processor_name: &str,
     table_name: &str,
     txn_version: &str,
-    db_values: &serde_json::Value,
+    db_values: &Value,
     output_dir: String,
+    custom_file_name: Option<String>,
 ) -> anyhow::Result<()> {
-    let file_path = construct_file_path(&output_dir, processor_name, table_name, txn_version); // Pass table_name here
+    let file_path = match custom_file_name {
+        Some(custom_name) => {
+            // If custom_file_name is present, build the file path using it
+            PathBuf::from(&output_dir).join(processor_name).join(
+                format!("{}.json", custom_name), // Including table_name in the format
+            )
+        },
+        None => {
+            // Default case: use table_name and txn_version to construct file name
+            construct_file_path(&output_dir, processor_name, table_name, txn_version)
+        },
+    };
 
     ensure_directory_exists(&file_path)?;
 
