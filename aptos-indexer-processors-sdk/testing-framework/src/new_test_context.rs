@@ -154,7 +154,11 @@ impl SdkTestContext {
     }
 
     // TODO: follow up on txn_version whether it should be a vec or not.
-    pub fn create_transaction_stream_config(&self, txn_version: u64) -> TransactionStreamConfig {
+    pub fn create_transaction_stream_config(
+        &self,
+        starting_version: u64,
+        txn_count: u64,
+    ) -> TransactionStreamConfig {
         let data_service_address = format!(
             "http://localhost:{}",
             self.port.as_ref().expect("Port is not set")
@@ -162,8 +166,8 @@ impl SdkTestContext {
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
-            starting_version: Some(txn_version), // dynamically pass the starting version
-            request_ending_version: Some(txn_version), // dynamically pass the ending version
+            starting_version: Some(starting_version),
+            request_ending_version: Some(starting_version + txn_count),
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
             indexer_grpc_http2_ping_interval_secs: 30,

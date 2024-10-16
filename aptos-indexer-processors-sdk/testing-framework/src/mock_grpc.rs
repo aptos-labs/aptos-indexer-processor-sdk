@@ -27,31 +27,41 @@ impl RawData for MockGrpcServer {
         &self,
         req: Request<GetTransactionsRequest>,
     ) -> Result<Response<Self::GetTransactionsStream>, Status> {
-        let version = req.into_inner().starting_version.unwrap();
+        let request = req.into_inner();
+        let starting_version = request.starting_version.unwrap();
+        let transactions_count = request.transactions_count.unwrap_or(1); // Default to 1 if transactions_count is not provided
 
-        // Find the specific transaction that matches the version
-        let transaction = self
-            .transactions_response
-            .iter()
-            .flat_map(|transactions_response| transactions_response.transactions.iter())
-            .find(|tx| {
-                tx.version == version // Return the transaction that matches the version
-            });
+        // Collect transactions starting from `starting_version`, without any gaps, up to `transactions_count`.
+        let mut collected_transactions = Vec::new();
+        let mut current_version = starting_version;
 
-        let result = match transaction {
-            Some(tx) => {
-                // Build a new TransactionResponse with this matching transaction
-                TransactionsResponse {
-                    transactions: vec![tx.clone()],
-                    chain_id: Some(self.chain_id),
+        for transaction_response in &self.transactions_response {
+            for tx in &transaction_response.transactions {
+                if tx.version >= current_version
+                    && collected_transactions.len() < transactions_count as usize
+                {
+                    // Push transaction if it's >= current_version and we haven't collected enough yet
+                    collected_transactions.push(tx.clone());
+                    current_version += 1; // Increment expected version to fill gaps
                 }
-            },
-            None => {
-                // No matching transaction found, return a default response with the first transaction
-                let mut default_transaction_response = self.transactions_response[0].clone();
-                default_transaction_response.chain_id = Some(self.chain_id); // Set the chain_id field
-                default_transaction_response
-            },
+                if collected_transactions.len() >= transactions_count as usize {
+                    break;
+                }
+            }
+        }
+
+        // Build the response with the collected transactions (without gaps)
+        let result = if !collected_transactions.is_empty() {
+            TransactionsResponse {
+                transactions: collected_transactions,
+                chain_id: Some(self.chain_id),
+            }
+        } else {
+            // TODO: we should allow returning empty response with chain_id to support chain id request.
+            // No transactions found, return default response with the first transaction
+            let mut default_transaction_response = self.transactions_response[0].clone();
+            default_transaction_response.chain_id = Some(self.chain_id);
+            default_transaction_response
         };
 
         // Create a stream and return the response
