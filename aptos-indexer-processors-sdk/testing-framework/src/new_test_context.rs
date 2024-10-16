@@ -62,18 +62,15 @@ impl SdkTestContext {
     pub async fn run<F>(
         &mut self,
         processor: &impl ProcessorTrait,
-        db_url: &str,
         txn_version: u64,
         generate_files: bool, // flag to control file generation
         output_path: String,  // output path
-        verification_f: F,    // Modified to return a HashMap for multi-table data
+        is_scenario_testing: bool,
+        verification_f: F, // Modified to return a HashMap for multi-table data
     ) -> anyhow::Result<HashMap<String, serde_json::Value>>
     // Return HashMap for multi-table results
     where
-        F: FnOnce(&str) -> anyhow::Result<HashMap<String, serde_json::Value>>
-            + Send
-            + Sync
-            + 'static, // Modified for multi-table verification
+        F: FnOnce() -> anyhow::Result<HashMap<String, serde_json::Value>> + Send + Sync + 'static, // Modified for multi-table verification
     {
         let retry_strategy = ExponentialBackoff::from_millis(100).map(jitter).take(5); // Retry up to 5 times
 
@@ -105,10 +102,10 @@ impl SdkTestContext {
         tokio::time::sleep(Duration::from_millis(250)).await;
 
         // Retrieve data from multiple tables using verification function
-        let mut db_values = verification_f(db_url).context("Verification function failed")?;
+        let mut db_values = verification_f().context("Verification function failed")?;
 
         // Conditionally generate output files for each table
-        if generate_files {
+        if generate_files && !is_scenario_testing {
             println!("[TEST] Generating output files for all tables.");
 
             // Iterate over each table's data in the HashMap and generate an output file

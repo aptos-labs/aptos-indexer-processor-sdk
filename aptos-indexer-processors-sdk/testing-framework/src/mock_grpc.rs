@@ -3,11 +3,10 @@ use aptos_protos::indexer::v1::{
     GetTransactionsRequest, TransactionsResponse,
 };
 use futures::Stream;
-use std::pin::Pin;
+use std::{collections::HashMap, pin::Pin};
 use tokio::time::{timeout, Duration};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
-use std::collections::HashMap;
 
 // Bind to port 0 to get a random available port
 const GRPC_ADDRESS: &str = "127.0.0.1:0";
@@ -37,7 +36,7 @@ impl RawData for MockGrpcServer {
         let mut current_version = starting_version;
 
         // Step 1: Build a map of transactions keyed by version for quick access
-        let mut transaction_map= HashMap::new();
+        let mut transaction_map = HashMap::new();
         for transaction_response in &self.transactions_response {
             for tx in &transaction_response.transactions {
                 transaction_map.insert(tx.version, tx);
