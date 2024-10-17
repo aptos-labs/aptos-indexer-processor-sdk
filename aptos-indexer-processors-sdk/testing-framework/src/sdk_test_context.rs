@@ -106,7 +106,10 @@ impl SdkTestContext {
 
         // Conditionally generate output files for each table
         if generate_files {
-            println!("[TEST] Generating output files for all {} tables", db_values.len());
+            println!(
+                "[TEST] Generating output files for all {} tables",
+                db_values.len()
+            );
             // Iterate over each table's data in the HashMap and generate an output file
             for (table_name, table_data) in db_values.iter_mut() {
                 remove_inserted_at(table_data);
