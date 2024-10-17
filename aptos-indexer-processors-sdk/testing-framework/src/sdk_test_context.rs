@@ -106,8 +106,7 @@ impl SdkTestContext {
 
         // Conditionally generate output files for each table
         if generate_files {
-            println!("[TEST] Generating output files for all tables.");
-
+            println!("[TEST] Generating output files for all {} tables", db_values.len());
             // Iterate over each table's data in the HashMap and generate an output file
             for (table_name, table_data) in db_values.iter_mut() {
                 remove_inserted_at(table_data);
@@ -229,7 +228,6 @@ pub fn generate_output_file(
     };
 
     ensure_directory_exists(&file_path)?;
-
     fs::write(&file_path, to_string_pretty(db_values)?)
         .context(format!("Failed to write file to {:?}", file_path))?;
     println!("[TEST] Generated output file at: {}", file_path.display());
