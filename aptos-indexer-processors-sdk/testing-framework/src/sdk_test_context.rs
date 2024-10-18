@@ -32,13 +32,21 @@ impl SdkTestContext {
             .iter()
             .enumerate()
             .map(|(idx, txn)| {
-                serde_json::from_slice::<Transaction>(txn).map_err(|err| {
-                    anyhow::anyhow!(
-                        "Failed to parse transaction at index {}: {}",
-                        idx,
-                        format_serde_error(err)
-                    )
-                })
+                // Deserialize the transaction
+                let mut transaction =
+                    serde_json::from_slice::<Transaction>(txn).map_err(|err| {
+                        anyhow::anyhow!(
+                            "Failed to parse transaction at index {}: {}",
+                            idx,
+                            format_serde_error(err)
+                        )
+                    })?;
+
+                // Update the transaction version to enforce ordering (txn1, txn2, txn3, ...)
+                // This ensures that the mock gRPC returns consecutive transaction versions.
+                transaction.version = idx as u64 + 1;
+
+                Ok::<Transaction, anyhow::Error>(transaction) // Explicit type annotation
             })
             .collect::<Result<Vec<Transaction>, _>>()?;
 
@@ -64,18 +72,14 @@ impl SdkTestContext {
     pub async fn run<F>(
         &mut self,
         processor: &impl ProcessorTrait,
-        db_url: &str,
         txn_version: u64,
-        generate_files: bool, // flag to control file generation
-        output_path: String,  // output path
-        verification_f: F,    // Modified to return a HashMap for multi-table data
-    ) -> anyhow::Result<HashMap<String, serde_json::Value>>
-    // Return HashMap for multi-table results
+        generate_files: bool,             // flag to control file generation
+        output_path: String,              // output path
+        custom_file_name: Option<String>, // custom file name when testing multiple txns
+        verification_f: F,                // Modified to return a HashMap for multi-table data
+    ) -> anyhow::Result<HashMap<String, Value>>
     where
-        F: FnOnce(&str) -> anyhow::Result<HashMap<String, serde_json::Value>>
-            + Send
-            + Sync
-            + 'static, // Modified for multi-table verification
+        F: FnOnce() -> anyhow::Result<HashMap<String, Value>> + Send + Sync + 'static, // Modified for multi-table verification
     {
         let retry_strategy = ExponentialBackoff::from_millis(100).map(jitter).take(5); // Retry up to 5 times
 
@@ -105,14 +109,15 @@ impl SdkTestContext {
 
         // Small delay to ensure all data is processed before verification
         tokio::time::sleep(SLEEP_DURATION).await;
-
         // Retrieve data from multiple tables using verification function
-        let mut db_values = verification_f(db_url).context("Verification function failed")?;
+        let mut db_values = verification_f().context("Verification function failed")?;
 
         // Conditionally generate output files for each table
         if generate_files {
-            println!("[TEST] Generating output files for all tables.");
-
+            println!(
+                "[TEST] Generating output files for all {} tables",
+                db_values.len()
+            );
             // Iterate over each table's data in the HashMap and generate an output file
             for (table_name, table_data) in db_values.iter_mut() {
                 remove_inserted_at(table_data);
@@ -123,13 +128,13 @@ impl SdkTestContext {
                     &format!("{}", txn_version),
                     table_data,
                     output_path.clone(),
+                    custom_file_name.clone(),
                 )?;
             }
         } else {
             println!("[TEST] Skipping file generation as requested.");
         }
 
-        // Return the HashMap containing the data from all queried tables
         Ok(db_values)
     }
 
@@ -156,7 +161,11 @@ impl SdkTestContext {
     }
 
     // TODO: follow up on txn_version whether it should be a vec or not.
-    pub fn create_transaction_stream_config(&self, txn_version: u64) -> TransactionStreamConfig {
+    pub fn create_transaction_stream_config(
+        &self,
+        starting_version: u64,
+        txn_count: u64,
+    ) -> TransactionStreamConfig {
         let data_service_address = format!(
             "http://localhost:{}",
             self.port.as_ref().expect("Port is not set")
@@ -164,8 +173,8 @@ impl SdkTestContext {
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
-            starting_version: Some(txn_version), // dynamically pass the starting version
-            request_ending_version: Some(txn_version), // dynamically pass the ending version
+            starting_version: Some(starting_version),
+            request_ending_version: Some(starting_version + txn_count - 1),
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
             indexer_grpc_http2_ping_interval_secs: 30,
@@ -212,13 +221,24 @@ pub fn generate_output_file(
     processor_name: &str,
     table_name: &str,
     txn_version: &str,
-    db_values: &serde_json::Value,
+    db_values: &Value,
     output_dir: String,
+    custom_file_name: Option<String>,
 ) -> anyhow::Result<()> {
-    let file_path = construct_file_path(&output_dir, processor_name, table_name, txn_version); // Pass table_name here
+    let file_path = match custom_file_name {
+        Some(custom_name) => {
+            // If custom_file_name is present, build the file path using it
+            PathBuf::from(&output_dir).join(processor_name).join(
+                format!("{}.json", custom_name), // Including table_name in the format
+            )
+        },
+        None => {
+            // Default case: use table_name and txn_version to construct file name
+            construct_file_path(&output_dir, processor_name, table_name, txn_version)
+        },
+    };
 
     ensure_directory_exists(&file_path)?;
-
     fs::write(&file_path, to_string_pretty(db_values)?)
         .context(format!("Failed to write file to {:?}", file_path))?;
     println!("[TEST] Generated output file at: {}", file_path.display());
