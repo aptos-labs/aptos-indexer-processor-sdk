@@ -32,13 +32,21 @@ impl SdkTestContext {
             .iter()
             .enumerate()
             .map(|(idx, txn)| {
-                serde_json::from_slice::<Transaction>(txn).map_err(|err| {
-                    anyhow::anyhow!(
-                        "Failed to parse transaction at index {}: {}",
-                        idx,
-                        format_serde_error(err)
-                    )
-                })
+                // Deserialize the transaction
+                let mut transaction =
+                    serde_json::from_slice::<Transaction>(txn).map_err(|err| {
+                        anyhow::anyhow!(
+                            "Failed to parse transaction at index {}: {}",
+                            idx,
+                            format_serde_error(err)
+                        )
+                    })?;
+
+                // Update the transaction version to enforce ordering (txn1, txn2, txn3, ...)
+                // This ensures that the mock gRPC returns consecutive transaction versions.
+                transaction.version = idx as u64 + 1;
+
+                Ok::<Transaction, anyhow::Error>(transaction) // Explicit type annotation
             })
             .collect::<Result<Vec<Transaction>, _>>()?;
 

@@ -43,10 +43,15 @@ impl RawData for MockGrpcServer {
             }
         }
 
-        // Step 2: Collect transactions in the correct sequence starting from `starting_version`
+        // Step 2: Collect transactions in a consecutive sequence starting from `starting_version`
         while collected_transactions.len() < transactions_count as usize {
             if let Some(tx) = transaction_map.get(&current_version) {
-                collected_transactions.push((*tx).clone()); // Collect the transaction
+                let mut cloned_tx = (*tx).clone();
+
+                // Ensure that the version is consecutive
+                cloned_tx.version = collected_transactions.len() as u64 + starting_version;
+
+                collected_transactions.push(cloned_tx); // Collect the transaction with the adjusted version
                 current_version += 1; // Move to the next expected version
             } else {
                 // If no transaction is found for the current version, stop looking for more
@@ -54,21 +59,20 @@ impl RawData for MockGrpcServer {
             }
         }
 
-        // Build the response with the collected transactions (without gaps)
+        // Step 3: Build the response with the collected transactions (without gaps)
         let result = if !collected_transactions.is_empty() {
             TransactionsResponse {
                 transactions: collected_transactions,
                 chain_id: Some(self.chain_id),
             }
         } else {
-            // TODO: we should allow returning empty response with chain_id to support chain id request.
-            // No transactions found, return default response with the first transaction
+            // Return a default response with chain_id if no transactions are found
             let mut default_transaction_response = self.transactions_response[0].clone();
             default_transaction_response.chain_id = Some(self.chain_id);
             default_transaction_response
         };
 
-        // Create a stream and return the response
+        // Step 4: Create a stream and return the response
         let stream = futures::stream::iter(vec![Ok(result)]);
         Ok(Response::new(Box::pin(stream)))
     }
