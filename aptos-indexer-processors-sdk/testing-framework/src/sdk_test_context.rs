@@ -160,10 +160,7 @@ impl SdkTestContext {
         port
     }
 
-    pub fn create_transaction_stream_config(
-        &self,
-        txn_count: u64,
-    ) -> TransactionStreamConfig {
+    pub fn create_transaction_stream_config(&self, starting_version: u64, txn_count: u64) -> TransactionStreamConfig {
         let data_service_address = format!(
             "http://localhost:{}",
             self.port.as_ref().expect("Port is not set")
@@ -171,7 +168,7 @@ impl SdkTestContext {
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
-            starting_version: Some(1),
+            starting_version: Some(starting_version),
             request_ending_version: Some(txn_count),
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
@@ -226,9 +223,12 @@ pub fn generate_output_file(
     let file_path = match custom_file_name {
         Some(custom_name) => {
             // If custom_file_name is present, build the file path using it
-            PathBuf::from(&output_dir).join(processor_name).join(
-                format!("{}.json", custom_name), // Including table_name in the format
-            )
+            PathBuf::from(&output_dir)
+                .join(processor_name)
+                .join(custom_name)
+                .join(
+                    format!("{}.json", table_name),
+                )
         },
         None => {
             // Default case: use table_name and txn_version to construct file name
