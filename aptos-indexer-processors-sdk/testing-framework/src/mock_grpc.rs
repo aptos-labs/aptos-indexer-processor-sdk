@@ -3,7 +3,7 @@ use aptos_protos::indexer::v1::{
     GetTransactionsRequest, TransactionsResponse,
 };
 use futures::Stream;
-use std::pin::Pin;
+use std::{collections::HashMap, pin::Pin};
 use tokio::time::{timeout, Duration};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
@@ -27,34 +27,52 @@ impl RawData for MockGrpcServer {
         &self,
         req: Request<GetTransactionsRequest>,
     ) -> Result<Response<Self::GetTransactionsStream>, Status> {
-        let version = req.into_inner().starting_version.unwrap();
+        let request = req.into_inner();
+        let starting_version = request.starting_version.unwrap();
+        let transactions_count = request.transactions_count.unwrap_or(1); // Default to 1 if transactions_count is not provided
 
-        // Find the specific transaction that matches the version
-        let transaction = self
-            .transactions_response
-            .iter()
-            .flat_map(|transactions_response| transactions_response.transactions.iter())
-            .find(|tx| {
-                tx.version == version // Return the transaction that matches the version
-            });
+        // Collect transactions starting from `starting_version`, without any gaps, up to `transactions_count`.
+        let mut collected_transactions = Vec::new();
+        let mut current_version = starting_version;
 
-        let result = match transaction {
-            Some(tx) => {
-                // Build a new TransactionResponse with this matching transaction
-                TransactionsResponse {
-                    transactions: vec![tx.clone()],
-                    chain_id: Some(self.chain_id),
-                }
-            },
-            None => {
-                // No matching transaction found, return a default response with the first transaction
-                let mut default_transaction_response = self.transactions_response[0].clone();
-                default_transaction_response.chain_id = Some(self.chain_id); // Set the chain_id field
-                default_transaction_response
-            },
+        // Step 1: Build a map of transactions keyed by version for quick access
+        let mut transaction_map = HashMap::new();
+        for transaction_response in &self.transactions_response {
+            for tx in &transaction_response.transactions {
+                transaction_map.insert(tx.version, tx);
+            }
+        }
+
+        // Step 2: Collect transactions in a consecutive sequence starting from `starting_version`
+        while collected_transactions.len() < transactions_count as usize {
+            if let Some(tx) = transaction_map.get(&current_version) {
+                let mut cloned_tx = (*tx).clone();
+
+                // Ensure that the version is consecutive
+                cloned_tx.version = collected_transactions.len() as u64 + starting_version;
+
+                collected_transactions.push(cloned_tx); // Collect the transaction with the adjusted version
+                current_version += 1; // Move to the next expected version
+            } else {
+                // If no transaction is found for the current version, stop looking for more
+                break;
+            }
+        }
+
+        // Step 3: Build the response with the collected transactions (without gaps)
+        let result = if !collected_transactions.is_empty() {
+            TransactionsResponse {
+                transactions: collected_transactions,
+                chain_id: Some(self.chain_id),
+            }
+        } else {
+            // Return a default response with chain_id if no transactions are found
+            let mut default_transaction_response = self.transactions_response[0].clone();
+            default_transaction_response.chain_id = Some(self.chain_id);
+            default_transaction_response
         };
 
-        // Create a stream and return the response
+        // Step 4: Create a stream and return the response
         let stream = futures::stream::iter(vec![Ok(result)]);
         Ok(Response::new(Box::pin(stream)))
     }
