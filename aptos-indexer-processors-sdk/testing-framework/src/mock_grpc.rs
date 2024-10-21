@@ -28,38 +28,27 @@ impl RawData for MockGrpcServer {
         req: Request<GetTransactionsRequest>,
     ) -> Result<Response<Self::GetTransactionsStream>, Status> {
         let request = req.into_inner();
-        let starting_version = request.starting_version.unwrap();
+        let starting_version = request.starting_version.unwrap_or(0); // Default to 0 if starting_version is not provided
         let transactions_count = request.transactions_count.unwrap_or(1); // Default to 1 if transactions_count is not provided
 
-        // Collect transactions starting from `starting_version`, without any gaps, up to `transactions_count`.
         let mut collected_transactions = Vec::new();
-        let mut current_version = starting_version;
 
-        // Step 1: Build a map of transactions keyed by version for quick access
         let mut transaction_map = HashMap::new();
         for transaction_response in &self.transactions_response {
             for tx in &transaction_response.transactions {
-                transaction_map.insert(tx.version, tx);
+                transaction_map.insert(tx.version, tx.clone());
             }
         }
 
-        // Step 2: Collect transactions in a consecutive sequence starting from `starting_version`
-        while collected_transactions.len() < transactions_count as usize {
-            if let Some(tx) = transaction_map.get(&current_version) {
-                let mut cloned_tx = (*tx).clone();
+        let mut sorted_transactions: Vec<_> = transaction_map
+            .iter()
+            .filter(|(&version, _)| version >= starting_version)
+            .map(|(_, tx)| tx.clone())
+            .collect();
+        sorted_transactions.sort_by_key(|tx| tx.version);
 
-                // Ensure that the version is consecutive
-                cloned_tx.version = collected_transactions.len() as u64 + starting_version;
+        collected_transactions.extend(sorted_transactions.into_iter().take(transactions_count as usize));
 
-                collected_transactions.push(cloned_tx); // Collect the transaction with the adjusted version
-                current_version += 1; // Move to the next expected version
-            } else {
-                // If no transaction is found for the current version, stop looking for more
-                break;
-            }
-        }
-
-        // Step 3: Build the response with the collected transactions (without gaps)
         let result = if !collected_transactions.is_empty() {
             TransactionsResponse {
                 transactions: collected_transactions,
@@ -72,9 +61,9 @@ impl RawData for MockGrpcServer {
             default_transaction_response
         };
 
-        // Step 4: Create a stream and return the response
         let stream = futures::stream::iter(vec![Ok(result)]);
         Ok(Response::new(Box::pin(stream)))
+
     }
 }
 
