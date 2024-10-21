@@ -30,7 +30,6 @@ impl RawData for MockGrpcServer {
         let request = req.into_inner();
         let starting_version = request.starting_version.unwrap_or(0); // Default to 0 if starting_version is not provided
         let transactions_count = request.transactions_count.unwrap_or(1); // Default to 1 if transactions_count is not provided
-
         let mut collected_transactions = Vec::new();
 
         let mut transaction_map = HashMap::new();
@@ -47,7 +46,11 @@ impl RawData for MockGrpcServer {
             .collect();
         sorted_transactions.sort_by_key(|tx| tx.version);
 
-        collected_transactions.extend(sorted_transactions.into_iter().take(transactions_count as usize));
+        collected_transactions.extend(
+            sorted_transactions
+                .into_iter()
+                .take(transactions_count as usize),
+        );
 
         let result = if !collected_transactions.is_empty() {
             TransactionsResponse {
@@ -63,7 +66,6 @@ impl RawData for MockGrpcServer {
 
         let stream = futures::stream::iter(vec![Ok(result)]);
         Ok(Response::new(Box::pin(stream)))
-
     }
 }
 

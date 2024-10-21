@@ -28,27 +28,32 @@ const SLEEP_DURATION: Duration = Duration::from_millis(250);
 
 impl SdkTestContext {
     pub async fn new(txn_bytes: &[&[u8]]) -> anyhow::Result<Self> {
-        let transaction_batches = txn_bytes
+        let mut transaction_batches = txn_bytes
             .iter()
             .enumerate()
             .map(|(idx, txn)| {
-                // Deserialize the transaction
-                let mut transaction =
-                    serde_json::from_slice::<Transaction>(txn).map_err(|err| {
-                        anyhow::anyhow!(
-                            "Failed to parse transaction at index {}: {}",
-                            idx,
-                            format_serde_error(err)
-                        )
-                    })?;
-
-                // Update the transaction version to enforce ordering (txn1, txn2, txn3, ...)
-                // This ensures that the mock gRPC returns consecutive transaction versions.
-                transaction.version = idx as u64 + 1;
+                let transaction = serde_json::from_slice::<Transaction>(txn).map_err(|err| {
+                    anyhow::anyhow!(
+                        "Failed to parse transaction at index {}: {}",
+                        idx,
+                        format_serde_error(err)
+                    )
+                })?;
 
                 Ok::<Transaction, anyhow::Error>(transaction) // Explicit type annotation
             })
             .collect::<Result<Vec<Transaction>, _>>()?;
+
+        let version_1_exists = transaction_batches.iter().any(|tx| tx.version == 1);
+
+        // Append the dummy transaction with version 1 if it doesn't exist to pass chain_id_check
+        if !version_1_exists {
+            let dummy_transaction = Transaction {
+                version: 1,
+                ..Transaction::default()
+            };
+            transaction_batches.push(dummy_transaction);
+        }
 
         let mut context = SdkTestContext {
             transaction_batches,
@@ -160,7 +165,11 @@ impl SdkTestContext {
         port
     }
 
-    pub fn create_transaction_stream_config(&self, starting_version: u64, ending_version: u64, txn_count: u64) -> TransactionStreamConfig {
+    pub fn create_transaction_stream_config(
+        &self,
+        starting_version: u64,
+        txn_count: u64,
+    ) -> TransactionStreamConfig {
         let data_service_address = format!(
             "http://localhost:{}",
             self.port.as_ref().expect("Port is not set")
@@ -226,9 +235,7 @@ pub fn generate_output_file(
             PathBuf::from(&output_dir)
                 .join(processor_name)
                 .join(custom_name)
-                .join(
-                    format!("{}.json", table_name),
-                )
+                .join(format!("{}.json", table_name))
         },
         None => {
             // Default case: use table_name and txn_version to construct file name
