@@ -28,27 +28,32 @@ const SLEEP_DURATION: Duration = Duration::from_millis(250);
 
 impl SdkTestContext {
     pub async fn new(txn_bytes: &[&[u8]]) -> anyhow::Result<Self> {
-        let transaction_batches = txn_bytes
+        let mut transaction_batches = txn_bytes
             .iter()
             .enumerate()
             .map(|(idx, txn)| {
-                // Deserialize the transaction
-                let mut transaction =
-                    serde_json::from_slice::<Transaction>(txn).map_err(|err| {
-                        anyhow::anyhow!(
-                            "Failed to parse transaction at index {}: {}",
-                            idx,
-                            format_serde_error(err)
-                        )
-                    })?;
-
-                // Update the transaction version to enforce ordering (txn1, txn2, txn3, ...)
-                // This ensures that the mock gRPC returns consecutive transaction versions.
-                transaction.version = idx as u64 + 1;
+                let transaction = serde_json::from_slice::<Transaction>(txn).map_err(|err| {
+                    anyhow::anyhow!(
+                        "Failed to parse transaction at index {}: {}",
+                        idx,
+                        format_serde_error(err)
+                    )
+                })?;
 
                 Ok::<Transaction, anyhow::Error>(transaction) // Explicit type annotation
             })
             .collect::<Result<Vec<Transaction>, _>>()?;
+
+        let version_1_exists = transaction_batches.iter().any(|tx| tx.version == 1);
+
+        // Append the dummy transaction with version 1 if it doesn't exist to pass chain_id_check
+        if !version_1_exists {
+            let dummy_transaction = Transaction {
+                version: 1,
+                ..Transaction::default()
+            };
+            transaction_batches.push(dummy_transaction);
+        }
 
         let mut context = SdkTestContext {
             transaction_batches,
@@ -162,6 +167,7 @@ impl SdkTestContext {
 
     pub fn create_transaction_stream_config(
         &self,
+        starting_version: u64,
         txn_count: u64,
     ) -> TransactionStreamConfig {
         let data_service_address = format!(
@@ -171,8 +177,8 @@ impl SdkTestContext {
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
-            starting_version: Some(1),
-            request_ending_version: Some(txn_count),
+            starting_version: Some(starting_version),
+            request_ending_version: Some(starting_version + txn_count - 1),
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
             indexer_grpc_http2_ping_interval_secs: 30,
@@ -226,9 +232,10 @@ pub fn generate_output_file(
     let file_path = match custom_file_name {
         Some(custom_name) => {
             // If custom_file_name is present, build the file path using it
-            PathBuf::from(&output_dir).join(processor_name).join(
-                format!("{}.json", custom_name), // Including table_name in the format
-            )
+            PathBuf::from(&output_dir)
+                .join(processor_name)
+                .join(custom_name)
+                .join(format!("{}.json", table_name))
         },
         None => {
             // Default case: use table_name and txn_version to construct file name
