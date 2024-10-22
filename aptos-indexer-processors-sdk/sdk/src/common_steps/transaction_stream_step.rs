@@ -17,7 +17,7 @@ use tracing::{error, info, warn};
 // TransactionStreamStep is establishes a gRPC connection with Transaction Stream
 // fetches transactions, and outputs them for processing. It also handles reconnections with retries.
 // This is usually the initial step in a processor.
-pub struct TransactionStreamStep
+pub struct ProdTransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
@@ -25,7 +25,7 @@ where
     pub transaction_stream: Mutex<TransactionStreamInternal>,
 }
 
-impl TransactionStreamStep
+impl ProdTransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
@@ -47,7 +47,7 @@ where
 }
 
 #[async_trait]
-impl Processable for TransactionStreamStep
+impl Processable for ProdTransactionStreamStep
 where
     Self: Sized + Send + 'static,
 {
@@ -65,7 +65,7 @@ where
 }
 
 #[async_trait]
-impl PollableAsyncStep for TransactionStreamStep
+impl PollableAsyncStep for ProdTransactionStreamStep
 where
     Self: Sized + Send + Sync + 'static,
 {
@@ -148,7 +148,7 @@ where
     }
 }
 
-impl NamedStep for TransactionStreamStep {
+impl NamedStep for ProdTransactionStreamStep {
     fn name(&self) -> String {
         "TransactionStreamStep".to_string()
     }
@@ -199,6 +199,12 @@ mock! {
     }
 }
 
+#[cfg(not(test))]
+pub type TransactionStreamStep = ProdTransactionStreamStep;
+
+#[cfg(test)]
+pub type TransactionStreamStep = MockTransactionStreamStep;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,7 +220,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[allow(clippy::needless_return)]
     async fn test_transaction_stream() {
-        let mut mock_transaction_stream = MockTransactionStreamStep::new();
+        let mut mock_transaction_stream = TransactionStreamStep::new();
         // Testing framework can provide mocked transactions here
         mock_transaction_stream.expect_poll().returning(|| {
             Ok(Some(vec![TransactionContext {
