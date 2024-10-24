@@ -184,6 +184,7 @@ dependencies = [
  "diesel_migrations",
  "futures",
  "futures-util",
+ "lazy_static",
  "native-tls",
  "once_cell",
  "postgres-native-tls",
