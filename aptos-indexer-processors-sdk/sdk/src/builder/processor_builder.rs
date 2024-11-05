@@ -46,7 +46,6 @@ impl GraphBuilder {
         Step: RunnableStep<Input, Output>,
     {
         let current_node_counter = *self.node_counter.lock().unwrap();
-        println!("Adding step with counter: {}", current_node_counter);
         let mut graph = self.graph.lock().unwrap();
         let new_node_index = graph.add_node(current_node_counter);
 
@@ -76,9 +75,7 @@ impl GraphBuilder {
         Step: RunnableStep<Input, Output>,
     {
         let current_node_counter = *self.node_counter.lock().unwrap();
-        println!("Adding step with counter: {}", current_node_counter);
         let new_node_index = self.graph.lock().unwrap().add_node(current_node_counter);
-        println!("new_node_index: {:?}", new_node_index);
         self.node_map
             .lock()
             .unwrap()
