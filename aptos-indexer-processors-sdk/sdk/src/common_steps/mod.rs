@@ -1,6 +1,7 @@
 pub mod arcify_step;
 pub mod order_by_version_step;
 pub mod timed_buffer_step;
+pub mod timed_size_buffer_step;
 pub mod transaction_stream_step;
 pub mod version_tracker_step;
 

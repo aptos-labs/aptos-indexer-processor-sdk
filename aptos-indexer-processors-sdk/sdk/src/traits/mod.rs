@@ -1,6 +1,7 @@
 pub mod async_step;
 pub mod instrumentation;
 pub mod into_runnable_step;
+pub mod parquet_extract_trait;
 pub mod pollable_async_step;
 pub mod processable;
 pub mod processor_trait;

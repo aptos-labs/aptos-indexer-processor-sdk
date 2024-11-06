@@ -13,6 +13,8 @@ rust-version = { workspace = true }
 
 [dependencies]
 ahash = { workspace = true }
+allocative = { workspace = true }
+allocative_derive = { workspace = true }
 anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
 aptos-protos = { workspace = true }
@@ -22,12 +24,15 @@ bigdecimal = { workspace = true }
 chrono = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
+google-cloud-storage = { workspace = true }
 hex = { workspace = true }
 instrumented-channel = { workspace = true }
 kanal = { workspace = true }
 mockall = { workspace = true }
 num_cpus = { workspace = true }
 once_cell = { workspace = true }
+parquet = { workspace = true }
+parquet_derive = { workspace = true }
 petgraph = { workspace = true }
 prometheus = { workspace = true }
 prometheus-client = { workspace = true }

@@ -140,8 +140,8 @@ mod tests {
         let graph = second_builder.graph;
         let dot = graph.dot();
         println!("{:}", dot);
-        //first_handle.abort();
-        //second_handle.abort();
+        // first_handle.abort();
+        // second_handle.abort();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -222,7 +222,7 @@ mod tests {
         let graph = fanout_builder.graph;
         let dot = graph.dot();
         println!("{:}", dot);
-        //first_handle.abort();
-        //second_handle.abort();
+        // first_handle.abort();
+        // second_handle.abort();
     }
 }
