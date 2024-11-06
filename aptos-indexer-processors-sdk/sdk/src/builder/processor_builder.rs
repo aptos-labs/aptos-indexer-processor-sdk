@@ -10,15 +10,19 @@ use petgraph::{
     graph::{DiGraph, EdgeReference, NodeIndex},
     prelude::*,
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    ops::DerefMut,
+    sync::{Arc, Mutex},
+};
 use tokio::task::JoinHandle;
 
 #[derive(Clone, Default, Debug)]
 pub struct GraphBuilder {
     // These fields are shared between all the potential instances of the graph
-    pub graph: Rc<RefCell<DiGraph<usize, usize>>>,
-    pub node_map: Rc<RefCell<HashMap<usize, GraphNode>>>,
-    pub node_counter: Rc<RefCell<usize>>,
+    pub graph: Arc<Mutex<DiGraph<usize, usize>>>,
+    pub node_map: Arc<Mutex<HashMap<usize, GraphNode>>>,
+    pub node_counter: Arc<Mutex<usize>>,
     // This field is specific to the current instance of the graph
     pub current_node_index: Option<NodeIndex>,
 }
@@ -26,9 +30,9 @@ pub struct GraphBuilder {
 impl GraphBuilder {
     pub fn new() -> Self {
         Self {
-            graph: Rc::new(RefCell::new(DiGraph::new())),
-            node_map: Rc::new(RefCell::new(HashMap::new())),
-            node_counter: Rc::new(RefCell::new(0)),
+            graph: Arc::new(Mutex::new(DiGraph::new())),
+            node_map: Arc::new(Mutex::new(HashMap::new())),
+            node_counter: Arc::new(Mutex::new(0)),
             current_node_index: None,
         }
     }
@@ -41,10 +45,13 @@ impl GraphBuilder {
         Output: Send + 'static,
         Step: RunnableStep<Input, Output>,
     {
-        let current_node_counter = *self.node_counter.borrow();
-        let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
+        let current_node_counter = *self.node_counter.lock().unwrap();
+        let mut graph = self.graph.lock().unwrap();
+        let new_node_index = graph.add_node(current_node_counter);
+
         self.node_map
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
@@ -55,7 +62,7 @@ impl GraphBuilder {
                 end_step: false,
             });
 
-        *self.node_counter.borrow_mut() += 1;
+        *self.node_counter.lock().unwrap() += 1;
         self.current_node_index = Some(new_node_index);
     }
 
@@ -67,10 +74,12 @@ impl GraphBuilder {
         Output: Send + 'static,
         Step: RunnableStep<Input, Output>,
     {
-        let current_node_counter = *self.node_counter.borrow();
-        let new_node_index = self.graph.borrow_mut().add_node(current_node_counter);
+        let current_node_counter = *self.node_counter.lock().unwrap();
+        let new_node_index = self.graph.lock().unwrap().add_node(current_node_counter);
         self.node_map
-            .borrow_mut()
+            .lock()
+            .unwrap()
+            .deref_mut()
             .insert(current_node_counter, GraphNode {
                 id: current_node_counter,
                 name: step.step.name(),
@@ -82,14 +91,15 @@ impl GraphBuilder {
             });
 
         self.add_edge_to(new_node_index);
-        *self.node_counter.borrow_mut() += 1;
+        *self.node_counter.lock().unwrap() += 1;
         self.current_node_index = Some(new_node_index);
     }
 
     pub fn set_end_step(&mut self) {
         let current_node_counter = self.current_node_index.as_ref().unwrap().index();
         self.node_map
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .get_mut(&current_node_counter)
             .unwrap()
             .end_step = true;
@@ -113,35 +123,39 @@ impl GraphBuilder {
     }*/
 
     pub fn set_join_handle(&mut self, node_index: usize, join_handle: JoinHandle<()>) {
-        self.node_map
-            .borrow_mut()
-            .get_mut(&node_index)
-            .unwrap()
-            .join_handle = Some(join_handle);
+        let mut node_map = self.node_map.lock().unwrap();
+        if let Some(node) = node_map.get_mut(&node_index) {
+            node.join_handle = Some(join_handle);
+        } else {
+            panic!("Node with index {} not found in node_map", node_index);
+        }
     }
 
     pub fn add_edge_to(&mut self, to: NodeIndex) {
         if let Some(current_node_index) = self.current_node_index {
-            self.graph.borrow_mut().add_edge(current_node_index, to, 1);
+            self.graph
+                .lock()
+                .unwrap()
+                .add_edge(current_node_index, to, 1);
         }
     }
 
     pub fn add_edge_from_to(&mut self, from: NodeIndex, to: NodeIndex) {
-        self.graph.borrow_mut().add_edge(from, to, 1);
+        self.graph.lock().unwrap().add_edge(from, to, 1);
     }
 
     pub fn dot(&self) -> String {
         let edge_attribute_getter = |_graph, edge_ref: EdgeReference<usize>| {
             let from_node_id = edge_ref.source();
-            let node_map = self.node_map.borrow_mut();
+            let node_map = self.node_map.lock().unwrap();
             let from_node = node_map.get(&from_node_id.index()).unwrap();
 
             format!("label=\"  {}\"", from_node.output_type)
         };
 
-        let _last_node_index = self.graph.borrow().node_count() - 1;
+        let _last_node_index = self.graph.lock().unwrap().node_count() - 1;
         let node_attribute_getter = |_graph, (_node_index, &node_val)| {
-            let node_map = self.node_map.borrow_mut();
+            let node_map = self.node_map.lock().unwrap();
             let node = node_map.get(&node_val).unwrap();
 
             //let input_output = format!("{} -> {}", &node.input_type, &node.output_type);
@@ -156,8 +170,7 @@ impl GraphBuilder {
             label + &shape
         };
 
-        // TODO: figure out how to avoid the clone here
-        let graph = self.graph.borrow().clone();
+        let graph = self.graph.lock().unwrap().clone();
         let dot = petgraph::dot::Dot::with_attr_getters(
             &graph,
             // We override the labels anyway
@@ -334,7 +347,6 @@ where
                 let step_name = current_step.step.name();
                 self.graph.add_and_connect_step(&current_step);
                 let (output_receiver, join_handle) = current_step.spawn(None, num_outputs, None);
-                // TODO: add to graph?
                 self.graph
                     .set_join_handle(self.graph.current_node_index.unwrap().index(), join_handle);
                 (output_receiver, step_name)
