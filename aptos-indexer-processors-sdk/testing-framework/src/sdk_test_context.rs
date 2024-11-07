@@ -21,6 +21,7 @@ use url::Url;
 
 pub struct SdkTestContext {
     transaction_batches: Vec<Transaction>,
+    test_transaction_versions: Vec<u64>,
     port: Option<String>,
     request_start_version: u64,
     transactions_count: u64,
@@ -62,6 +63,7 @@ impl SdkTestContext {
 
         let request_start_version = transaction_batches[0].version;
         let transactions_count = transaction_batches.len() as u64;
+        let test_versions = transaction_batches.iter().map(|tx| tx.version).collect();
 
         // Check if the provided transaction bytes contains a transaction with version 1.
         // This is required for the chain_id_check to pass.
@@ -78,18 +80,30 @@ impl SdkTestContext {
 
         SdkTestContext {
             transaction_batches,
+            test_transaction_versions: test_versions,
             request_start_version,
             transactions_count,
             port: None,
         }
     }
 
+    // Return the start version of the transactions in this test.
+    // This is used to construct the TransactionStreamConfig.
     pub fn get_request_start_version(&self) -> u64 {
         self.request_start_version
     }
 
+    // Return the number of transactions in this test.
+    // This is used to construct the TransactionStreamConfig.
     pub fn get_transactions_count(&self) -> u64 {
         self.transactions_count
+    }
+
+    // Return the transaction versions that will be included in this test.
+    // This does not include the dummy transaction with version 1.
+    // The purpose of this is to fetch the versions for the data validation step of the test.
+    pub fn get_test_transaction_versions(&self) -> Vec<u64> {
+        self.test_transaction_versions.clone()
     }
 
     /// Run the processor and pass user-defined validation logic
@@ -303,6 +317,7 @@ mod tests {
         assert_eq!(sdk_test_context.get_request_start_version(), 100);
         assert_eq!(sdk_test_context.get_transactions_count(), 1);
         assert_eq!(sdk_test_context.transaction_batches.len(), 2);
+        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![100]);
 
         assert!(sdk_test_context.init_mock_grpc().await.is_ok());
         let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
@@ -323,6 +338,7 @@ mod tests {
         assert_eq!(sdk_test_context.get_request_start_version(), 1);
         assert_eq!(sdk_test_context.get_transactions_count(), 1);
         assert_eq!(sdk_test_context.transaction_batches.len(), 1);
+        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![1]);
 
         assert!(sdk_test_context.init_mock_grpc().await.is_ok());
         let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
@@ -348,6 +364,9 @@ mod tests {
         assert_eq!(sdk_test_context.get_request_start_version(), 100);
         assert_eq!(sdk_test_context.get_transactions_count(), 2);
         assert_eq!(sdk_test_context.transaction_batches.len(), 3);
+        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![
+            100, 200
+        ]);
 
         assert!(sdk_test_context.init_mock_grpc().await.is_ok());
         let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
