@@ -12,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tokio::time::{self, Duration as TokioDuration};
+use tokio::time::{timeout, Duration as TokioDuration};
 use tokio_retry::{
     strategy::{jitter, ExponentialBackoff},
     Retry,
@@ -20,15 +20,22 @@ use tokio_retry::{
 use url::Url;
 
 pub struct SdkTestContext {
-    pub transaction_batches: Vec<Transaction>,
-    pub port: Option<String>,
+    transaction_batches: Vec<Transaction>,
+    test_transaction_versions: Vec<u64>,
+    port: Option<String>,
+    request_start_version: u64,
+    transactions_count: u64,
 }
 
 const SLEEP_DURATION: Duration = Duration::from_millis(250);
 
+/// SdkTestContext is a helper struct to set up and run indexer processor tests.
+/// It is initialized with a slice of generated transaction bytes
+/// and provides methods to run a mock GRPC server that returns these transactions,
+/// construct a TransactionStreamConfig, and runs the processor for testing.
 impl SdkTestContext {
-    pub async fn new(txn_bytes: &[&[u8]]) -> anyhow::Result<Self> {
-        let mut transaction_batches = txn_bytes
+    pub fn new(txn_bytes: &[&[u8]]) -> Self {
+        let mut transaction_batches = match txn_bytes
             .iter()
             .enumerate()
             .map(|(idx, txn)| {
@@ -42,8 +49,24 @@ impl SdkTestContext {
 
                 Ok::<Transaction, anyhow::Error>(transaction) // Explicit type annotation
             })
-            .collect::<Result<Vec<Transaction>, _>>()?;
+            .collect::<Result<Vec<Transaction>, _>>()
+        {
+            Ok(txns) => txns,
+            Err(e) => panic!("Failed to parse transactions: {}", e),
+        };
 
+        if transaction_batches.is_empty() {
+            panic!("SdkTestContext must be initialized with at least one transaction");
+        }
+
+        transaction_batches.sort_by_key(|tx| tx.version);
+
+        let request_start_version = transaction_batches[0].version;
+        let transactions_count = transaction_batches.len() as u64;
+        let test_versions = transaction_batches.iter().map(|tx| tx.version).collect();
+
+        // Check if the provided transaction bytes contains a transaction with version 1.
+        // This is required for the chain_id_check to pass.
         let version_1_exists = transaction_batches.iter().any(|tx| tx.version == 1);
 
         // Append the dummy transaction with version 1 if it doesn't exist to pass chain_id_check
@@ -52,32 +75,41 @@ impl SdkTestContext {
                 version: 1,
                 ..Transaction::default()
             };
-            transaction_batches.push(dummy_transaction);
+            transaction_batches.insert(0, dummy_transaction);
         }
 
-        let mut context = SdkTestContext {
+        SdkTestContext {
             transaction_batches,
+            test_transaction_versions: test_versions,
+            request_start_version,
+            transactions_count,
             port: None,
-        };
+        }
+    }
 
-        // Create mock GRPC transactions and setup the server
-        let transactions = context.transaction_batches.clone();
-        let transactions_response = vec![TransactionsResponse {
-            transactions,
-            ..TransactionsResponse::default()
-        }];
+    // Return the start version of the transactions in this test.
+    // This is used to construct the TransactionStreamConfig.
+    pub fn get_request_start_version(&self) -> u64 {
+        self.request_start_version
+    }
 
-        // Call setup_mock_grpc to start the server and get the port
-        let port = context.setup_mock_grpc(transactions_response, 1).await;
-        context.port = Some(port.to_string());
-        Ok(context)
+    // Return the number of transactions in this test.
+    // This is used to construct the TransactionStreamConfig.
+    pub fn get_transactions_count(&self) -> u64 {
+        self.transactions_count
+    }
+
+    // Return the transaction versions that will be included in this test.
+    // This does not include the dummy transaction with version 1.
+    // The purpose of this is to fetch the versions for the data validation step of the test.
+    pub fn get_test_transaction_versions(&self) -> Vec<u64> {
+        self.test_transaction_versions.clone()
     }
 
     /// Run the processor and pass user-defined validation logic
     pub async fn run<F>(
         &mut self,
         processor: &impl ProcessorTrait,
-        txn_version: u64,
         generate_files: bool,             // flag to control file generation
         output_path: String,              // output path
         custom_file_name: Option<String>, // custom file name when testing multiple txns
@@ -91,7 +123,7 @@ impl SdkTestContext {
         let timeout_duration = TokioDuration::from_secs(10); // e.g., 5 seconds timeout for each retry
         let result = Retry::spawn(retry_strategy, || async {
             // Wrap processor call with a timeout
-            match time::timeout(timeout_duration, processor.run_processor()).await {
+            match timeout(timeout_duration, processor.run_processor()).await {
                 Ok(result) => result.context("Processor run failed"),
                 Err(_) => Err(anyhow::anyhow!("Processor run timed out")),
             }
@@ -130,7 +162,7 @@ impl SdkTestContext {
                 generate_output_file(
                     processor.name(),
                     table_name,
-                    &format!("{}", txn_version),
+                    &format!("{}", self.request_start_version),
                     table_data,
                     output_path.clone(),
                     custom_file_name.clone(),
@@ -144,14 +176,18 @@ impl SdkTestContext {
     }
 
     /// Helper function to set up and run the mock GRPC server.
-    async fn setup_mock_grpc(
-        &self,
-        transactions_response: Vec<TransactionsResponse>,
-        chain_id: u64,
-    ) -> u16 {
+    pub async fn init_mock_grpc(&mut self) -> anyhow::Result<()> {
+        // Create mock GRPC transactions and setup the server
+        let transactions = self.transaction_batches.clone();
+        let transactions_response = vec![TransactionsResponse {
+            transactions,
+            ..TransactionsResponse::default()
+        }];
+
+        // Call setup_mock_grpc to start the server and get the port
         let mock_grpc_server = MockGrpcServer {
             transactions_response,
-            chain_id,
+            chain_id: 1,
         };
 
         let port = tokio::spawn(async move {
@@ -162,23 +198,26 @@ impl SdkTestContext {
         .unwrap();
 
         println!("Mock GRPC server is running on port {}", port);
-        port
+        self.port = Some(port.to_string());
+
+        Ok(())
     }
 
-    pub fn create_transaction_stream_config(
-        &self,
-        starting_version: u64,
-        txn_count: u64,
-    ) -> TransactionStreamConfig {
+    pub fn create_transaction_stream_config(&self) -> TransactionStreamConfig {
         let data_service_address = format!(
             "http://localhost:{}",
-            self.port.as_ref().expect("Port is not set")
+            self.port.as_ref().expect(
+                "Port must be set before creating TransactionStreamConfig. Did you init_mock_grpc?"
+            )
         );
+        // Even if the transactions are not consecutive, for the mock GRPC to return the correct number of transactions,
+        // we set request_ending_version to (start version + transactions count - 1)
+        let request_ending_version = Some(self.request_start_version + self.transactions_count - 1);
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
                 .expect("Could not parse database url"),
-            starting_version: Some(starting_version),
-            request_ending_version: Some(starting_version + txn_count - 1),
+            starting_version: Some(self.request_start_version),
+            request_ending_version,
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
             indexer_grpc_http2_ping_interval_secs: 30,
@@ -258,5 +297,83 @@ pub fn remove_inserted_at(value: &mut Value) {
                 obj.remove("inserted_at");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    #[allow(clippy::needless_return)]
+    async fn test_sdk_test_context() {
+        let txn = Transaction {
+            version: 100,
+            ..Transaction::default()
+        };
+
+        let txn_bytes = serde_json::to_vec(&txn).unwrap();
+
+        let mut sdk_test_context = SdkTestContext::new(&[&txn_bytes]);
+        assert_eq!(sdk_test_context.get_request_start_version(), 100);
+        assert_eq!(sdk_test_context.get_transactions_count(), 1);
+        assert_eq!(sdk_test_context.transaction_batches.len(), 2);
+        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![100]);
+
+        assert!(sdk_test_context.init_mock_grpc().await.is_ok());
+        let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
+        assert_eq!(transaction_stream_config.starting_version, Some(100));
+        assert_eq!(transaction_stream_config.request_ending_version, Some(100));
+    }
+
+    #[tokio::test]
+    #[allow(clippy::needless_return)]
+    async fn test_sdk_test_context_genesis() {
+        let txn = Transaction {
+            version: 1,
+            ..Transaction::default()
+        };
+
+        let txn_bytes = serde_json::to_vec(&txn).unwrap();
+
+        let mut sdk_test_context = SdkTestContext::new(&[&txn_bytes]);
+        assert_eq!(sdk_test_context.get_request_start_version(), 1);
+        assert_eq!(sdk_test_context.get_transactions_count(), 1);
+        assert_eq!(sdk_test_context.transaction_batches.len(), 1);
+        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![1]);
+
+        assert!(sdk_test_context.init_mock_grpc().await.is_ok());
+        let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
+        assert_eq!(transaction_stream_config.starting_version, Some(1));
+        assert_eq!(transaction_stream_config.request_ending_version, Some(1));
+    }
+
+    #[tokio::test]
+    #[allow(clippy::needless_return)]
+    async fn test_sdk_test_context_multiple_txns() {
+        let txn1 = Transaction {
+            version: 100,
+            ..Transaction::default()
+        };
+        let txn2 = Transaction {
+            version: 200,
+            ..Transaction::default()
+        };
+
+        let mut sdk_test_context = SdkTestContext::new(&[
+            &serde_json::to_vec(&txn1).unwrap(),
+            &serde_json::to_vec(&txn2).unwrap(),
+        ]);
+        assert_eq!(sdk_test_context.get_request_start_version(), 100);
+        assert_eq!(sdk_test_context.get_transactions_count(), 2);
+        assert_eq!(sdk_test_context.transaction_batches.len(), 3);
+        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![
+            100, 200
+        ]);
+
+        assert!(sdk_test_context.init_mock_grpc().await.is_ok());
+        let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
+        assert_eq!(transaction_stream_config.starting_version, Some(100));
+        assert_eq!(transaction_stream_config.request_ending_version, Some(101));
     }
 }
