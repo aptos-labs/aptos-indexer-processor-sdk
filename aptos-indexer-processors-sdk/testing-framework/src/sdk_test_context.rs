@@ -20,8 +20,8 @@ use tokio_retry::{
 use url::Url;
 
 pub struct SdkTestContext {
-    pub transaction_batches: Vec<Transaction>,
-    pub port: Option<String>,
+    transaction_batches: Vec<Transaction>,
+    port: Option<String>,
     request_start_version: u64,
     transactions_count: u64,
 }
@@ -63,6 +63,8 @@ impl SdkTestContext {
         let request_start_version = transaction_batches[0].version;
         let transactions_count = transaction_batches.len() as u64;
 
+        // Check if the provided transaction bytes contains a transaction with version 1.
+        // This is required for the chain_id_check to pass.
         let version_1_exists = transaction_batches.iter().any(|tx| tx.version == 1);
 
         // Append the dummy transaction with version 1 if it doesn't exist to pass chain_id_check
@@ -194,6 +196,8 @@ impl SdkTestContext {
                 "Port must be set before creating TransactionStreamConfig. Did you init_mock_grpc?"
             )
         );
+        // Even if the transactions are not consecutive, for the mock GRPC to return the correct number of transactions,
+        // we set request_ending_version to (start version + transactions count - 1)
         let request_ending_version = Some(self.request_start_version + self.transactions_count - 1);
         TransactionStreamConfig {
             indexer_grpc_data_service_address: Url::parse(&data_service_address)
@@ -279,5 +283,75 @@ pub fn remove_inserted_at(value: &mut Value) {
                 obj.remove("inserted_at");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_sdk_test_context() {
+        let txn = Transaction {
+            version: 100,
+            ..Transaction::default()
+        };
+
+        let txn_bytes = serde_json::to_vec(&txn).unwrap();
+
+        let mut sdk_test_context = SdkTestContext::new(&[&txn_bytes]);
+        assert_eq!(sdk_test_context.get_request_start_version(), 100);
+        assert_eq!(sdk_test_context.get_transactions_count(), 1);
+        assert_eq!(sdk_test_context.transaction_batches.len(), 2);
+
+        assert!(sdk_test_context.init_mock_grpc().await.is_ok());
+        let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
+        assert_eq!(transaction_stream_config.starting_version, Some(100));
+        assert_eq!(transaction_stream_config.request_ending_version, Some(100));
+    }
+
+    #[tokio::test]
+    async fn test_sdk_test_context_genesis() {
+        let txn = Transaction {
+            version: 1,
+            ..Transaction::default()
+        };
+
+        let txn_bytes = serde_json::to_vec(&txn).unwrap();
+
+        let mut sdk_test_context = SdkTestContext::new(&[&txn_bytes]);
+        assert_eq!(sdk_test_context.get_request_start_version(), 1);
+        assert_eq!(sdk_test_context.get_transactions_count(), 1);
+        assert_eq!(sdk_test_context.transaction_batches.len(), 1);
+
+        assert!(sdk_test_context.init_mock_grpc().await.is_ok());
+        let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
+        assert_eq!(transaction_stream_config.starting_version, Some(1));
+        assert_eq!(transaction_stream_config.request_ending_version, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_sdk_test_context_multiple_txns() {
+        let txn1 = Transaction {
+            version: 100,
+            ..Transaction::default()
+        };
+        let txn2 = Transaction {
+            version: 200,
+            ..Transaction::default()
+        };
+
+        let mut sdk_test_context = SdkTestContext::new(&[
+            &serde_json::to_vec(&txn1).unwrap(),
+            &serde_json::to_vec(&txn2).unwrap(),
+        ]);
+        assert_eq!(sdk_test_context.get_request_start_version(), 100);
+        assert_eq!(sdk_test_context.get_transactions_count(), 2);
+        assert_eq!(sdk_test_context.transaction_batches.len(), 3);
+
+        assert!(sdk_test_context.init_mock_grpc().await.is_ok());
+        let transaction_stream_config = sdk_test_context.create_transaction_stream_config();
+        assert_eq!(transaction_stream_config.starting_version, Some(100));
+        assert_eq!(transaction_stream_config.request_ending_version, Some(101));
     }
 }
