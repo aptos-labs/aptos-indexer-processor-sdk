@@ -55,7 +55,7 @@ impl SdkTestContext {
             Err(e) => panic!("Failed to parse transactions: {}", e),
         };
 
-        if transaction_batches.len() == 0 {
+        if transaction_batches.is_empty() {
             panic!("SdkTestContext must be initialized with at least one transaction");
         }
 
@@ -305,6 +305,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_sdk_test_context() {
         let txn = Transaction {
             version: 100,
@@ -326,6 +327,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_sdk_test_context_genesis() {
         let txn = Transaction {
             version: 1,
@@ -347,6 +349,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::needless_return)]
     async fn test_sdk_test_context_multiple_txns() {
         let txn1 = Transaction {
             version: 100,
