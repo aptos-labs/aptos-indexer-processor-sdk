@@ -22,32 +22,32 @@ pub fn get_test_config() -> (bool, Option<String>) {
 pub fn parse_test_args() -> TestArgs {
     let raw_args: Vec<String> = std::env::args().collect();
 
-    // Find the "--" separator, or default to include all args after the test name
-    let clap_args_position = raw_args.iter().position(|arg| arg == "--");
+    // Find the position of the "--" separator to identify custom arguments
+    let custom_args_start = raw_args
+        .iter()
+        .position(|arg| arg == "--")
+        .map_or(0, |pos| pos + 1);
 
-    // Determine the starting position for custom arguments
-    let custom_args_start = match clap_args_position {
-        Some(position) => position + 1, // Start after the "--" if it exists
-        None => 1,                      // Start after the test name, skip the first element
-    };
-
-    // Collect custom arguments based on determined start position
-    let custom_args: Vec<String> = raw_args[custom_args_start..].to_vec();
+    // Collect custom arguments based on the determined start position
+    let custom_args: Vec<String> = raw_args[custom_args_start..]
+        .iter()
+        .filter(|&arg| arg != "--nocapture") // Ignore standard flags like --nocapture
+        .cloned()
+        .collect();
 
     // Manually parse the "generate-output" flag
     let generate_output_flag = custom_args.contains(&"generate-output".to_string());
 
-    // Manually parse the "--output-path" flag and get its associated value
+    // Manually parse the "output-path" flag and get its associated value
     let output_path = custom_args
         .windows(2)
         .find(|args| args[0] == "output-path")
         .map(|args| args[1].clone());
 
-    println!("Parsed generate_output_flag: {}", generate_output_flag);
-    println!(
-        "Parsed output_path: {}",
-        output_path.clone().unwrap_or_else(|| "None".to_string())
-    );
+    // Validate that --output-path is not provided without --generate-output
+    if output_path.is_some() && !generate_output_flag {
+        panic!("Error: output-path cannot be provided without generate-output.");
+    }
 
     TestArgs {
         generate_output: generate_output_flag,
@@ -58,30 +58,28 @@ pub fn parse_test_args() -> TestArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     pub fn parse_test_args_from_vec(args: Vec<String>) -> TestArgs {
-        // Find the "--" separator (if it exists)
-        let clap_args_position = args.iter().position(|arg| arg == "--");
+        let custom_args_start = args
+            .iter()
+            .position(|arg| arg == "--")
+            .map_or(0, |pos| pos + 1);
 
-        // Only pass the arguments that come after "--", if it exists
-        let custom_args: Vec<String> = match clap_args_position {
-            Some(position) => args[position + 1..].to_vec(), // Slice after `--`
-            None => Vec::new(), // If no `--` is found, treat as no custom args
-        };
+        let custom_args: Vec<String> = args[custom_args_start..]
+            .iter()
+            .filter(|&arg| arg != "--nocapture") // Ignore standard flags like --nocapture
+            .cloned()
+            .collect();
 
-        // Manually parse the "--generate-output" flag
         let generate_output_flag = custom_args.contains(&"generate-output".to_string());
-
-        // Manually parse the "--output-path" flag and get its associated value
         let output_path = custom_args
             .windows(2)
             .find(|args| args[0] == "output-path")
             .map(|args| args[1].clone());
 
-        println!("Parsed generate_output_flag: {}", generate_output_flag);
-        println!(
-            "Parsed output_path: {}",
-            output_path.clone().unwrap_or_else(|| "None".to_string())
-        );
+        if output_path.is_some() && !generate_output_flag {
+            panic!("Error: output-path cannot be provided without generate-output.");
+        }
 
         TestArgs {
             generate_output: generate_output_flag,
@@ -91,6 +89,14 @@ mod tests {
 
     #[test]
     fn test_parse_generate_output_flag() {
+        let args = vec!["--".to_string(), "generate-output".to_string()];
+        let parsed = parse_test_args_from_vec(args);
+        assert!(parsed.generate_output);
+        assert_eq!(parsed.output_path, None);
+    }
+
+    #[test]
+    fn test_parse_generate_output_flag_with_binary() {
         let args = vec![
             "test_binary".to_string(),
             "--".to_string(),
@@ -99,19 +105,6 @@ mod tests {
         let parsed = parse_test_args_from_vec(args);
         assert!(parsed.generate_output);
         assert_eq!(parsed.output_path, None);
-    }
-
-    #[test]
-    fn test_parse_output_path() {
-        let args = vec![
-            "test_binary".to_string(),
-            "--".to_string(),
-            "output-path".to_string(),
-            "/some/path".to_string(),
-        ];
-        let parsed = parse_test_args_from_vec(args);
-        assert!(!parsed.generate_output);
-        assert_eq!(parsed.output_path, Some("/some/path".to_string()));
     }
 
     #[test]
@@ -133,6 +126,31 @@ mod tests {
         let args = vec!["test_binary".to_string()];
         let parsed = parse_test_args_from_vec(args);
         assert!(!parsed.generate_output);
+        assert_eq!(parsed.output_path, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error: output-path cannot be provided without generate-output.")]
+    fn test_output_path_without_generate_output() {
+        let args = vec![
+            "test_binary".to_string(),
+            "--".to_string(),
+            "output-path".to_string(),
+            "/some/path".to_string(),
+        ];
+        parse_test_args_from_vec(args);
+    }
+
+    #[test]
+    fn test_ignore_nocapture_flag() {
+        let args = vec![
+            "test_binary".to_string(),
+            "--".to_string(),
+            "--nocapture".to_string(),
+            "generate-output".to_string(),
+        ];
+        let parsed = parse_test_args_from_vec(args);
+        assert!(parsed.generate_output);
         assert_eq!(parsed.output_path, None);
     }
 }
