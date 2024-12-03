@@ -220,6 +220,7 @@ impl SdkTestContext {
             request_ending_version,
             auth_token: "".to_string(),
             request_name_header: "sdk-testing".to_string(),
+            additional_headers: Default::default(),
             indexer_grpc_http2_ping_interval_secs: 30,
             indexer_grpc_http2_ping_timeout_secs: 10,
             indexer_grpc_reconnection_timeout_secs: 10,

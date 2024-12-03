@@ -1,3 +1,4 @@
+use crate::utils::AdditionalHeaders;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;
@@ -10,6 +11,8 @@ pub struct TransactionStreamConfig {
     pub request_ending_version: Option<u64>,
     pub auth_token: String,
     pub request_name_header: String,
+    #[serde(default)]
+    pub additional_headers: AdditionalHeaders,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_http2_ping_interval")]
     pub indexer_grpc_http2_ping_interval_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_http2_ping_timeout")]
