@@ -1,0 +1,23 @@
+name: Update Proto Dependency
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch name'
+        required: true
+        default: ''
+      commit_hash:
+        description: 'Commit hash'
+        required: true
+        default: ''
+  repository_dispatch:
+    types: [proto-dependency-update]
+jobs:
+  echo-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo branch name
+        run: |
+          echo "Commit hash: ${{ github.event.client_payload.commit_hash }}"
