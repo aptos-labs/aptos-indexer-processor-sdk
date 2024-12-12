@@ -1,0 +1,62 @@
+name: Update Proto Dependency
+
+on:
+  repository_dispatch:
+    types: [proto-dependency-update]
+jobs:
+  update-the-dependency:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install toml
+        run: cargo install toml-cli
+      - name: Update the dependency
+        run: |
+          set -e
+          toml set Cargo.toml workspace.dependencies.aptos-protos.rev ${{ github.event.client_payload.commit_hash }} > Cargo.tmp && mv Cargo.tmp Cargo.toml
+        working-directory: aptos-indexer-processors-sdk/
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Commit and Push Changes
+        run: |
+           set -e
+           branch_name="${{ github.event.client_payload.branch_name }}-update-aptos-protos"
+           git checkout -b "$branch_name"
+           git add Cargo.toml
+           git commit -m "Update aptos-protos to ${{ github.event.client_payload.commit_hash }}"
+           git push origin "$branch_name" --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: aptos-indexer-processors-sdk/
+      - name: Check if PR Already Exists
+        id: check_pr
+        run: |
+          branch_name="${{ github.event.client_payload.branch_name }}-update-aptos-protos"
+          existing_pr=$(gh pr list --base main --head "$branch_name" --json number --jq '.[].number')
+          if [ -n "$existing_pr" ]; then
+            echo "::set-output name=if_pr_exists::true"
+          else
+            echo "::set-output name=if_pr_exists::false"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Pull Request
+        if: steps.check_pr.outputs.if_pr_exists == 'false'
+        run: |
+          branch_name="${{ github.event.client_payload.branch_name }}-update-aptos-protos"
+          gh pr create --title "Update aptos-protos to upstream branch ${{ github.event.client_payload.branch_name }}" \
+                       --body "This PR updates aptos-protos to new version." \
+                       --base main \
+                       --head "$branch_name" \
+                       --label "indexer-sdk-update"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

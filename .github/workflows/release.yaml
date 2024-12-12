@@ -1,0 +1,63 @@
+name: "Create Release Tag"
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Type of release (patch/minor)'
+        required: true
+        type: choice
+        options:
+          - 'release patch'
+          - 'release minor'
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for all tags and branches
+
+      - name: Determine Next Version
+        id: next-version
+        run: |
+          # Get the latest tag that matches our pattern
+          latest_tag=$(git tag -l "aptos-indexer-sdk-v*" | sort -V | tail -n 1)
+          
+          if [ -z "$latest_tag" ]; then
+            # If no existing tag, start with 1.0.0
+            echo "next_tag=aptos-indexer-sdk-v1.0.0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Extract version numbers
+          version=$(echo $latest_tag | sed 's/aptos-indexer-sdk-v//')
+          major=$(echo $version | cut -d. -f1)
+          minor=$(echo $version | cut -d. -f2)
+          patch=$(echo $version | cut -d. -f3)
+          
+          if [ "${{ github.event.inputs.release_type }}" = "release patch" ]; then
+            # Increment patch version
+            new_version="${major}.${minor}.$((patch + 1))"
+          else
+            # Increment minor version, reset patch to 0
+            new_version="${major}.$((minor + 1)).0"
+          fi
+          
+          echo "next_tag=aptos-indexer-sdk-v${new_version}" >> $GITHUB_OUTPUT
+          echo "Current version: ${latest_tag}"
+          echo "Next version will be: aptos-indexer-sdk-v${new_version}"
+
+      - name: Create and Push Tag
+        run: |
+          git tag ${{ steps.next-version.outputs.next_tag }}
+          git push origin ${{ steps.next-version.outputs.next_tag }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.next-version.outputs.next_tag }}
+          name: ${{ steps.next-version.outputs.next_tag }}
+          generate_release_notes: true
