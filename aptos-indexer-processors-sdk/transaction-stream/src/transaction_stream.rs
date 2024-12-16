@@ -1,4 +1,7 @@
-use crate::{config::TransactionStreamConfig, utils::timestamp_to_iso};
+use crate::{
+    config::TransactionStreamConfig,
+    utils::{timestamp_to_iso, AdditionalHeaders},
+};
 use anyhow::{anyhow, Result};
 use aptos_moving_average::MovingAverage;
 use aptos_protos::{
@@ -46,6 +49,7 @@ pub fn grpc_request_builder(
     transactions_count: Option<u64>,
     grpc_auth_token: String,
     request_name_header: String,
+    additional_headers: AdditionalHeaders,
 ) -> tonic::Request<GetTransactionsRequest> {
     let mut request = tonic::Request::new(GetTransactionsRequest {
         starting_version,
@@ -62,6 +66,7 @@ pub fn grpc_request_builder(
         GRPC_REQUEST_NAME_HEADER,
         request_name_header.parse().unwrap(),
     );
+    additional_headers.drain_into_metadata_map(request.metadata_mut());
     request
 }
 
@@ -195,6 +200,7 @@ pub async fn get_stream(
                     count,
                     transaction_stream_config.auth_token.clone(),
                     transaction_stream_config.request_name_header.clone(),
+                    transaction_stream_config.additional_headers.clone(),
                 );
                 rpc_client.get_transactions(request).await
             },

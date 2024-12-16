@@ -4,3 +4,4 @@ pub mod utils;
 
 pub use config::TransactionStreamConfig;
 pub use transaction_stream::{TransactionStream, TransactionsPBResponse};
+pub use utils::AdditionalHeaders;
