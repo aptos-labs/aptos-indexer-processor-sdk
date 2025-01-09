@@ -3,10 +3,36 @@ name: Update Proto Dependency
 on:
   repository_dispatch:
     types: [proto-dependency-update]
+  workflow_dispatch:
+    inputs:
+      commit_hash:
+        description: 'Commit hash to update proto to'
+        required: true
+      branch_name:
+        description: 'Branch name (without -update-aptos-protos suffix)'
+        required: true
+        default: 'main'
+
 jobs:
   update-the-dependency:
     runs-on: ubuntu-latest
     steps:
+      - id: auth
+        uses: "google-github-actions/auth@v2"
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      - name: Fetch the Git Credentials
+        id: secrets
+        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        with:
+          secrets: |-
+            github_credentials:aptos-ci/GIT_CREDENTIALS
+      - name: Setup git credentials
+        shell: bash
+        run: |
+          git config --global credential.helper store
+          echo "${{ steps.secrets.outputs.github_credentials }}" > ~/.git-credentials
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Rust
@@ -16,26 +42,17 @@ jobs:
       - name: Update the dependency
         run: |
           set -e
-          toml set Cargo.toml workspace.dependencies.aptos-protos.rev ${{ github.event.client_payload.commit_hash }} > Cargo.tmp && mv Cargo.tmp Cargo.toml
+          toml set Cargo.toml workspace.dependencies.aptos-protos.rev ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }} > Cargo.tmp && mv Cargo.tmp Cargo.toml
         working-directory: aptos-indexer-processors-sdk/
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
       - name: Commit and Push Changes
         run: |
            set -e
-           branch_name="${{ github.event.client_payload.branch_name }}-update-aptos-protos"
+           branch_name="${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}-update-aptos-protos"
            git checkout -b "$branch_name"
            git add Cargo.toml
-           git commit -m "Update aptos-protos to ${{ github.event.client_payload.commit_hash }}"
+           git commit -m "Update aptos-protos to ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}"
            git push origin "$branch_name" --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: aptos-indexer-processors-sdk/
       - name: Check if PR Already Exists
         id: check_pr
@@ -58,5 +75,3 @@ jobs:
                        --base main \
                        --head "$branch_name" \
                        --label "indexer-sdk-update"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
