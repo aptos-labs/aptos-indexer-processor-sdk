@@ -29,5 +29,24 @@ jobs:
         working-directory: aptos-indexer-processors-sdk
 
       - name: Run Tests
+        id: tests
+        continue-on-error: true  # Allow workflow to continue if tests fail
         run: cargo test
         working-directory: aptos-indexer-processors-sdk
+
+      - name: Notify Eco Infra Oncall about proto update failure
+        if: |
+          steps.tests.outcome == 'failure' && 
+          github.event_name == 'pull_request' && 
+          contains(github.event.pull_request.labels.*.name, 'indexer-sdk-update')
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          # eco-infra-oncall channel.
+          channel-id: 'C0468USBLQJ'
+          slack-message: |
+            :warning: Tests failed on PR with indexer-sdk-update label
+            PR: ${{ github.event.pull_request.html_url }}
+            Author: ${{ github.event.pull_request.user.login }}
+            Title: ${{ github.event.pull_request.title }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

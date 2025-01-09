@@ -1,0 +1,47 @@
+name: Update Processor SDK Version
+'on':
+  pull_request:
+    types: [labeled, opened, synchronize, reopened, auto_merge_enabled]
+    branches:
+      - main
+    paths:
+      # Be conservative and only run this workflow when the Cargo.toml file changes.
+      # Reason: if SDK version is not updated, no change will be picked up by processors.
+      - aptos-indexer-processors-sdk/Cargo.toml
+
+jobs:
+  update-processor-sdk-version:
+    runs-on: ubuntu-latest
+    # Only run on each PR once an appropriate event occurs
+    if: |
+      (
+        github.event_name == 'push' ||
+        contains(github.event.pull_request.labels.*.name, 'indexer-sdk-update')
+      )
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Capture the commit hash
+        id: commit_hash
+        run: |
+          # Echo the commit hash to the output
+          echo "::set-output name=commit_hash::$(echo $GITHUB_SHA)"
+          # Echo the PR branch name to the output
+          echo "::set-output name=branch_name::${{ github.head_ref }}"
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install toml
+        run: cargo install toml-cli
+      - name: Capture aptos-protos commit hash
+        id: aptos_protos_commit_hash
+        run: |
+          cd aptos-indexer-processors-sdk
+          aptos_protos_commit_hash=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev)
+          echo "::set-output name=aptos_protos_commit_hash::${aptos_protos_commit_hash}"
+      - name: Dispatch Event to processors Repo
+        uses: peter-evans/repository-dispatch@v3.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: 'aptos-labs/aptos-indexer-processors'
+          event-type: 'sdk-dependency-update'
+          client-payload: '{"commit_hash": "${{ github.sha }}", "branch_name": "${{ steps.commit_hash.outputs.branch_name }}", "aptos_protos_commit_hash": ${{ steps.aptos_protos_commit_hash.outputs.aptos_protos_commit_hash }}}'
