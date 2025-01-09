@@ -3,10 +3,29 @@ name: Update Proto Dependency
 on:
   repository_dispatch:
     types: [proto-dependency-update]
+
 jobs:
   update-the-dependency:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - id: auth
+        uses: "google-github-actions/auth@v2"
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      - name: Fetch the Git Credentials
+        id: secrets
+        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        with:
+          secrets: |-
+            github_credentials:aptos-ci/GIT_CREDENTIALS
+      - name: Setup git credentials
+        shell: bash
+        run: |
+          git config --global credential.helper store
+          echo "${{ steps.secrets.outputs.github_credentials }}" > ~/.git-credentials
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Rust
@@ -34,8 +53,6 @@ jobs:
            git add Cargo.toml
            git commit -m "Update aptos-protos to ${{ github.event.client_payload.commit_hash }}"
            git push origin "$branch_name" --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: aptos-indexer-processors-sdk/
       - name: Check if PR Already Exists
         id: check_pr
@@ -47,8 +64,6 @@ jobs:
           else
             echo "::set-output name=if_pr_exists::false"
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create Pull Request
         if: steps.check_pr.outputs.if_pr_exists == 'false'
         run: |
@@ -58,5 +73,3 @@ jobs:
                        --base main \
                        --head "$branch_name" \
                        --label "indexer-sdk-update"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
