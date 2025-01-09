@@ -13,6 +13,11 @@ on:
         required: true
         default: 'main'
 
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
 jobs:
   update-the-dependency:
     runs-on: ubuntu-latest
@@ -22,23 +27,26 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
-      - name: Fetch the Git Credentials
+      - name: Get Secret Manager Secrets
         id: secrets
         uses: 'google-github-actions/get-secretmanager-secrets@v2'
         with:
           secrets: |-
-            github_credentials:aptos-ci/GIT_CREDENTIALS
-      - name: Setup git credentials
-        shell: bash
+            token:aptos-ci/github-actions-repository-dispatch
+      - name: Configure Git user
         run: |
-          git config --global credential.helper store
-          echo "${{ steps.secrets.outputs.github_credentials }}" > ~/.git-credentials
+          git config --global user.name "Aptos Bot"
+          git config --global user.email "aptos-bot@aptoslabs.com"
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ steps.secrets.outputs.token }}
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+
       - name: Install toml
         run: cargo install toml-cli
+      
       - name: Update the dependency
         run: |
           set -e
@@ -53,7 +61,10 @@ jobs:
            git add Cargo.toml
            git commit -m "Update aptos-protos to ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}"
            git push origin "$branch_name" --force
+        env:
+          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         working-directory: aptos-indexer-processors-sdk/
+        
       - name: Check if PR Already Exists
         id: check_pr
         run: |
@@ -65,7 +76,7 @@ jobs:
             echo "::set-output name=if_pr_exists::false"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
       - name: Create Pull Request
         if: steps.check_pr.outputs.if_pr_exists == 'false'
         run: |
@@ -75,3 +86,5 @@ jobs:
                        --base main \
                        --head "$branch_name" \
                        --label "indexer-sdk-update"
+        env:
+          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
