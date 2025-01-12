@@ -48,9 +48,10 @@ where
     C: RunnableConfig,
 {
     let health_port = config.health_check_port;
+    let additional_labels = config.metrics_config.additional_labels.clone();
     // Start liveness and readiness probes.
     let task_handler = handle.spawn(async move {
-        register_probes_and_metrics_handler(health_port).await;
+        register_probes_and_metrics_handler(health_port, additional_labels).await;
         anyhow::Ok(())
     });
     let main_task_handler = handle.spawn(async move { config.run().await });
@@ -69,8 +70,17 @@ pub struct GenericConfig<T> {
     // Shared configuration among all services.
     pub health_check_port: u16,
 
+    #[serde(default)]
+    pub metrics_config: MetricsConfig,
+
     // Specific configuration for each service.
     pub server_config: T,
+}
+
+#[derive(Clone, Deserialize, Debug, Default, Serialize)]
+pub struct MetricsConfig {
+    /// Additional labels to use for metrics.
+    pub additional_labels: Vec<(String, String)>,
 }
 
 #[async_trait::async_trait]
@@ -158,8 +168,15 @@ pub fn setup_logging() {
 }
 
 /// Register readiness and liveness probes and set up metrics endpoint.
-pub async fn register_probes_and_metrics_handler(port: u16) {
-    let mut registry = <Registry>::default();
+pub async fn register_probes_and_metrics_handler(
+    port: u16,
+    additional_labels: Vec<(String, String)>,
+) {
+    let mut registry = Registry::with_labels(
+        additional_labels
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into())),
+    );
     init_step_metrics_registry(&mut registry);
     init_channel_metrics_registry(&mut registry);
     AutometricsSettings::builder()
