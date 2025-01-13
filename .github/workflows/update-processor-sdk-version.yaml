@@ -9,6 +9,10 @@ name: Update Processor SDK Version
       # Reason: if SDK version is not updated, no change will be picked up by processors.
       - aptos-indexer-processors-sdk/Cargo.toml
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   update-processor-sdk-version:
     runs-on: ubuntu-latest
