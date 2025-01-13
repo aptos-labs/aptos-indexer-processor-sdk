@@ -22,6 +22,7 @@ pub struct WriteRateLimitConfig {
     pub num_seconds: u64,
 }
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// This step limits the number of bytes that can be written to the DB per second, based
 /// on a config specifying the number of bytes that can be written in a given number of
 /// seconds. See `WriteRateLimitConfig` for more.
@@ -145,6 +146,7 @@ impl<Input: Send + Sizeable + 'static> NamedStep for WriteRateLimitStep<Input> {
     }
 }
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// To use an item with `WriteRateLimitStep`, it must implement `Sizeable`. The intent
 /// of `WriteRateLimitStep` is to put an upper bound on the write load on the DB, so the
 /// implementation of this trait should reflect the size of the data in terms of what it

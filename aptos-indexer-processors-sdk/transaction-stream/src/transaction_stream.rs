@@ -391,10 +391,9 @@ impl TransactionStream {
                         self.reconnection_retries = 0;
                         let start_version = r.transactions.as_slice().first().unwrap().version;
                         let start_txn_timestamp =
-                            r.transactions.as_slice().first().unwrap().timestamp.clone();
+                            r.transactions.as_slice().first().unwrap().timestamp;
                         let end_version = r.transactions.as_slice().last().unwrap().version;
-                        let end_txn_timestamp =
-                            r.transactions.as_slice().last().unwrap().timestamp.clone();
+                        let end_txn_timestamp = r.transactions.as_slice().last().unwrap().timestamp;
 
                         let size_in_bytes = r.encoded_len() as u64;
                         let chain_id: u64 = r

@@ -13,7 +13,7 @@ pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::DateTime<chrono:
             nanos: 0,
         }
     } else {
-        ts.clone()
+        *ts
     };
     chrono::DateTime::from_timestamp(final_ts.seconds, final_ts.nanos as u32)
         .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))

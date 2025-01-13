@@ -31,7 +31,7 @@ testing-framework = { path = "testing-framework" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"
-aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "5c48aee129b5a141be2792ffa3d9bd0a1a61c9cb" }
+aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "6116af69aa173ca49e1761daabd6fe103fe2c65e" }
 aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "4541add3fd29826ec57f22658ca286d2d6134b93" }
 async-trait = "0.1.80"
 autometrics = { version = "1.0.1", features = ["prometheus-exporter"] }
@@ -78,7 +78,7 @@ once_cell = { version = "1.19.0" }
 petgraph = "0.6.5"
 prometheus = "0.13.3"
 prometheus-client = "0.22.2"
-prost = { version = "0.12.3", features = ["no-recursion-limit"] }
+prost = { version = "0.13.4", features = ["no-recursion-limit"] }
 rayon = "1.10.0"
 serde = { version = "1.0.193", features = ["derive", "rc"] }
 serde_json = { version = "1.0.81", features = ["preserve_order"] }
@@ -93,7 +93,7 @@ tracing = "0.1.34"
 tokio = { version = "1.37.0", features = ["full"] }
 tokio-retry = { version = "0.3.0" }
 toml = "0.7.4"
-tonic = { version = "0.11.0", features = [
+tonic = { version = "0.12.3", features = [
     "tls",
     "tls-roots",
     "transport",

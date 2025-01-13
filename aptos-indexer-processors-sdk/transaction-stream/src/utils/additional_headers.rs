@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, str::FromStr};
 use tonic::metadata::{Ascii, MetadataKey, MetadataMap, MetadataValue};
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// This struct holds additional headers that we attach to the request metadata.
 /// Regarding serde, we just serialize this as we would a HashMap<String, String>.
 /// Similarly, we expect that format when deserializing.
