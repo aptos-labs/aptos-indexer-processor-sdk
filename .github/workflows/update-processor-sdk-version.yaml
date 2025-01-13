@@ -19,8 +19,21 @@ jobs:
         contains(github.event.pull_request.labels.*.name, 'indexer-sdk-update')
       )
     steps:
+      - id: auth
+        uses: "google-github-actions/auth@v2"
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      - name: Get Secret Manager Secrets
+        id: secrets
+        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        with:
+          secrets: |-
+            token:aptos-ci/github-actions-repository-dispatch
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ steps.secrets.outputs.token }}
       - name: Capture the commit hash
         id: commit_hash
         run: |
@@ -41,7 +54,7 @@ jobs:
       - name: Dispatch Event to processors Repo
         uses: peter-evans/repository-dispatch@v3.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.secrets.outputs.token }}
           repository: 'aptos-labs/aptos-indexer-processors'
           event-type: 'sdk-dependency-update'
           client-payload: '{"commit_hash": "${{ github.sha }}", "branch_name": "${{ steps.commit_hash.outputs.branch_name }}", "aptos_protos_commit_hash": ${{ steps.aptos_protos_commit_hash.outputs.aptos_protos_commit_hash }}}'
