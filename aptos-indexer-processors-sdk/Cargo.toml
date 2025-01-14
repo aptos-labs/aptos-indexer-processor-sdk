@@ -31,7 +31,7 @@ testing-framework = { path = "testing-framework" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"
-aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "6116af69aa173ca49e1761daabd6fe103fe2c65e" }
+aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "7ba17eac8a2a7e0c6829adf2429569c7b0768c49" }
 aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "4541add3fd29826ec57f22658ca286d2d6134b93" }
 async-trait = "0.1.80"
 autometrics = { version = "1.0.1", features = ["prometheus-exporter"] }
