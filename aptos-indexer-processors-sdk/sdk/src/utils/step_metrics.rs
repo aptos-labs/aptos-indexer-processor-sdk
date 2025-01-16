@@ -108,6 +108,12 @@ pub fn init_step_metrics_registry(registry: &mut Registry) {
         "WriteRateLimitStep remaining bytes (aka tokens) that can be written this instant",
         WRITE_RATE_LIMIT_STEP_REMAINING_BYTES.clone(),
     );
+
+    registry.register(
+        format!("{}_{}", METRICS_PREFIX, "write_rate_limit_bytes_written"),
+        "WriteRateLimitStep bytes written",
+        WRITE_RATE_LIMIT_STEP_BYTES_WRITTEN.clone(),
+    );
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -164,6 +170,9 @@ pub static POLLING_ERROR_COUNT: Lazy<Family<StepMetricLabels, Counter>> =
 // WriteRateLimitStep metrics
 pub static WRITE_RATE_LIMIT_STEP_REMAINING_BYTES: Lazy<Family<StepMetricLabels, Gauge>> =
     Lazy::new(Family::<StepMetricLabels, Gauge>::default);
+
+pub static WRITE_RATE_LIMIT_STEP_BYTES_WRITTEN: Lazy<Family<StepMetricLabels, Counter>> =
+    Lazy::new(Family::<StepMetricLabels, Counter>::default);
 
 #[derive(Builder)]
 pub struct StepMetrics {
