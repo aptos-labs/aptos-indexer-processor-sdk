@@ -3,7 +3,10 @@ use crate::{
     types::transaction_context::TransactionContext,
     utils::{
         errors::ProcessorError,
-        step_metrics::{StepMetricLabels, WRITE_RATE_LIMIT_STEP_REMAINING_BYTES},
+        step_metrics::{
+            StepMetricLabels, WRITE_RATE_LIMIT_STEP_BYTES_WRITTEN,
+            WRITE_RATE_LIMIT_STEP_REMAINING_BYTES,
+        },
     },
 };
 use serde::{Deserialize, Serialize};
@@ -133,6 +136,13 @@ where
                 step_name: self.name(),
             })
             .set(self.current_bucket_size as i64);
+
+        // Bump the inverse metric, which is just the bytes written as a counter.
+        WRITE_RATE_LIMIT_STEP_BYTES_WRITTEN
+            .get_or_create(&StepMetricLabels {
+                step_name: self.name(),
+            })
+            .inc_by(size_of_item as u64);
 
         Ok(out)
     }
