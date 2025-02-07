@@ -34,8 +34,8 @@ pub fn parse_test_args() -> TestArgs {
     // Collect custom arguments based on determined start position
     let custom_args: Vec<String> = raw_args[custom_args_start..].to_vec();
 
-    // Manually parse the "generate-output" flag
-    let generate_output_flag = custom_args.contains(&"generate-output".to_string());
+    // Manually parse the "generate" flag
+    let generate_flag = custom_args.contains(&"generate".to_string());
 
     // Manually parse the "--output-path" flag and get its associated value
     let output_path = custom_args
@@ -43,14 +43,14 @@ pub fn parse_test_args() -> TestArgs {
         .find(|args| args[0] == "output-path")
         .map(|args| args[1].clone());
 
-    println!("Parsed generate_output_flag: {}", generate_output_flag);
+    println!("Parsed generate flag: {}", generate_flag);
     println!(
         "Parsed output_path: {}",
         output_path.clone().unwrap_or_else(|| "None".to_string())
     );
 
     TestArgs {
-        generate_output: generate_output_flag,
+        generate_output: generate_flag,
         output_path,
     }
 }
@@ -68,8 +68,8 @@ mod tests {
             None => Vec::new(), // If no `--` is found, treat as no custom args
         };
 
-        // Manually parse the "--generate-output" flag
-        let generate_output_flag = custom_args.contains(&"generate-output".to_string());
+        // Manually parse the "--generate" flag
+        let generate_output_flag = custom_args.contains(&"generate".to_string());
 
         // Manually parse the "--output-path" flag and get its associated value
         let output_path = custom_args
@@ -94,7 +94,7 @@ mod tests {
         let args = vec![
             "test_binary".to_string(),
             "--".to_string(),
-            "generate-output".to_string(),
+            "generate".to_string(),
         ];
         let parsed = parse_test_args_from_vec(args);
         assert!(parsed.generate_output);
@@ -119,7 +119,7 @@ mod tests {
         let args = vec![
             "test_binary".to_string(),
             "--".to_string(),
-            "generate-output".to_string(),
+            "generate".to_string(),
             "output-path".to_string(),
             "/some/other/path".to_string(),
         ];
