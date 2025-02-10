@@ -16,9 +16,6 @@ anyhow = { workspace = true }
 aptos-indexer-processor-sdk = { workspace = true }
 aptos-protos = { workspace = true }
 async-trait = { workspace = true }
-diesel = { workspace = true }
-diesel-async = { workspace = true }
-diesel_migrations = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 lazy_static = { workspace = true }
@@ -38,9 +35,3 @@ tokio-stream = { workspace = true }
 tonic = { workspace = true }
 url = { workspace = true }
 
-[features]
-libpq = ["diesel/postgres"]
-# When using the default features we enable the diesel/postgres feature. We configure
-# it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
-# Recall that features should always be additive.
-default = ["libpq"]
