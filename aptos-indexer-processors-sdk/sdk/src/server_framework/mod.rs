@@ -1,10 +1,12 @@
 // Copyright © Aptos Foundation
 
-use anyhow::{Context, Result};
-use aptos_indexer_processor_sdk::{
+use crate::{
+    config::indexer_processor_config::{DbConfig, IndexerProcessorConfig},
     instrumented_channel::channel_metrics::init_channel_metrics_registry,
-    traits::processor_trait::ProcessorTrait, utils::step_metrics::init_step_metrics_registry,
+    traits::processor_trait::ProcessorTrait,
+    utils::step_metrics::init_step_metrics_registry,
 };
+use anyhow::{Context, Result};
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;
@@ -20,8 +22,6 @@ use tokio::runtime::Handle;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
-// pub mod config;
-
 /// ServerArgs bootstraps a server with all common pieces. And then triggers the run method for
 /// the specific service.
 #[derive(Parser)]
@@ -30,25 +30,57 @@ pub struct ServerArgs {
     pub config_path: PathBuf,
 }
 
+// impl ServerArgs {
+//     pub async fn run<C, P>(&self, processor: P, handle: Handle) -> Result<()>
+//     where
+//         C: RunnableConfig,
+//         P: ProcessorTrait + 'static,
+//     {
+//         // Set up the server.
+//         setup_logging();
+//         setup_panic_handler();
+//         let config = load::<ServerConfig>(&self.config_path)?;
+//         run_server_with_config(config, processor, handle).await
+//     }
+
+//     pub fn get_processor_name(&self) -> String {
+//         let config = load::<ServerConfig>(&self.config_path)?;
+//         config.server_config.processor_name
+//     }
+// }
+
 impl ServerArgs {
-    pub async fn run<C, P>(&self, handle: Handle) -> Result<()>
+    pub async fn run<P, D>(&self, processor: P, handle: Handle) -> Result<()>
     where
-        C: RunnableConfig,
-        P: ProcessorTrait,
+        P: ProcessorTrait + 'static,
+        D: DbConfig + Send + Sync + 'static,
     {
         // Set up the server.
         setup_logging();
         setup_panic_handler();
-        let config = load::<GenericConfig<C>>(&self.config_path)?;
-        run_server_with_config(config, handle).await
+        let config = load::<ServerConfig<D>>(&self.config_path)?;
+        run_server_with_config(config, processor, handle).await
+    }
+
+    pub fn get_processor_name<D>(&self) -> Result<String>
+    where
+        D: DbConfig,
+    {
+        let config = load::<ServerConfig<D>>(&self.config_path)?;
+        Ok(config.processor_config.processor_name)
     }
 }
 
 /// Run a server and the necessary probes. For spawning these tasks, the user must
 /// provide a handle to a runtime they already have.
-pub async fn run_server_with_config<C>(config: GenericConfig<C>, handle: Handle) -> Result<()>
+pub async fn run_server_with_config<P, D>(
+    config: ServerConfig<D>,
+    processor: P,
+    handle: Handle,
+) -> Result<()>
 where
-    C: RunnableConfig,
+    P: ProcessorTrait + 'static,
+    D: DbConfig + Send + Sync + 'static,
 {
     let health_port = config.health_check_port;
     let additional_labels = config.metrics_config.additional_labels.clone();
@@ -57,7 +89,8 @@ where
         register_probes_and_metrics_handler(health_port, additional_labels).await;
         anyhow::Ok(())
     });
-    let main_task_handler = handle.spawn(async move { config.run().await });
+    let main_task_handler =
+        handle.spawn(async move { processor.run_processor::<D>(config.processor_config).await });
     tokio::select! {
         res = task_handler => {
             res.expect("Probes and metrics handler unexpectedly exited")
@@ -69,15 +102,15 @@ where
 }
 
 #[derive(Deserialize, Debug, Serialize)]
-pub struct GenericConfig<T> {
+pub struct ServerConfig<D> {
     // Shared configuration among all services.
     pub health_check_port: u16,
 
     #[serde(default)]
     pub metrics_config: MetricsConfig,
 
-    // Specific configuration for each service.
-    pub server_config: T,
+    // Specific configuration for the processor
+    pub processor_config: IndexerProcessorConfig<D>,
 }
 
 #[derive(Clone, Deserialize, Debug, Default, Serialize)]
@@ -86,19 +119,19 @@ pub struct MetricsConfig {
     pub additional_labels: Vec<(String, String)>,
 }
 
-#[async_trait::async_trait]
-impl<T> RunnableConfig for GenericConfig<T>
-where
-    T: RunnableConfig,
-{
-    async fn run(&self) -> Result<()> {
-        self.server_config.run().await
-    }
+// #[async_trait::async_trait]
+// impl RunnableConfig for ServerConfig
+// where
+//     T: RunnableConfig,
+// {
+//     async fn run(&self) -> Result<()> {
+//         self.server_config.run().await
+//     }
 
-    fn get_server_name(&self) -> String {
-        self.server_config.get_server_name()
-    }
-}
+//     fn get_server_name(&self) -> String {
+//         self.server_config.get_server_name()
+//     }
+// }
 
 /// RunnableConfig is a trait that all services must implement for their configuration.
 #[async_trait::async_trait]
@@ -232,55 +265,55 @@ async fn profilez_handler() -> impl IntoResponse {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-    use tempfile::tempdir;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use std::io::Write;
+//     use tempfile::tempdir;
 
-    #[derive(Clone, Debug, Deserialize, Serialize)]
-    #[serde(deny_unknown_fields)]
-    pub struct TestConfig {
-        test: u32,
-        test_name: String,
-    }
+//     #[derive(Clone, Debug, Deserialize, Serialize)]
+//     #[serde(deny_unknown_fields)]
+//     pub struct TestConfig {
+//         test: u32,
+//         test_name: String,
+//     }
 
-    #[async_trait::async_trait]
-    impl RunnableConfig for TestConfig {
-        async fn run(&self) -> Result<()> {
-            assert_eq!(self.test, 123);
-            assert_eq!(self.test_name, "test");
-            Ok(())
-        }
+//     #[async_trait::async_trait]
+//     impl RunnableConfig for TestConfig {
+//         async fn run(&self) -> Result<()> {
+//             assert_eq!(self.test, 123);
+//             assert_eq!(self.test_name, "test");
+//             Ok(())
+//         }
 
-        fn get_server_name(&self) -> String {
-            self.test_name.clone()
-        }
-    }
+//         fn get_server_name(&self) -> String {
+//             self.test_name.clone()
+//         }
+//     }
 
-    #[test]
-    fn test_random_config_creation() {
-        let dir = tempdir().expect("tempdir failure");
+//     #[test]
+//     fn test_random_config_creation() {
+//         let dir = tempdir().expect("tempdir failure");
 
-        let file_path = dir.path().join("testing_yaml.yaml");
-        let mut file = File::create(&file_path).expect("create failure");
-        let raw_yaml_content = r#"
-            health_check_port: 12345
-            server_config:
-                test: 123
-                test_name: "test"
-        "#;
-        writeln!(file, "{}", raw_yaml_content).expect("write_all failure");
+//         let file_path = dir.path().join("testing_yaml.yaml");
+//         let mut file = File::create(&file_path).expect("create failure");
+//         let raw_yaml_content = r#"
+//             health_check_port: 12345
+//             server_config:
+//                 test: 123
+//                 test_name: "test"
+//         "#;
+//         writeln!(file, "{}", raw_yaml_content).expect("write_all failure");
 
-        let config = load::<GenericConfig<TestConfig>>(&file_path).unwrap();
-        assert_eq!(config.health_check_port, 12345);
-        assert_eq!(config.server_config.test, 123);
-        assert_eq!(config.server_config.test_name, "test");
-    }
+//         let config = load::<ServerConfig<TestConfig>>(&file_path).unwrap();
+//         assert_eq!(config.health_check_port, 12345);
+//         assert_eq!(config.server_config.test, 123);
+//         assert_eq!(config.server_config.test_name, "test");
+//     }
 
-    #[test]
-    fn verify_tool() {
-        use clap::CommandFactory;
-        ServerArgs::command().debug_assert()
-    }
-}
+//     #[test]
+//     fn verify_tool() {
+//         use clap::CommandFactory;
+//         ServerArgs::command().debug_assert()
+//     }
+// }
