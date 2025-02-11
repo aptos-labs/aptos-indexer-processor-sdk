@@ -2,6 +2,7 @@ use crate::mock_grpc::MockGrpcServer;
 use anyhow::Context;
 use aptos_indexer_processor_sdk::{
     aptos_indexer_transaction_stream::TransactionStreamConfig,
+    config::indexer_processor_config::{DbConfig, IndexerProcessorConfig},
     traits::processor_trait::ProcessorTrait,
 };
 use aptos_protos::{indexer::v1::TransactionsResponse, transaction::v1::Transaction};
@@ -107,9 +108,10 @@ impl SdkTestContext {
     }
 
     /// Run the processor and pass user-defined validation logic
-    pub async fn run<F>(
+    pub async fn run<F, D>(
         &mut self,
         processor: &impl ProcessorTrait,
+        config: IndexerProcessorConfig<D>,
         generate_files: bool,             // flag to control file generation
         output_path: String,              // output path
         custom_file_name: Option<String>, // custom file name when testing multiple txns
@@ -117,13 +119,14 @@ impl SdkTestContext {
     ) -> anyhow::Result<HashMap<String, Value>>
     where
         F: FnOnce() -> anyhow::Result<HashMap<String, Value>> + Send + Sync + 'static, // Modified for multi-table verification
+        D: DbConfig,
     {
         let retry_strategy = ExponentialBackoff::from_millis(100).map(jitter).take(5); // Retry up to 5 times
 
         let timeout_duration = TokioDuration::from_secs(10); // e.g., 5 seconds timeout for each retry
         let result = Retry::spawn(retry_strategy, || async {
             // Wrap processor call with a timeout
-            match timeout(timeout_duration, processor.run_processor()).await {
+            match timeout(timeout_duration, processor.run_processor(config.clone())).await {
                 Ok(result) => result.context("Processor run failed"),
                 Err(_) => Err(anyhow::anyhow!("Processor run timed out")),
             }

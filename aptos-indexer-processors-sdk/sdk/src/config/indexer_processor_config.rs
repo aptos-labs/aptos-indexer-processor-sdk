@@ -1,8 +1,10 @@
 // Copyright © Aptos Foundation
 // SPDX-License-Identifier: Apache-2.0
 
+use super::processor_status_saver::BackfillStatus;
 use crate::{
-    aptos_indexer_transaction_stream::TransactionStreamConfig, common_steps::ProcessorStatusSaver,
+    aptos_indexer_transaction_stream::TransactionStreamConfig,
+    config::processor_status_saver::ProcessorStatusSaver,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -24,7 +26,7 @@ pub enum ProcessorMode {
     Testing,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexerProcessorConfig<D> {
     pub processor_name: String,
@@ -40,43 +42,115 @@ pub struct IndexerProcessorConfig<D> {
 impl<D> IndexerProcessorConfig<D>
 where
     Self: Send + Sync + 'static,
-    D: DbConfig + Send + Sync + Clone + 'static,
+    D: DbConfig + DeserializeOwned + Send + Sync + Clone + 'static,
 {
-    fn validate(&self) -> Result<(), String> {
-        match self.mode {
-            ProcessorMode::Testing => {
-                if self.testing_config.is_none() {
-                    return Err("testing_config must be present when mode is 'testing'".to_string());
-                }
-            },
-            ProcessorMode::Backfill => {
-                if self.backfill_config.is_none() {
-                    return Err(
-                        "backfill_config must be present when mode is 'backfill'".to_string()
-                    );
-                }
-            },
-            ProcessorMode::Default => {},
-        }
-        Ok(())
-    }
+    // pub fn validate(&self) -> Result<(), String> {
+    //     match self.mode {
+    //         ProcessorMode::Testing => {
+    //             if self.testing_config.is_none() {
+    //                 return Err("testing_config must be present when mode is 'testing'".to_string());
+    //             }
+    //         },
+    //         ProcessorMode::Backfill => {
+    //             if self.backfill_config.is_none() {
+    //                 return Err(
+    //                     "backfill_config must be present when mode is 'backfill'".to_string()
+    //                 );
+    //             }
+    //         },
+    //         ProcessorMode::Default => {},
+    //     }
+    //     Ok(())
+    // }
 
     pub async fn get_starting_version(&self) -> Result<u64> {
-        // Check if there's a checkpoint in the approrpiate processor status table.
-        let db_config = self.db_config.clone();
-        let _latest_processed_version_from_db = db_config
-            .into_runnable_config()
-            .await
-            .context("Failed to initialize DB config")?
-            .get_latest_processed_version(&self.processor_name)
-            .await
-            .context("Failed to get latest processed version from DB")?;
+        match self.mode {
+            ProcessorMode::Testing => {
+                let testing_config = self
+                    .testing_config
+                    .clone()
+                    .context("testing_config must be present when mode is 'testing'")?;
+                Ok(testing_config.override_starting_version)
+            },
+            ProcessorMode::Default => {
+                // Check if there's a checkpoint in the approrpiate processor status table.
+                let processor_status = self
+                    .db_config
+                    .clone()
+                    .into_runnable_config()
+                    .await
+                    .context("Failed to initialize DB config")?
+                    .get_processor_status(&self.processor_name)
+                    .await
+                    .context("Failed to get latest processed version from DB")?;
 
-        // If nothing checkpointed, return the `starting_version` from the config, or 0 if not set.
-        // Ok(latest_processed_version_from_db
-        //     .unwrap_or(self.transaction_stream_config.starting_version.unwrap_or(0)))
-        Ok(0)
+                let default_starting_version = self
+                    .bootstrap_config
+                    .clone()
+                    .map_or(0, |config| config.initial_starting_version);
+
+                Ok(processor_status.map_or(default_starting_version, |status| {
+                    std::cmp::max(status.last_success_version as u64, default_starting_version)
+                }))
+            },
+            ProcessorMode::Backfill => {
+                let backfill_config = self
+                    .backfill_config
+                    .clone()
+                    .context("backfill_config must be present when mode is 'backfill'")?;
+                let backfill_status_option = self
+                    .db_config
+                    .clone()
+                    .into_runnable_config()
+                    .await
+                    .context("Failed to initialize DB config")?
+                    .get_backfill_processor_status(&backfill_config.backfill_id)
+                    .await
+                    .context("Failed to query backfill_processor_status table.")?;
+
+                // Return None if there is no checkpoint, if the backfill is old (complete), or if overwrite_checkpoint is true.
+                // Otherwise, return the checkpointed version + 1.
+                if let Some(status) = backfill_status_option {
+                    // If the backfill is complete and overwrite_checkpoint is false, return the ending_version to end the backfill.
+                    if status.backfill_status == BackfillStatus::Complete
+                        && !backfill_config.overwrite_checkpoint
+                    {
+                        return Ok(backfill_config.ending_version);
+                    }
+                    // If status is Complete or overwrite_checkpoint is true, this is the start of a new backfill job.
+                    if backfill_config.overwrite_checkpoint {
+                        return Ok(backfill_config.initial_starting_version);
+                    }
+
+                    // `backfill_config.initial_starting_version` is NOT respected.
+                    // Return the last success version + 1.
+                    let starting_version = status.last_success_version as u64 + 1;
+                    log_ascii_warning(starting_version);
+                    Ok(starting_version)
+                } else {
+                    Ok(backfill_config.initial_starting_version)
+                }
+            },
+        }
     }
+}
+
+fn log_ascii_warning(version: u64) {
+    println!(
+        r#"
+ ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗██╗███╗   ██╗ ██████╗ ██╗
+ ██║    ██║██╔══██╗██╔══██╗████╗  ██║██║████╗  ██║██╔════╝ ██║
+ ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║██║██╔██╗ ██║██║  ███╗██║
+ ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║██║██║╚██╗██║██║   ██║╚═╝
+ ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║██║██║ ╚████║╚██████╔╝██╗
+  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝
+                                                               
+=================================================================
+   This backfill job is resuming progress at version {}
+=================================================================
+"#,
+        version
+    );
 }
 
 // Note: You'll need to create a concrete implementation of this trait
