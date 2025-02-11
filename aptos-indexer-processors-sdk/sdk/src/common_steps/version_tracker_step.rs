@@ -18,7 +18,10 @@ pub trait ProcessorStatusSaver {
     async fn save_processor_status(
         &self,
         last_success_batch: &TransactionContext<()>,
+        processor_name: &str,
     ) -> Result<(), ProcessorError>;
+
+    async fn get_latest_processed_version(&self, processor_name: &str) -> Result<Option<u64>>;
 }
 
 /// Tracks the versioned processing of sequential transactions, ensuring no gaps
@@ -36,6 +39,7 @@ where
     last_success_batch: Option<TransactionContext<()>>,
     polling_interval_secs: u64,
     processor_status_saver: S,
+    processor_name: String,
     _marker: PhantomData<T>,
 }
 
@@ -45,11 +49,16 @@ where
     T: Send + 'static,
     S: ProcessorStatusSaver + Send + 'static,
 {
-    pub fn new(processor_status_saver: S, polling_interval_secs: u64) -> Self {
+    pub fn new(
+        processor_status_saver: S,
+        polling_interval_secs: u64,
+        processor_name: &str,
+    ) -> Self {
         Self {
             last_success_batch: None,
             processor_status_saver,
             polling_interval_secs,
+            processor_name: processor_name.to_string(),
             _marker: PhantomData,
         }
     }
@@ -57,7 +66,7 @@ where
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
             self.processor_status_saver
-                .save_processor_status(last_success_batch)
+                .save_processor_status(last_success_batch, &self.processor_name)
                 .await
         } else {
             Ok(())
