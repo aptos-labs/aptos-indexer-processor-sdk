@@ -1,4 +1,5 @@
 use crate::{
+    config::indexer_processor_config::{DbConfig, IndexerProcessorConfig},
     traits::{NamedStep, PollableAsyncRunType, PollableAsyncStep, Processable},
     types::transaction_context::{TransactionContext, TransactionMetadata},
     utils::errors::ProcessorError,
@@ -10,28 +11,37 @@ use aptos_indexer_transaction_stream::{
 use aptos_protos::transaction::v1::Transaction;
 use async_trait::async_trait;
 use mockall::mock;
-use std::time::Duration;
+use std::{marker::PhantomData, time::Duration};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 // TransactionStreamStep is establishes a gRPC connection with Transaction Stream
 // fetches transactions, and outputs them for processing. It also handles reconnections with retries.
 // This is usually the initial step in a processor.
-pub struct TransactionStreamStep
-where
-    Self: Sized + Send + 'static,
-{
+pub struct TransactionStreamStep<D> {
     transaction_stream_config: TransactionStreamConfig,
     pub transaction_stream: Mutex<TransactionStreamInternal>,
+    phantom: PhantomData<D>,
 }
 
-impl TransactionStreamStep
+impl<D> TransactionStreamStep<D>
 where
     Self: Sized + Send + 'static,
+    D: DbConfig,
 {
     pub async fn new(
-        transaction_stream_config: TransactionStreamConfig,
+        indexer_processor_config: IndexerProcessorConfig<D>,
     ) -> Result<Self, ProcessorError> {
+        let starting_version = indexer_processor_config
+            .get_starting_version()
+            .await
+            .map_err(|e| ProcessorError::StepInitError {
+                message: format!("Error getting starting version: {:?}", e),
+            })?;
+        let transaction_stream_config = TransactionStreamConfig {
+            starting_version: Some(starting_version),
+            ..indexer_processor_config.transaction_stream_config
+        };
         let transaction_stream_res =
             TransactionStreamInternal::new(transaction_stream_config.clone()).await;
         match transaction_stream_res {
@@ -41,15 +51,17 @@ where
             Ok(transaction_stream) => Ok(Self {
                 transaction_stream: Mutex::new(transaction_stream),
                 transaction_stream_config,
+                phantom: PhantomData,
             }),
         }
     }
 }
 
 #[async_trait]
-impl Processable for TransactionStreamStep
+impl<D> Processable for TransactionStreamStep<D>
 where
     Self: Sized + Send + 'static,
+    D: DbConfig,
 {
     type Input = ();
     // The TransactionStreamStep will output a batch of transactions for processing
@@ -65,9 +77,10 @@ where
 }
 
 #[async_trait]
-impl PollableAsyncStep for TransactionStreamStep
+impl<D> PollableAsyncStep for TransactionStreamStep<D>
 where
     Self: Sized + Send + Sync + 'static,
+    D: DbConfig,
 {
     fn poll_interval(&self) -> std::time::Duration {
         Duration::from_secs(0)
@@ -148,7 +161,10 @@ where
     }
 }
 
-impl NamedStep for TransactionStreamStep {
+impl<D> NamedStep for TransactionStreamStep<D>
+where
+    D: DbConfig,
+{
     fn name(&self) -> String {
         "TransactionStreamStep".to_string()
     }
