@@ -7,9 +7,11 @@ use crate::{
     config::processor_status_saver::ProcessorStatusSaver,
 };
 use anyhow::{Context, Result};
+use aptos_indexer_transaction_stream::TransactionStream;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::any::Any;
+use tracing::info;
 
 pub const QUERY_DEFAULT_RETRIES: u32 = 5;
 pub const QUERY_DEFAULT_RETRY_DELAY_MS: u64 = 500;
@@ -63,6 +65,16 @@ where
     //     Ok(())
     // }
 
+    /// Get the appropriate starting version for the processor.
+    ///
+    /// If it is a regular processor, this will return the higher of the checkpointed version,
+    /// or `staring_version` from the config, or 0 if not set.
+    ///
+    /// If this is a backfill processor and threre is an in-progress backfill, this will return
+    /// the checkpointed version + 1.
+    ///
+    /// If this is a backfill processor and there is not an in-progress backfill (i.e., no checkpoint or
+    /// backfill status is COMPLETE), this will return `starting_version` from the config, or 0 if not set.
     pub async fn get_starting_version(&self) -> Result<u64> {
         match self.mode {
             ProcessorMode::Testing => {
@@ -130,6 +142,40 @@ where
                 } else {
                     Ok(backfill_config.initial_starting_version)
                 }
+            },
+        }
+    }
+
+    pub async fn check_or_update_chain_id(&self) -> Result<()> {
+        info!("Checking if chain id is correct");
+
+        let transaction_stream =
+            TransactionStream::new(self.transaction_stream_config.clone()).await?;
+        let grpc_chain_id = transaction_stream.get_chain_id().await?;
+
+        let runnable_db_config = self
+            .db_config
+            .clone()
+            .into_runnable_config()
+            .await
+            .context("Failed to initialize DB config")?;
+        let maybe_existing_chain_id = runnable_db_config.get_chain_id().await?;
+        match maybe_existing_chain_id {
+            Some(chain_id) => {
+                anyhow::ensure!(chain_id == grpc_chain_id, "Wrong chain detected! Trying to index chain {} now but existing data is for chain {}", grpc_chain_id, chain_id);
+                info!(
+                    chain_id = chain_id,
+                    "Chain id matches! Continue to index...",
+                );
+                Ok(())
+            },
+            None => {
+                info!(
+                    chain_id = grpc_chain_id,
+                    "Adding chain id to db, continue to index..."
+                );
+                runnable_db_config.save_chain_id(grpc_chain_id).await?;
+                Ok(())
             },
         }
     }

@@ -6,7 +6,6 @@ members = [
     "moving-average",
     "sample",
     "sdk",
-    "sdk-server-framework",
     "testing-framework",
     "transaction-stream",
 ]
