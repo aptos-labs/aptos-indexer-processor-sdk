@@ -27,6 +27,7 @@ pub struct EntryFunctionPayloadClean {
     pub function: Option<EntryFunctionId>,
     pub type_arguments: Vec<MoveType>,
     pub arguments: Vec<Value>,
+    pub entry_function_id_str: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -207,6 +208,7 @@ pub fn get_clean_entry_function_payload(
                 })
             })
             .collect(),
+        entry_function_id_str: payload.entry_function_id_str.clone(),
     }
 }
 
