@@ -1,5 +1,7 @@
-use crate::utils::time::time_diff_since_pb_timestamp_in_secs;
-use aptos_indexer_transaction_stream::utils::timestamp_to_unixtime;
+use aptos_indexer_transaction_stream::utils::time::{
+    time_diff_since_pb_timestamp_in_secs, timestamp_to_unixtime,
+};
+
 /// Contains processed data and associated transaction metadata.
 ///
 /// The processed data is extracted from transactions and the

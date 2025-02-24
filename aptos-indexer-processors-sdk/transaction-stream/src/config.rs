@@ -1,4 +1,4 @@
-use crate::utils::AdditionalHeaders;
+use crate::utils::additional_headers::AdditionalHeaders;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;

@@ -1,6 +1,6 @@
 use crate::{
     config::TransactionStreamConfig,
-    utils::{timestamp_to_iso, AdditionalHeaders},
+    utils::{additional_headers::AdditionalHeaders, time::timestamp_to_iso},
 };
 use anyhow::{anyhow, Result};
 use aptos_moving_average::MovingAverage;
