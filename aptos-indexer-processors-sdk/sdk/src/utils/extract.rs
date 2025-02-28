@@ -27,6 +27,7 @@ pub struct EntryFunctionPayloadClean {
     pub function: Option<EntryFunctionId>,
     pub type_arguments: Vec<MoveType>,
     pub arguments: Vec<Value>,
+    pub entry_function_id_str: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -190,7 +191,7 @@ pub fn get_clean_writeset(writeset: &WriteSet, version: i64) -> Option<Value> {
 
 #[allow(clippy::too_long_first_doc_paragraph)]
 /// Part of the json comes escaped from the protobuf so we need to unescape in a safe way
-fn get_clean_entry_function_payload(
+pub fn get_clean_entry_function_payload(
     payload: &EntryFunctionPayload,
     version: i64,
 ) -> EntryFunctionPayloadClean {
@@ -207,6 +208,7 @@ fn get_clean_entry_function_payload(
                 })
             })
             .collect(),
+        entry_function_id_str: payload.entry_function_id_str.clone(),
     }
 }
 
