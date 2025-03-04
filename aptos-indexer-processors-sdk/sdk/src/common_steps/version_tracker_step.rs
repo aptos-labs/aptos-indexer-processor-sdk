@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use std::marker::PhantomData;
 
 pub const DEFAULT_UPDATE_PROCESSOR_STATUS_SECS: u64 = 1;
+
 /// The `ProcessorStatusSaver` trait object should be implemented in order to save the latest successfully
 /// processed transaction versino to storage. I.e., persisting the `processor_status` to storage.
 #[async_trait]
