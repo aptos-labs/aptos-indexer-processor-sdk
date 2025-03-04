@@ -21,14 +21,21 @@ bcs = { workspace = true }
 bigdecimal = { workspace = true }
 chrono = { workspace = true }
 derive_builder = { workspace = true }
+diesel = { workspace = true, optional = true }
+diesel-async = { workspace = true, optional = true }
+diesel_migrations = { workspace = true, optional = true }
+field_count = { workspace = true, optional = true }
 futures = { workspace = true }
+futures-util = { workspace = true }
 hex = { workspace = true }
 instrumented-channel = { workspace = true }
 kanal = { workspace = true }
 mockall = { workspace = true }
+native-tls = { workspace = true, optional = true }
 num_cpus = { workspace = true }
 once_cell = { workspace = true }
 petgraph = { workspace = true }
+postgres-native-tls = { workspace = true, optional = true }
 prometheus = { workspace = true }
 prometheus-client = { workspace = true }
 serde = { workspace = true }
@@ -36,5 +43,22 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tiny-keccak = { workspace = true }
 tokio = { workspace = true }
+tokio-postgres = { workspace = true, optional = true }
 tracing = { workspace = true }
 url = { workspace = true }
+
+[features]
+postgres_partial = [
+    "diesel",
+    "diesel-async",
+    "diesel_migrations",
+    "field_count",
+    "postgres-native-tls",
+    "native-tls",
+    "tokio-postgres",
+]
+# When using the postgres_full features we enable the diesel/postgres feature. We configure
+# it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
+# Recall that features should always be additive.
+postgres_full = ["postgres_partial", "diesel/postgres"]
+default = []
