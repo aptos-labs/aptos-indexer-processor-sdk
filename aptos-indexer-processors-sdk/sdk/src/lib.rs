@@ -1,5 +1,6 @@
 pub mod builder;
 pub mod common_steps; // TODO: Feature gate this?
+pub mod config;
 pub mod test;
 pub mod traits;
 pub mod types;
