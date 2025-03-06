@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+
+members = ["postgres-example"]
+
+[workspace.package]
+authors = ["Aptos Labs <opensource@aptoslabs.com>"]
+edition = "2021"
+homepage = "https://aptoslabs.com"
+license = "Apache-2.0"
+publish = false
+repository = "https://github.com/aptos-labs/aptos-indexer-processor-sdk"
+rust-version = "1.78"
+
+[workspace.dependencies]
+postgres-example = { path = "postgres-example" }
+
+aptos-indexer-processor-sdk = { path = "../aptos-indexer-processors-sdk/sdk", features = [
+    "postgres_full",
+] }
+anyhow = "1.0.86"
+aptos-indexer-processor-sdk-server-framework = { path = "../aptos-indexer-processors-sdk/sdk-server-framework" }
+async-trait = "0.1.80"
+clap = { version = "4.3.5", features = ["derive", "unstable-styles"] }
+diesel = { version = "=2.2.0", features = [
+    "chrono",
+    "postgres_backend",
+    "numeric",
+    "serde_json",
+] }
+diesel_migrations = { version = "2.1.0", features = ["postgres"] }
+field_count = "0.1.1"
+rayon = "1.10.0"
+sample = { path = "../aptos-indexer-processors-sdk/sample" }
+serde = { version = "1.0.193", features = ["derive", "rc"] }
+serde_json = { version = "1.0.81", features = ["preserve_order"] }
+tokio = { version = "1.37.0", features = ["full"] }
+tracing = "0.1.34"
