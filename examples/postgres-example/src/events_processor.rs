@@ -18,10 +18,10 @@ use aptos_indexer_processor_sdk::{
             database::{new_db_pool, run_migrations, ArcDbPool},
         },
     },
+    server_framework::RunnableConfig,
     traits::{processor_trait::ProcessorTrait, IntoRunnableStep},
     utils::chain_id_check::check_or_update_chain_id,
 };
-use aptos_indexer_processor_sdk_server_framework::RunnableConfig;
 use async_trait::async_trait;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use serde::{Deserialize, Serialize};

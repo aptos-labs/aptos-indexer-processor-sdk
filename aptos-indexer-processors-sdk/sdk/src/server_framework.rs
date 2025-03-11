@@ -1,10 +1,10 @@
 // Copyright © Aptos Foundation
 
-use anyhow::{Context, Result};
-use aptos_indexer_processor_sdk::{
+use crate::{
     instrumented_channel::channel_metrics::init_channel_metrics_registry,
     utils::step_metrics::init_step_metrics_registry,
 };
+use anyhow::{Context, Result};
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;

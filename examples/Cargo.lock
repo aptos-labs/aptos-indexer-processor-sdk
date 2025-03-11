@@ -125,10 +125,15 @@ dependencies = [
  "anyhow",
  "aptos-indexer-transaction-stream",
  "aptos-protos",
+ "aptos-system-utils",
  "async-trait",
+ "autometrics",
+ "axum",
+ "backtrace",
  "bcs",
  "bigdecimal",
  "chrono",
+ "clap",
  "derive_builder",
  "diesel",
  "diesel-async",
@@ -149,35 +154,16 @@ dependencies = [
  "prometheus-client",
  "serde",
  "serde_json",
+ "serde_yaml",
+ "tempfile",
  "thiserror",
  "tiny-keccak",
  "tokio",
  "tokio-postgres",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "aptos-indexer-processor-sdk-server-framework"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "aptos-indexer-processor-sdk",
- "aptos-system-utils",
- "async-trait",
- "autometrics",
- "axum",
- "backtrace",
- "clap",
- "instrumented-channel",
- "prometheus-client",
- "serde",
- "serde_yaml",
- "tempfile",
- "tokio",
  "toml 0.7.8",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -1277,9 +1263,9 @@ checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
 name = "hermit-abi"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbf6a919d6cf397374f7dfeeea91d974c7c0a7221d0d0f4f20d859d329e53fcc"
+checksum = "fbd780fe5cc30f81464441920d82ac8740e2e46b29a6fad543ddd075229ce37e"
 
 [[package]]
 name = "hex"
@@ -1661,13 +1647,13 @@ dependencies = [
 
 [[package]]
 name = "is-terminal"
-version = "0.4.15"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e19b23d53f35ce9f56aebc7d1bb4e6ac1e9c0db7ac85c8d1760c04379edced37"
+checksum = "e04d7f318608d35d4b61ddd75cbdaee86b023ebe2bd5a66ee0915f0bf93095a9"
 dependencies = [
- "hermit-abi 0.4.0",
+ "hermit-abi 0.5.0",
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2309,7 +2295,6 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "aptos-indexer-processor-sdk",
- "aptos-indexer-processor-sdk-server-framework",
  "async-trait",
  "clap",
  "diesel",
