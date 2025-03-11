@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["postgres-example"]
+members = ["postgres-basic-events-example"]
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]
@@ -13,7 +13,7 @@ repository = "https://github.com/aptos-labs/aptos-indexer-processor-sdk"
 rust-version = "1.78"
 
 [workspace.dependencies]
-postgres-example = { path = "postgres-example" }
+postgres-basic-events-example = { path = "postgres-basic-events-example" }
 
 aptos-indexer-processor-sdk = { path = "../aptos-indexer-processors-sdk/sdk", features = [
     "postgres_full",
