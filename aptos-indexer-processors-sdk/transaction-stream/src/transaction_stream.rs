@@ -435,7 +435,10 @@ impl TransactionStream {
                         );
 
                         if let Some(last_fetched_version) = self.last_fetched_version {
-                            if last_fetched_version + 1 != start_version as i64 {
+                            // If there is no transaction filter, ensure there are no gaps
+                            if self.transaction_stream_config.transaction_filter.is_none()
+                                && last_fetched_version + 1 != start_version as i64
+                            {
                                 error!(
                                     last_fetched_version = self.last_fetched_version, // last fetched version
                                     expected_start_version =
