@@ -13,4 +13,6 @@ pub enum ProcessorError {
         message: String,
         query: Option<String>,
     },
+    #[error("Chain ID Check Error: {message}")]
+    ChainIdCheckError { message: String },
 }
