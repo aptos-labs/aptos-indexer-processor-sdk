@@ -21,9 +21,13 @@ process(
 )
 .await?;
 ```
-The `process` function is an abstraction around a regular SDK processor. It runs your db migrations, validates the chain id, connects to Transaction Stream, tracks the last successful version, and processes transactions using your custom indexing logic. 
-See [`postgres-example`](https://github.com/aptos-labs/aptos-indexer-processor-sdk/tree/main/examples/postgres-example) for an example on how to use this function to create a simple processor that writes events to Postgres. 
-4. Construct a `config.yaml` file with this example:
+The `process` function is an abstraction around a regular SDK processor. 
+
+It runs your db migrations, validates the chain id, connects to Transaction Stream, tracks the last successful version, and processes transactions using your custom indexing logic. 
+
+See [`postgres-basic-events-example`](https://github.com/aptos-labs/aptos-indexer-processor-sdk/tree/main/examples/postgres-basic-events-example) for an example on how to use this function to create a simple processor that writes events to Postgres. 
+
+5. Construct a `config.yaml` file with this example:
 ```
 # This is a template yaml for the processor
 health_check_port: 8085
@@ -36,4 +40,4 @@ server_config:
   postgres_config:
     connection_string: postgresql://postgres:@localhost:5432/example
 ```
-5. Run processor using this command `cargo run -p postgres-example -- -c /path/to/config.yaml`
+6. Run processor using this command `cargo run -p postgres-basic-events-example -- -c /path/to/config.yaml`
