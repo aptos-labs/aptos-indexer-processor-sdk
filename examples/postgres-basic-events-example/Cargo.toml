@@ -1,5 +1,5 @@
 [package]
-name = "postgres-example"
+name = "postgres-basic-events-example"
 version = "1.0.0"
 
 # Workspace inherited keys
