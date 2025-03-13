@@ -1,3 +1,4 @@
+use super::errors::ProcessorError;
 use anyhow::Result;
 use aptos_indexer_transaction_stream::{TransactionStream, TransactionStreamConfig};
 use async_trait::async_trait;
@@ -18,19 +19,43 @@ pub trait ChainIdChecker {
 pub async fn check_or_update_chain_id<T>(
     transaction_stream_config: &TransactionStreamConfig,
     chain_id_checker: &T,
-) -> Result<u64>
+) -> Result<u64, ProcessorError>
 where
     T: ChainIdChecker,
 {
     info!("Checking if chain id is correct");
-    let maybe_existing_chain_id = chain_id_checker.get_chain_id().await?;
+    let maybe_existing_chain_id =
+        chain_id_checker
+            .get_chain_id()
+            .await
+            .map_err(|e| ProcessorError::ChainIdCheckError {
+                message: format!("Error getting chain id from db: {:?}", e),
+            })?;
 
-    let transaction_stream = TransactionStream::new(transaction_stream_config.clone()).await?;
-    let grpc_chain_id = transaction_stream.get_chain_id().await?;
+    let transaction_stream = TransactionStream::new(transaction_stream_config.clone())
+        .await
+        .map_err(|e| ProcessorError::ChainIdCheckError {
+            message: format!("Error initializing transaction stream: {:?}", e),
+        })?;
+    let grpc_chain_id =
+        transaction_stream
+            .get_chain_id()
+            .await
+            .map_err(|e| ProcessorError::ChainIdCheckError {
+                message: format!("Error getting chain id from transaction stream: {:?}", e),
+            })?;
 
     match maybe_existing_chain_id {
         Some(chain_id) => {
-            anyhow::ensure!(chain_id == grpc_chain_id, "Wrong chain id detected! Trying to index chain {} now but existing data is for chain {}", grpc_chain_id, chain_id);
+            if chain_id != grpc_chain_id {
+                return Err(ProcessorError::ChainIdCheckError {
+                    message: format!(
+                        "Wrong chain id detected! Trying to index chain {} now but existing data is for chain {}",
+                        grpc_chain_id, chain_id
+                    ),
+                });
+            }
+
             info!(
                 chain_id = chain_id,
                 "Chain id matches! Continue to index...",
@@ -42,7 +67,12 @@ where
                 chain_id = grpc_chain_id,
                 "Saving chain id to db, continue to index..."
             );
-            chain_id_checker.save_chain_id(grpc_chain_id).await?;
+            chain_id_checker
+                .save_chain_id(grpc_chain_id)
+                .await
+                .map_err(|e| ProcessorError::ChainIdCheckError {
+                    message: format!("Error saving chain id to db: {:?}", e),
+                })?;
             Ok(grpc_chain_id)
         },
     }
