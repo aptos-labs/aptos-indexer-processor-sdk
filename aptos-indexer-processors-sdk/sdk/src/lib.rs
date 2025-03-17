@@ -4,6 +4,8 @@ pub mod common_steps; // TODO: Feature gate this?
 pub mod postgres;
 pub mod server_framework;
 pub mod test;
+#[cfg(feature = "testing_framework")]
+pub mod testing_framework;
 pub mod traits;
 pub mod types;
 pub mod utils;

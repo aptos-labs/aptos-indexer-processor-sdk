@@ -1,9 +1,9 @@
-use crate::mock_grpc::MockGrpcServer;
-use anyhow::Context;
-use aptos_indexer_processor_sdk::{
+use super::mock_grpc::MockGrpcServer;
+use crate::{
     aptos_indexer_transaction_stream::TransactionStreamConfig,
     traits::processor_trait::ProcessorTrait,
 };
+use anyhow::Context;
 use aptos_protos::{indexer::v1::TransactionsResponse, transaction::v1::Transaction};
 use serde_json::{to_string_pretty, Error as SerdeError, Value};
 use std::{
