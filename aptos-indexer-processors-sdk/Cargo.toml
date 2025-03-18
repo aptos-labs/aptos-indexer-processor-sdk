@@ -6,7 +6,6 @@ members = [
     "moving-average",
     "sample",
     "sdk",
-    "testing-framework",
     "transaction-stream",
 ]
 
@@ -25,7 +24,6 @@ aptos-indexer-transaction-stream = { path = "transaction-stream" }
 instrumented-channel = { path = "instrumented-channel" }
 aptos-moving-average = { path = "moving-average" }
 sample = { path = "sample" }
-testing-framework = { path = "testing-framework" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.86"

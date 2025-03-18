@@ -155,37 +155,17 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "tempfile",
+ "testcontainers",
  "thiserror",
  "tiny-keccak",
  "tokio",
  "tokio-postgres",
- "toml 0.7.8",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
-name = "aptos-indexer-testing-framework"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "aptos-indexer-processor-sdk",
- "aptos-protos",
- "async-trait",
- "futures",
- "futures-util",
- "lazy_static",
- "native-tls",
- "once_cell",
- "postgres-native-tls",
- "serde_json",
- "testcontainers",
- "tokio",
- "tokio-postgres",
  "tokio-retry",
  "tokio-stream",
+ "toml 0.7.8",
  "tonic",
+ "tracing",
+ "tracing-subscriber",
  "url",
 ]
 
