@@ -406,18 +406,10 @@ impl TransactionStream {
                         };
 
                         // The processed range does not contain a timestamp, so we use the timestamp of the first and last transactions.
-                        let start_txn_timestamp = r
-                            .transactions
-                            .as_slice()
-                            .first()
-                            .map(|t| t.timestamp)
-                            .flatten();
-                        let end_txn_timestamp = r
-                            .transactions
-                            .as_slice()
-                            .last()
-                            .map(|t| t.timestamp)
-                            .flatten();
+                        let start_txn_timestamp =
+                            r.transactions.as_slice().first().and_then(|t| t.timestamp);
+                        let end_txn_timestamp =
+                            r.transactions.as_slice().last().and_then(|t| t.timestamp);
 
                         let size_in_bytes = r.encoded_len() as u64;
                         let chain_id: u64 = r
