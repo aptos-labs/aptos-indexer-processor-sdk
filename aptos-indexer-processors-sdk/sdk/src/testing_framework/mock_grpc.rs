@@ -1,6 +1,6 @@
 use aptos_protos::indexer::v1::{
     raw_data_server::{RawData, RawDataServer},
-    GetTransactionsRequest, TransactionsResponse,
+    GetTransactionsRequest, ProcessedRange, TransactionsResponse,
 };
 use futures::Stream;
 use std::{collections::HashMap, pin::Pin};
@@ -56,6 +56,10 @@ impl RawData for MockGrpcServer {
             TransactionsResponse {
                 transactions: collected_transactions,
                 chain_id: Some(self.chain_id),
+                processed_range: Some(ProcessedRange {
+                    first_version: starting_version,
+                    last_version: starting_version + transactions_count - 1,
+                }),
             }
         } else {
             // Return a default response with chain_id if no transactions are found

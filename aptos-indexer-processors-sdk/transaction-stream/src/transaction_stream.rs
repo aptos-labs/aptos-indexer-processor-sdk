@@ -9,6 +9,7 @@ use aptos_protos::{
     transaction::v1::Transaction,
     util::timestamp::Timestamp,
 };
+use aptos_transaction_filter::BooleanTransactionFilter;
 use futures_util::StreamExt;
 use prost::Message;
 use sample::{sample, SampleRate};
@@ -50,10 +51,12 @@ pub fn grpc_request_builder(
     grpc_auth_token: String,
     request_name_header: String,
     additional_headers: AdditionalHeaders,
+    transaction_filter: Option<BooleanTransactionFilter>,
 ) -> tonic::Request<GetTransactionsRequest> {
     let mut request = tonic::Request::new(GetTransactionsRequest {
         starting_version,
         transactions_count,
+        transaction_filter: transaction_filter.map(Into::into),
         ..GetTransactionsRequest::default()
     });
     request.metadata_mut().insert(
@@ -201,6 +204,7 @@ pub async fn get_stream(
                     transaction_stream_config.auth_token.clone(),
                     transaction_stream_config.request_name_header.clone(),
                     transaction_stream_config.additional_headers.clone(),
+                    transaction_stream_config.transaction_filter.clone(),
                 );
                 rpc_client.get_transactions(request).await
             },
@@ -389,11 +393,23 @@ impl TransactionStream {
                 match response {
                     Some(Ok(r)) => {
                         self.reconnection_retries = 0;
-                        let start_version = r.transactions.as_slice().first().unwrap().version;
+
+                        // The processed range may not exist if using the v1 transaction stream.
+                        // In the case that it doesn't exist, use the previous behavior of using the transaction version of the first and last transactions.
+                        let start_version = match r.processed_range {
+                            Some(range) => range.first_version,
+                            None => r.transactions.as_slice().first().unwrap().version,
+                        };
+                        let end_version = match r.processed_range {
+                            Some(range) => range.last_version,
+                            None => r.transactions.as_slice().last().unwrap().version,
+                        };
+
+                        // The processed range does not contain a timestamp, so we use the timestamp of the first and last transactions.
                         let start_txn_timestamp =
-                            r.transactions.as_slice().first().unwrap().timestamp;
-                        let end_version = r.transactions.as_slice().last().unwrap().version;
-                        let end_txn_timestamp = r.transactions.as_slice().last().unwrap().timestamp;
+                            r.transactions.as_slice().first().and_then(|t| t.timestamp);
+                        let end_txn_timestamp =
+                            r.transactions.as_slice().last().and_then(|t| t.timestamp);
 
                         let size_in_bytes = r.encoded_len() as u64;
                         let chain_id: u64 = r
