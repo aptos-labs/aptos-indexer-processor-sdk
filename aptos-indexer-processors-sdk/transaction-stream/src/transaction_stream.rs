@@ -393,20 +393,25 @@ impl TransactionStream {
                 match response {
                     Some(Ok(r)) => {
                         self.reconnection_retries = 0;
+
+                        // The processed range may not exist if using the v1 transaction stream.
+                        // In the case that it doesn't exist, use the previous behavior of using the transaction version of the first and last transactions.
                         let start_version = match r.processed_range {
                             Some(range) => range.first_version,
                             None => r.transactions.as_slice().first().unwrap().version,
                         };
+                        let end_version = match r.processed_range {
+                            Some(range) => range.last_version,
+                            None => r.transactions.as_slice().last().unwrap().version,
+                        };
+
+                        // The processed range does not contain a timestamp, so we use the timestamp of the first and last transactions.
                         let start_txn_timestamp = r
                             .transactions
                             .as_slice()
                             .first()
                             .map(|t| t.timestamp)
                             .flatten();
-                        let end_version = match r.processed_range {
-                            Some(range) => range.last_version,
-                            None => r.transactions.as_slice().last().unwrap().version,
-                        };
                         let end_txn_timestamp = r
                             .transactions
                             .as_slice()
