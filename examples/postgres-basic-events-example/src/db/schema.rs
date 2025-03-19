@@ -18,20 +18,4 @@ diesel::table! {
     }
 }
 
-diesel::table! {
-    ledger_infos (chain_id) {
-        chain_id -> Int8,
-    }
-}
-
-diesel::table! {
-    processor_status (processor) {
-        #[max_length = 50]
-        processor -> Varchar,
-        last_success_version -> Int8,
-        last_updated -> Timestamp,
-        last_transaction_timestamp -> Nullable<Timestamp>,
-    }
-}
-
-diesel::allow_tables_to_appear_in_same_query!(events, ledger_infos, processor_status,);
+diesel::allow_tables_to_appear_in_same_query!(events,);
