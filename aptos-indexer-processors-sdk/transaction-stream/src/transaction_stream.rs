@@ -9,6 +9,7 @@ use aptos_protos::{
     transaction::v1::Transaction,
     util::timestamp::Timestamp,
 };
+use aptos_transaction_filter::BooleanTransactionFilter;
 use futures_util::StreamExt;
 use prost::Message;
 use sample::{sample, SampleRate};
@@ -50,10 +51,12 @@ pub fn grpc_request_builder(
     grpc_auth_token: String,
     request_name_header: String,
     additional_headers: AdditionalHeaders,
+    transaction_filter: Option<BooleanTransactionFilter>,
 ) -> tonic::Request<GetTransactionsRequest> {
     let mut request = tonic::Request::new(GetTransactionsRequest {
         starting_version,
         transactions_count,
+        transaction_filter: transaction_filter.map(Into::into),
         ..GetTransactionsRequest::default()
     });
     request.metadata_mut().insert(
@@ -201,6 +204,7 @@ pub async fn get_stream(
                     transaction_stream_config.auth_token.clone(),
                     transaction_stream_config.request_name_header.clone(),
                     transaction_stream_config.additional_headers.clone(),
+                    transaction_stream_config.transaction_filter.clone(),
                 );
                 rpc_client.get_transactions(request).await
             },

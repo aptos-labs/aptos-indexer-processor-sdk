@@ -1,4 +1,5 @@
 use crate::utils::additional_headers::AdditionalHeaders;
+use aptos_transaction_filter::BooleanTransactionFilter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;
@@ -21,6 +22,8 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_reconnection_timeout_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_response_item_timeout")]
     pub indexer_grpc_response_item_timeout_secs: u64,
+    #[serde(default)]
+    pub transaction_filter: Option<BooleanTransactionFilter>,
 }
 
 impl TransactionStreamConfig {

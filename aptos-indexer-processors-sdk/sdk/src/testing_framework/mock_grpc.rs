@@ -56,6 +56,7 @@ impl RawData for MockGrpcServer {
             TransactionsResponse {
                 transactions: collected_transactions,
                 chain_id: Some(self.chain_id),
+                processed_range: None,
             }
         } else {
             // Return a default response with chain_id if no transactions are found

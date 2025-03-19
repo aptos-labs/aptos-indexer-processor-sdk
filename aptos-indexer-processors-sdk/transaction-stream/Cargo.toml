@@ -16,6 +16,7 @@ rust-version = { workspace = true }
 anyhow = { workspace = true }
 aptos-moving-average = { workspace = true }
 aptos-protos = { workspace = true }
+aptos-transaction-filter = { workspace = true }
 chrono = { workspace = true }
 futures-util = { workspace = true }
 once_cell = { workspace = true }
