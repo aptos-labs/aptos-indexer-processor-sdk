@@ -2,7 +2,8 @@
 # see https://diesel.rs/guides/configuring-diesel-cli
 
 [print_schema]
-file = "schema.rs"
+file = "processor_metadata_schema.rs"
+schema = "processor_metadata"
 
 [migrations_directory]
 dir = "migrations"

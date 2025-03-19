@@ -13,6 +13,7 @@ use crate::{
             },
             database::{new_db_pool, run_migrations, ArcDbPool},
         },
+        SDK_MIGRATIONS,
     },
     server_framework::{
         load, register_probes_and_metrics_handler, setup_logging, setup_panic_handler,
@@ -97,11 +98,19 @@ where
     .await
     .expect("Failed to create connection pool");
 
-    // Run migrations
+    // Run user migrations
     run_migrations(
         postgres_config.connection_string.clone(),
         db_pool.clone(),
         embedded_migrations,
+    )
+    .await;
+
+    // Run SDK migrations
+    run_migrations(
+        postgres_config.connection_string.clone(),
+        db_pool.clone(),
+        SDK_MIGRATIONS,
     )
     .await;
 

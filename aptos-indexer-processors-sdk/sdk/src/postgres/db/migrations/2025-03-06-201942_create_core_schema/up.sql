@@ -1,5 +1,7 @@
+CREATE SCHEMA processor_metadata;
+
 -- Tracks latest processed version per processor
-CREATE TABLE processor_status (
+CREATE TABLE processor_metadata.processor_status (
   processor VARCHAR(50) UNIQUE PRIMARY KEY NOT NULL,
   last_success_version BIGINT NOT NULL,
   last_updated TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -7,4 +9,4 @@ CREATE TABLE processor_status (
 );
 
 -- Tracks chain id
-CREATE TABLE ledger_infos (chain_id BIGINT UNIQUE PRIMARY KEY NOT NULL);
+CREATE TABLE processor_metadata.ledger_infos (chain_id BIGINT UNIQUE PRIMARY KEY NOT NULL);

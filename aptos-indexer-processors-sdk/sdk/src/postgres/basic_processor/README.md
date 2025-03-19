@@ -8,7 +8,7 @@ Utility function that lets you create a Postgres processor. It works by running 
 ```
 aptos-indexer-processor-sdk = { git = "https://github.com/aptos-labs/aptos-indexer-processor-sdk.git", rev = "{COMMIT_HASH}", features = ["postgres_full"] }
 ```
-3. Copy the `src/db` folder into where you are managing your Diesel migrations. If you have your own migrations, you should include them in this folder. 
+3. Setup Diesel and define your DB migrations. 
 4. In `main.rs`, call the `process` function with your indexing logic. You'll need to implement this part:
 ```
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("/path/to/src/db/migrations");

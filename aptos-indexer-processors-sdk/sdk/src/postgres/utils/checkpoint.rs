@@ -7,7 +7,7 @@ use crate::{
             ledger_info::LedgerInfo,
             processor_status::{ProcessorStatus, ProcessorStatusQuery},
         },
-        schema::{ledger_infos, processor_status},
+        processor_metadata_schema::processor_metadata::{ledger_infos, processor_status},
     },
     types::transaction_context::TransactionContext,
     utils::{chain_id_check::ChainIdChecker, errors::ProcessorError},
