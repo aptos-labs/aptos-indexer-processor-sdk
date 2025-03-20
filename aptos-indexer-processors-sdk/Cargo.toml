@@ -66,7 +66,7 @@ jemallocator = { version = "0.5.0", features = [
     "profiling",
     "unprefixed_malloc_on_supported_platforms",
 ] }
-kanal = "0.1.0-pre8"
+kanal = "0.1.0"
 lazy_static = "1.4.0"
 mockall = "0.12.1"
 num_cpus = "1.16.0"
