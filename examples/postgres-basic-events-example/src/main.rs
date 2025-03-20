@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::events_model::EventModel;
 use anyhow::Result;
 use aptos_indexer_processor_sdk::{
@@ -5,14 +7,15 @@ use aptos_indexer_processor_sdk::{
     postgres::{
         basic_processor::process,
         utils::database::{execute_in_chunks, MAX_DIESEL_PARAM_SIZE},
-    },
+    }, utils::errors::ProcessorError,
 };
 use diesel::{pg::Pg, query_builder::QueryFragment};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use field_count::FieldCount;
 use rayon::prelude::*;
 use tracing::{error, info, warn};
-
+use clickhouse::Client;
+use serde::Serialize;
 pub mod events_model;
 #[path = "db/schema.rs"]
 pub mod schema;
@@ -27,6 +30,67 @@ fn insert_events_query(
         .values(items_to_insert)
         .on_conflict((transaction_version, event_index))
         .do_nothing()
+}
+
+async fn insert_clickhouse<T>(
+    // client: &Arc<Client>,
+    table_name: String,
+    data: &[T],
+    start_version: u64,
+    end_version: u64,
+) -> Result<(), ProcessorError> where T: clickhouse::Row + Serialize + Send + Sync,
+{
+    let client = Arc::new(
+    Client::default()
+        .with_url("https://l456jrzvli.us-central1.gcp.clickhouse.cloud:8443")
+        .with_user("default")
+        .with_password("I0hvRoe~sLbDO")
+        .with_database("default"),
+        );
+
+    client.query("CREATE TABLE IF NOT EXISTS events (
+        transaction_version Int64,
+        event_index Int64,
+        account_address String,
+        transaction_block_height Int64,
+        type String,
+    ) ENGINE = MergeTree() ORDER BY (transaction_version, event_index);").execute().await.map_err(|e| ProcessorError::DBStoreError {
+        message: e.to_string(),
+        query: None,
+    })?;
+    
+
+    let mut insert = client.insert(table_name.as_str()).map_err(|e| ProcessorError::DBStoreError {
+        message: e.to_string(),
+        query: None,
+    })?;
+    
+    for row in data {
+        insert
+            .write(row)
+            .await.map_err(|e| ProcessorError::DBStoreError {
+                message: e.to_string(),
+                query: None,
+            })?;
+    }
+
+    match insert.end().await {
+        Ok(_) => {
+            info!(
+                "Events version [{}, {}] stored successfully",
+                start_version,
+                end_version
+            );
+            Ok(())
+        },
+        Err(e) => {
+            error!("Failed to store events: {:?}", e);
+            Err(ProcessorError::DBStoreError {
+                message: e.to_string(),
+                query: None,
+            })
+        },
+    }
 }
 
 #[tokio::main]
@@ -63,28 +127,23 @@ async fn main() -> Result<()> {
                 .flatten()
                 .collect::<Vec<EventModel>>();
 
-            // Store events in the database
-            let execute_res = execute_in_chunks(
-                conn_pool.clone(),
-                insert_events_query,
-                &events,
-                MAX_DIESEL_PARAM_SIZE / EventModel::field_count(),
-            )
-            .await;
-            match execute_res {
-                Ok(_) => {
-                    info!(
-                        "Events version [{}, {}] stored successfully",
-                        transactions.first().unwrap().version,
-                        transactions.last().unwrap().version
-                    );
-                    Ok(())
-                },
-                Err(e) => {
-                    error!("Failed to store events: {:?}", e);
-                    Err(e)
-                },
-            }
+
+        let execute_res = insert_clickhouse("events".to_string(), &events, transactions.first().unwrap().version, transactions.last().unwrap().version).await;
+        
+        match execute_res {
+            Ok(_) => {
+                info!(
+                    "Events version [{}, {}] stored successfully",
+                    transactions.first().unwrap().version,
+                    transactions.last().unwrap().version
+                );
+                Ok(())
+            },
+            Err(e) => {
+                error!("Failed to store events: {:?}", e);
+                Err(e)
+            },
+        }
         },
     )
     .await?;
