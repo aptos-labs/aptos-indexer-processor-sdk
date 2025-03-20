@@ -22,7 +22,7 @@ async fn main() {
 }
 ```
  **/
-use kanal::{AsyncReceiver, AsyncSender, ReceiveError, SendError};
+use kanal::{AsyncReceiver, AsyncSender, CloseError, ReceiveError, SendError};
 
 pub struct InstrumentedAsyncSender<T> {
     pub(crate) sender: AsyncSender<T>,
@@ -41,7 +41,7 @@ impl<T> InstrumentedAsyncSender<T> {
             pub fn capacity(&self);
             pub fn receiver_count(&self) -> u32;
             pub fn sender_count(&self) -> u32;
-            pub fn close(&self) -> bool;
+            pub fn close(&self) -> Result<(), CloseError>;
             pub fn is_closed(&self) -> bool;
         }
     }
@@ -102,7 +102,7 @@ impl<T> InstrumentedAsyncReceiver<T> {
             pub fn capacity(&self);
             pub fn receiver_count(&self) -> u32;
             pub fn sender_count(&self) -> u32;
-            pub fn close(&self) -> bool;
+            pub fn close(&self) -> Result<(), CloseError>;
             pub fn is_closed(&self) -> bool;
         }
     }
