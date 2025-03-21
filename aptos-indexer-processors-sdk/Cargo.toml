@@ -62,6 +62,7 @@ field_count = "0.1.1"
 futures = "0.3.30"
 futures-util = "0.3.21"
 hex = "0.4.3"
+indexmap = { version = "2.7.0", features = ["serde"] }
 itertools = "0.13.0"
 jemallocator = { version = "0.5.0", features = [
     "profiling",
