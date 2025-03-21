@@ -7,18 +7,13 @@ use super::{
     convert::{deserialize_from_string, standardize_address, truncate_str},
     property_map::{PropertyMap, TokenObjectPropertyMap},
 };
-use crate::aptos_indexer_transaction_stream::utils::time::MAX_TIMESTAMP_SECS;
-use aptos_protos::{
-    transaction::v1::{
-        multisig_transaction_payload::Payload as MultisigPayloadType,
-        transaction_payload::Payload as PayloadType, write_set::WriteSet as WriteSetType,
-        EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
-        TransactionPayload, UserTransactionRequest, WriteSet,
-    },
-    util::timestamp::Timestamp,
+use aptos_protos::transaction::v1::{
+    multisig_transaction_payload::Payload as MultisigPayloadType,
+    transaction_payload::Payload as PayloadType, write_set::WriteSet as WriteSetType,
+    EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
+    TransactionPayload, UserTransactionRequest, WriteSet,
 };
 use bigdecimal::BigDecimal;
-use chrono::NaiveDateTime;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use sha2::Digest;
@@ -29,33 +24,6 @@ pub const MAX_ENTRY_FUNCTION_LENGTH: usize = 1000;
 
 pub fn hash_str(val: &str) -> String {
     hex::encode(sha2::Sha256::digest(val.as_bytes()))
-}
-
-pub fn naive_datetime_to_timestamp(ndt: NaiveDateTime) -> Timestamp {
-    Timestamp {
-        seconds: ndt.and_utc().timestamp(),
-        nanos: ndt.and_utc().timestamp_subsec_nanos() as i32,
-    }
-}
-
-pub fn compute_nanos_since_epoch(datetime: NaiveDateTime) -> u64 {
-    // The Unix epoch is 1970-01-01T00:00:00Z
-    #[allow(deprecated)]
-    let unix_epoch = NaiveDateTime::from_timestamp(0, 0);
-    let duration_since_epoch = datetime.signed_duration_since(unix_epoch);
-
-    // Convert the duration to nanoseconds and return
-    duration_since_epoch.num_seconds() as u64 * 1_000_000_000
-        + duration_since_epoch.subsec_nanos() as u64
-}
-
-pub fn parse_timestamp_secs(ts: u64, version: i64) -> chrono::NaiveDateTime {
-    #[allow(deprecated)]
-    chrono::NaiveDateTime::from_timestamp_opt(
-        std::cmp::min(ts, MAX_TIMESTAMP_SECS as u64) as i64,
-        0,
-    )
-    .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
 }
 
 /// convert the bcs encoded inner value of property_map to its original value in string format
@@ -351,11 +319,7 @@ pub fn get_name_from_unnested_move_type(move_type: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        aptos_indexer_transaction_stream::utils::time::parse_timestamp,
-        utils::convert::deserialize_string_from_hexstring,
-    };
-    use chrono::Datelike;
+    use crate::utils::convert::deserialize_string_from_hexstring;
     use serde::Serialize;
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -376,26 +340,6 @@ mod tests {
     struct TokenObjectDataMock {
         #[serde(deserialize_with = "deserialize_token_object_property_map_from_bcs_hexstring")]
         pub default_properties: serde_json::Value,
-    }
-
-    #[test]
-    fn test_parse_timestamp() {
-        let ts = parse_timestamp(
-            &Timestamp {
-                seconds: 1649560602,
-                nanos: 0,
-            },
-            1,
-        )
-        .naive_utc();
-        assert_eq!(ts.and_utc().timestamp(), 1649560602);
-        assert_eq!(ts.year(), 2022);
-
-        let ts2 = parse_timestamp_secs(600000000000000, 2);
-        assert_eq!(ts2.year(), 9999);
-
-        let ts3 = parse_timestamp_secs(1659386386, 2);
-        assert_eq!(ts3.and_utc().timestamp(), 1659386386);
     }
 
     #[test]

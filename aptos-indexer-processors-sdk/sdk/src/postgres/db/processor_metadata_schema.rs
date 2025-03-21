@@ -17,8 +17,5 @@ pub mod processor_metadata {
         }
     }
 
-    diesel::allow_tables_to_appear_in_same_query!(
-        ledger_infos,
-        processor_status,
-    );
+    diesel::allow_tables_to_appear_in_same_query!(ledger_infos, processor_status,);
 }
