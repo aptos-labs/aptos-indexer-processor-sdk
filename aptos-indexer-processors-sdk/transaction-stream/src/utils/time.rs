@@ -27,6 +27,16 @@ pub fn parse_timestamp_secs(ts: u64, version: i64) -> chrono::DateTime<Utc> {
         .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
 }
 
+pub fn compute_nanos_since_epoch(datetime: chrono::DateTime<Utc>) -> u64 {
+    // The Unix epoch is 1970-01-01T00:00:00Z
+    let unix_epoch = chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap();
+    let duration_since_epoch = datetime.signed_duration_since(unix_epoch);
+
+    // Convert the duration to nanoseconds and return
+    duration_since_epoch.num_seconds() as u64 * 1_000_000_000
+        + duration_since_epoch.subsec_nanos() as u64
+}
+
 /// Convert the protobuf Timestamp to epcoh time in seconds.
 pub fn time_diff_since_pb_timestamp_in_secs(timestamp: &Timestamp) -> f64 {
     let current_timestamp = std::time::SystemTime::now()
@@ -46,4 +56,30 @@ pub fn timestamp_to_iso(timestamp: &Timestamp) -> String {
 /// Convert the protobuf timestamp to unixtime
 pub fn timestamp_to_unixtime(timestamp: &Timestamp) -> f64 {
     timestamp.seconds as f64 + timestamp.nanos as f64 * 1e-9
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Datelike;
+
+    #[test]
+    fn test_parse_timestamp() {
+        let ts = parse_timestamp(
+            &Timestamp {
+                seconds: 1649560602,
+                nanos: 0,
+            },
+            1,
+        )
+        .naive_utc();
+        assert_eq!(ts.and_utc().timestamp(), 1649560602);
+        assert_eq!(ts.year(), 2022);
+
+        let ts2 = parse_timestamp_secs(600000000000000, 2);
+        assert_eq!(ts2.year(), 9999);
+
+        let ts3 = parse_timestamp_secs(1659386386, 2);
+        assert_eq!(ts3.timestamp(), 1659386386);
+    }
 }
