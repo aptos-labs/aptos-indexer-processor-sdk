@@ -372,8 +372,20 @@ where
                 let result = previous_output_receiver.recv().await;
                 match result {
                     Ok(input) => {
-                        for output_sender in &output_senders {
-                            output_sender.send(input.clone()).await.unwrap();
+                        let sender_count = output_senders.len();
+                        if sender_count == 0 {
+                            // No senders to send to, just drop the input
+                            continue;
+                        } else if sender_count == 1 {
+                            // Only one sender, use the input directly without cloning
+                            output_senders[0].send(input).await.unwrap();
+                        } else {
+                            // Multiple senders: clone for all except the last one
+                            for output_sender in &output_senders[..sender_count - 1] {
+                                output_sender.send(input.clone()).await.unwrap();
+                            }
+                            // Use the original input for the last sender
+                            output_senders[sender_count - 1].send(input).await.unwrap();
                         }
                     },
                     Err(e) => {
