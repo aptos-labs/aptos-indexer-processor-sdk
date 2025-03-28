@@ -26,7 +26,7 @@ const GRPC_REQUEST_NAME_HEADER: &str = "x-aptos-request-name";
 /// GRPC connection id
 const GRPC_CONNECTION_ID: &str = "x-aptos-connection-id";
 /// We will try to reconnect to GRPC 5 times in case upstream connection is being updated
-pub const RECONNECTION_MAX_RETRIES: u64 = 5;
+pub const RECONNECTION_MAX_RETRIES: u64 = 100;
 /// 256MB
 pub const MAX_RESPONSE_SIZE: usize = 1024 * 1024 * 256;
 
@@ -273,38 +273,60 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
         "[Transaction Stream] Successfully connected to GRPC stream to get chain id",
     );
 
-    match resp_stream.next().await {
-        Some(Ok(r)) => match r.chain_id {
-            Some(chain_id) => Ok(chain_id),
+    match tokio::time::timeout(
+        transaction_stream_config.indexer_grpc_response_item_timeout(),
+        resp_stream.next(),
+    )
+    .await
+    {
+        // Received datastream response
+        Ok(response) => match response {
+            Some(Ok(r)) => match r.chain_id {
+                Some(chain_id) => Ok(chain_id),
+                None => {
+                    error!(
+                        stream_address = transaction_stream_config
+                            .indexer_grpc_data_service_address
+                            .to_string(),
+                        connection_id = connection_id,
+                        "[Transaction Stream] Chain Id doesn't exist."
+                    );
+                    Err(anyhow!("Chain Id doesn't exist"))
+                },
+            },
+            Some(Err(rpc_error)) => {
+                error!(
+                    stream_address = transaction_stream_config.indexer_grpc_data_service_address.to_string(),
+                    connection_id = connection_id,
+                    error = ?rpc_error,
+                    "[Transaction Stream] Error receiving datastream response for chain id"
+                );
+                Err(anyhow!("Error receiving datastream response for chain id").context(rpc_error))
+            },
             None => {
                 error!(
                     stream_address = transaction_stream_config
                         .indexer_grpc_data_service_address
                         .to_string(),
                     connection_id = connection_id,
-                    "[Transaction Stream] Chain Id doesn't exist."
+                    "[Transaction Stream] Stream ended before getting response fo for chain id"
                 );
-                Err(anyhow!("Chain Id doesn't exist"))
+                Err(anyhow!("Stream ended before getting response for chain id"))
             },
         },
-        Some(Err(rpc_error)) => {
-            error!(
+        // Timeout receiving datastream response
+        Err(e) => {
+            warn!(
                 stream_address = transaction_stream_config.indexer_grpc_data_service_address.to_string(),
                 connection_id = connection_id,
-                error = ?rpc_error,
-                "[Transaction Stream] Error receiving datastream response for chain id"
+                start_version = transaction_stream_config.starting_version,
+                end_version = transaction_stream_config.request_ending_version,
+                error = ?e,
+                "[Transaction Stream] Timeout receiving datastream response for chain id."
             );
-            Err(anyhow!("Error receiving datastream response for chain id").context(rpc_error))
-        },
-        None => {
-            error!(
-                stream_address = transaction_stream_config
-                    .indexer_grpc_data_service_address
-                    .to_string(),
-                connection_id = connection_id,
-                "[Transaction Stream] Stream ended before getting response fo for chain id"
-            );
-            Err(anyhow!("Stream ended before getting response for chain id"))
+            Err(anyhow!(
+                "Timeout receiving datastream response for chain id"
+            ))
         },
     }
 }
