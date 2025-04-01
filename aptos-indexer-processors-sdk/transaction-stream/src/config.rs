@@ -22,6 +22,8 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_reconnection_timeout_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_response_item_timeout")]
     pub indexer_grpc_response_item_timeout_secs: u64,
+    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_retries")]
+    pub indexer_grpc_reconnection_max_retries: u64,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
 }
@@ -62,5 +64,10 @@ impl TransactionStreamConfig {
     /// Default timeout for receiving an item from grpc stream. Defaults to 60 seconds.
     pub const fn default_indexer_grpc_response_item_timeout() -> u64 {
         60
+    }
+
+    /// Default max retries for reconnecting to grpc. Defaults to 100.
+    pub const fn default_indexer_grpc_reconnection_max_retries() -> u64 {
+        5
     }
 }
