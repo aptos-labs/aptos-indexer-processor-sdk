@@ -202,7 +202,7 @@ dependencies = [
 [[package]]
 name = "aptos-profiler"
 version = "0.1.0"
-source = "git+https://github.com/aptos-labs/aptos-core.git?rev=1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7#1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7"
+source = "git+https://github.com/aptos-labs/aptos-core.git?rev=860f12eecf2fefd43678875ef439fbef768e06ed#860f12eecf2fefd43678875ef439fbef768e06ed"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -215,7 +215,7 @@ dependencies = [
 [[package]]
 name = "aptos-protos"
 version = "1.3.1"
-source = "git+https://github.com/aptos-labs/aptos-core.git?rev=1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7#1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7"
+source = "git+https://github.com/aptos-labs/aptos-core.git?rev=860f12eecf2fefd43678875ef439fbef768e06ed#860f12eecf2fefd43678875ef439fbef768e06ed"
 dependencies = [
  "pbjson",
  "prost",
@@ -226,7 +226,7 @@ dependencies = [
 [[package]]
 name = "aptos-system-utils"
 version = "0.1.0"
-source = "git+https://github.com/aptos-labs/aptos-core.git?rev=1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7#1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7"
+source = "git+https://github.com/aptos-labs/aptos-core.git?rev=860f12eecf2fefd43678875ef439fbef768e06ed#860f12eecf2fefd43678875ef439fbef768e06ed"
 dependencies = [
  "anyhow",
  "aptos-profiler",
@@ -246,7 +246,7 @@ dependencies = [
 [[package]]
 name = "aptos-transaction-filter"
 version = "0.1.0"
-source = "git+https://github.com/aptos-labs/aptos-core.git?rev=1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7#1fc4424ee1099830ae667a0bda43ab5d7fd3c8f7"
+source = "git+https://github.com/aptos-labs/aptos-core.git?rev=860f12eecf2fefd43678875ef439fbef768e06ed#860f12eecf2fefd43678875ef439fbef768e06ed"
 dependencies = [
  "anyhow",
  "aptos-protos",
