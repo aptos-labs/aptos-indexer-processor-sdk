@@ -424,19 +424,19 @@ impl TransactionStream {
                         // The processed range may not exist if using the v1 transaction stream.
                         // In the case that it doesn't exist, use the previous behavior of using the transaction version of the first and last transactions.
                         let start_version = match r.processed_range {
-                            Some(range) => range.first_version,
+                            Some(ref range) => range.first_version,
                             None => r.transactions.as_slice().first().unwrap().version,
                         };
                         let end_version = match r.processed_range {
-                            Some(range) => range.last_version,
+                            Some(ref range) => range.last_version,
                             None => r.transactions.as_slice().last().unwrap().version,
                         };
 
                         // The processed range does not contain a timestamp, so we use the timestamp of the first and last transactions.
                         let start_txn_timestamp =
-                            r.transactions.as_slice().first().and_then(|t| t.timestamp);
+                            r.transactions.as_slice().first().and_then(|t| t.timestamp.clone());
                         let end_txn_timestamp =
-                            r.transactions.as_slice().last().and_then(|t| t.timestamp);
+                            r.transactions.as_slice().last().and_then(|t| t.timestamp.clone());
 
                         let size_in_bytes = r.encoded_len() as u64;
                         let chain_id: u64 = r
