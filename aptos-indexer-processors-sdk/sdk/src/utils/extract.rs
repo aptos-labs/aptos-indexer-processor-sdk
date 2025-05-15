@@ -9,7 +9,8 @@ use super::{
 };
 use aptos_protos::transaction::v1::{
     multisig_transaction_payload::Payload as MultisigPayloadType,
-    transaction_payload::Payload as PayloadType, write_set::WriteSet as WriteSetType,
+    transaction_payload::{self, Payload as PayloadType},
+    write_set::WriteSet as WriteSetType,
     EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
     TransactionPayload, UserTransactionRequest, WriteSet,
 };
@@ -157,8 +158,33 @@ pub fn get_entry_function_function_name_from_user_request(
     })
 }
 
+/// Extracts the replay protection nonce from a user transaction request if present
+/// Returns None if there's no payload, no extra config, or no nonce in the extra config
+pub fn get_replay_protection_nonce_from_user_request(
+    user_request: &UserTransactionRequest,
+) -> Option<u64> {
+    user_request
+        .payload
+        .as_ref()
+        .and_then(get_replay_protection_nonce)
+}
+
 pub fn get_payload_type(payload: &TransactionPayload) -> String {
     payload.r#type().as_str_name().to_string()
+}
+
+/// Extracts the replay protection nonce from a transaction payload's extra config if present
+/// Returns None if there's no extra config or no nonce in the extra config
+pub fn get_replay_protection_nonce(payload: &TransactionPayload) -> Option<u64> {
+    if let Some(extra_config) = &payload.extra_config {
+        match extra_config {
+            transaction_payload::ExtraConfig::ExtraConfigV1(config) => {
+                config.replay_protection_nonce
+            },
+        }
+    } else {
+        None
+    }
 }
 
 /// Part of the json comes escaped from the protobuf so we need to unescape in a safe way
