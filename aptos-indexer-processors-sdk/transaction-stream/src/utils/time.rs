@@ -15,6 +15,11 @@ pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::DateTime<Utc> {
             seconds: MAX_TIMESTAMP_SECS,
             nanos: 0,
         }
+    } else if (ts.seconds < 0) {
+        Timestamp {
+            seconds: MAX_TIMESTAMP_SECS,
+            nanos: 0,
+        }
     } else {
         *ts
     };
