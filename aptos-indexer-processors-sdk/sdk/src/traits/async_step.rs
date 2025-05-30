@@ -51,7 +51,7 @@ where
 
     fn type_name(&self) -> String {
         let step_type = std::any::type_name::<Step>().to_string();
-        format!("{} (via RunnableAsyncStep)", step_type)
+        format!("{step_type} (via RunnableAsyncStep)",)
     }
 }
 

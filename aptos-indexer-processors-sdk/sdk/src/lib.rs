@@ -144,7 +144,7 @@ mod tests {
 
         let graph = second_builder.graph;
         let dot = graph.dot();
-        println!("{:}", dot);
+        println!("{dot:}");
         //first_handle.abort();
         //second_handle.abort();
     }
@@ -226,7 +226,7 @@ mod tests {
 
         let graph = fanout_builder.graph;
         let dot = graph.dot();
-        println!("{:}", dot);
+        println!("{dot:}");
         //first_handle.abort();
         //second_handle.abort();
     }

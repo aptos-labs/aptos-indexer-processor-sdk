@@ -52,7 +52,7 @@ impl SdkTestContext {
             .collect::<Result<Vec<Transaction>, _>>()
         {
             Ok(txns) => txns,
-            Err(e) => panic!("Failed to parse transactions: {}", e),
+            Err(e) => panic!("Failed to parse transactions: {e}"),
         };
 
         if transaction_batches.is_empty() {
@@ -136,10 +136,9 @@ impl SdkTestContext {
                 println!("[INFO] Processor run succeeded");
             },
             Err(e) => {
-                eprintln!("[ERROR] Processor failed after retries: {:?}", e);
+                eprintln!("[ERROR] Processor failed after retries: {e:?}",);
                 return Err(anyhow::anyhow!(
-                    "Failed to run processor after multiple retries: {}",
-                    e
+                    "Failed to run processor after multiple retries: {e}",
                 ));
             },
         }
@@ -197,7 +196,7 @@ impl SdkTestContext {
         .await
         .unwrap();
 
-        println!("Mock GRPC server is running on port {}", port);
+        println!("Mock GRPC server is running on port {port}",);
         self.port = Some(port.to_string());
 
         Ok(())
@@ -234,10 +233,10 @@ impl SdkTestContext {
 /// Helper function to format serde_json errors for better readability.
 fn format_serde_error(err: SerdeError) -> String {
     match err.classify() {
-        serde_json::error::Category::Io => format!("I/O error: {}", err),
-        serde_json::error::Category::Syntax => format!("Syntax error: {}", err),
-        serde_json::error::Category::Data => format!("Data error: {}", err),
-        serde_json::error::Category::Eof => format!("Unexpected end of input: {}", err),
+        serde_json::error::Category::Io => format!("I/O error: {err}",),
+        serde_json::error::Category::Syntax => format!("Syntax error: {err}",),
+        serde_json::error::Category::Data => format!("Data error: {err}",),
+        serde_json::error::Category::Eof => format!("Unexpected end of input: {err}",),
     }
 }
 
@@ -251,7 +250,7 @@ fn construct_file_path(
     Path::new(output_dir)
         .join(processor_name)
         .join(txn_version)
-        .join(format!("{}.json", table_name)) // Including table_name in the format
+        .join(format!("{table_name}.json",)) // Including table_name in the format
 }
 
 // Helper function to ensure the directory exists
@@ -277,7 +276,7 @@ pub fn generate_output_file(
             PathBuf::from(&output_dir)
                 .join(processor_name)
                 .join(custom_name)
-                .join(format!("{}.json", table_name))
+                .join(format!("{table_name}.json",))
         },
         None => {
             // Default case: use table_name and txn_version to construct file name
@@ -287,7 +286,7 @@ pub fn generate_output_file(
 
     ensure_directory_exists(&file_path)?;
     fs::write(&file_path, to_string_pretty(db_values)?)
-        .context(format!("Failed to write file to {:?}", file_path))?;
+        .context(format!("Failed to write file to {file_path:?}"))?;
     println!("[TEST] Generated output file at: {}", file_path.display());
     Ok(())
 }

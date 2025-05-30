@@ -127,7 +127,7 @@ impl GraphBuilder {
         if let Some(node) = node_map.get_mut(&node_index) {
             node.join_handle = Some(join_handle);
         } else {
-            panic!("Node with index {} not found in node_map", node_index);
+            panic!("Node with index {node_index} not found in node_map");
         }
     }
 
@@ -178,7 +178,7 @@ impl GraphBuilder {
             &edge_attribute_getter,
             &node_attribute_getter,
         );
-        format!("{}", dot)
+        format!("{dot}")
     }
 }
 
@@ -278,7 +278,7 @@ where
                             sender.send(input.clone()).await.unwrap();
                         },
                         Err(e) => {
-                            panic!("Error receiving from previous step for fanout: {:?}", e);
+                            panic!("Error receiving from previous step for fanout: {e:?}");
                         },
                     }
                 }
@@ -359,10 +359,8 @@ where
         let mut output_senders = Vec::new();
         let mut output_receivers = Vec::new();
         for idx in 0..num_outputs {
-            let (output_sender, output_receiver) = instrumented_bounded_channel(
-                &format!("{}::Fanout::{}", previous_step_name, idx),
-                0,
-            );
+            let (output_sender, output_receiver) =
+                instrumented_bounded_channel(&format!("{previous_step_name}::Fanout::{idx}"), 0);
             output_senders.push(output_sender);
             output_receivers.push(output_receiver);
         }
@@ -389,7 +387,7 @@ where
                         }
                     },
                     Err(e) => {
-                        panic!("Error receiving from previous step for fanout: {:?}", e);
+                        panic!("Error receiving from previous step for fanout: {e:?}");
                     },
                 }
             }

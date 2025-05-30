@@ -188,6 +188,6 @@ mod tests {
         assert_eq!(receiver.recv().await.unwrap(), 42);
         // TODO: check prometheus metrics
         let metrics = gather_metrics_to_string();
-        println!("{}", metrics);
+        println!("{metrics}");
     }
 }

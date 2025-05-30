@@ -85,7 +85,7 @@ impl TestDatabase for PostgresTestDatabase {
 
         let (host, port) = self.get_connection_info().await?;
 
-        self.connection_string = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
+        self.connection_string = format!("postgres://postgres:postgres@{host}:{port}/postgres");
         Ok(())
     }
 

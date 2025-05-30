@@ -166,16 +166,16 @@ mod tests {
             );
 
             sample!(SampleRate::Frequency(2), {
-                println!("hello {}", i);
+                println!("hello {i}");
             });
 
-            sample!(SampleRate::Frequency(2), println!("hello {}", i));
+            sample!(SampleRate::Frequency(2), println!("hello {i}"));
 
             sample! {
                 SampleRate::Frequency(2),
 
                 for j in 10..20 {
-                    println!("hello {}", j);
+                    println!("hello {j}");
                 }
             }
         }

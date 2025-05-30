@@ -36,7 +36,7 @@ where
             TransactionStreamInternal::new(transaction_stream_config.clone()).await;
         match transaction_stream_res {
             Err(e) => Err(ProcessorError::StepInitError {
-                message: format!("Error creating transaction stream: {:?}", e),
+                message: format!("Error creating transaction stream: {e:?}"),
             }),
             Ok(transaction_stream) => Ok(Self {
                 transaction_stream: Mutex::new(transaction_stream),
@@ -131,7 +131,7 @@ where
                             " Error reconnecting transaction stream."
                         );
                         Err(ProcessorError::PollError {
-                            message: format!("Error reconnecting to TransactionStream: {:?}", e),
+                            message: format!("Error reconnecting to TransactionStream: {e:?}"),
                         })
                     },
                 }
