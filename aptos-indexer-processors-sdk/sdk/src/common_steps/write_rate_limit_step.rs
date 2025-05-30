@@ -298,14 +298,12 @@ mod tests {
 
         assert!(
             time_diff >= Duration::from_millis(500),
-            "Expected at least 500ms delay between processing, got {:?}",
-            time_diff
+            "Expected at least 500ms delay between processing, got {time_diff:?}",
         );
 
         assert!(
             time_diff <= Duration::from_millis(700),
-            "Expected less than 700ms delay between processing, got {:?}",
-            time_diff
+            "Expected less than 700ms delay between processing, got {time_diff:?}",
         );
 
         // Ensure the outputs are as expected.

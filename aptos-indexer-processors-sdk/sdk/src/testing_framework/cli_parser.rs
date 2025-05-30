@@ -43,7 +43,7 @@ pub fn parse_test_args() -> TestArgs {
         .find(|args| args[0] == "output-path")
         .map(|args| args[1].clone());
 
-    println!("Parsed generate flag: {}", generate_flag);
+    println!("Parsed generate flag: {generate_flag}",);
     println!(
         "Parsed output_path: {}",
         output_path.clone().unwrap_or_else(|| "None".to_string())
@@ -77,7 +77,7 @@ mod tests {
             .find(|args| args[0] == "output-path")
             .map(|args| args[1].clone());
 
-        println!("Parsed generate_output_flag: {}", generate_output_flag);
+        println!("Parsed generate_output_flag: {generate_output_flag}");
         println!(
             "Parsed output_path: {}",
             output_path.clone().unwrap_or_else(|| "None".to_string())

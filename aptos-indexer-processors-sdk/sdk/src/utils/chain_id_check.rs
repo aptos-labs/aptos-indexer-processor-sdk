@@ -29,20 +29,20 @@ where
             .get_chain_id()
             .await
             .map_err(|e| ProcessorError::ChainIdCheckError {
-                message: format!("Error getting chain id from db: {:?}", e),
+                message: format!("Error getting chain id from db: {e:?}"),
             })?;
 
     let transaction_stream = TransactionStream::new(transaction_stream_config.clone())
         .await
         .map_err(|e| ProcessorError::ChainIdCheckError {
-            message: format!("Error initializing transaction stream: {:?}", e),
+            message: format!("Error initializing transaction stream: {e:?}"),
         })?;
     let grpc_chain_id =
         transaction_stream
             .get_chain_id()
             .await
             .map_err(|e| ProcessorError::ChainIdCheckError {
-                message: format!("Error getting chain id from transaction stream: {:?}", e),
+                message: format!("Error getting chain id from transaction stream: {e:?}"),
             })?;
 
     match maybe_existing_chain_id {
@@ -50,8 +50,7 @@ where
             if chain_id != grpc_chain_id {
                 return Err(ProcessorError::ChainIdCheckError {
                     message: format!(
-                        "Wrong chain id detected! Trying to index chain {} now but existing data is for chain {}",
-                        grpc_chain_id, chain_id
+                        "Wrong chain id detected! Trying to index chain {grpc_chain_id} now but existing data is for chain {chain_id}",
                     ),
                 });
             }
@@ -71,7 +70,7 @@ where
                 .save_chain_id(grpc_chain_id)
                 .await
                 .map_err(|e| ProcessorError::ChainIdCheckError {
-                    message: format!("Error saving chain id to db: {:?}", e),
+                    message: format!("Error saving chain id to db: {e:?}"),
                 })?;
             Ok(grpc_chain_id)
         },

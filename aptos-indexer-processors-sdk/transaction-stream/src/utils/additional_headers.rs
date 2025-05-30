@@ -35,9 +35,9 @@ impl TryFrom<HashMap<String, String>> for AdditionalHeaders {
         let mut out = HashMap::new();
         for (k, v) in map {
             let k = MetadataKey::from_str(&k)
-                .with_context(|| format!("Failed to parse key as ascii metadata key: {}", k))?;
+                .with_context(|| format!("Failed to parse key as ascii metadata key: {k}"))?;
             let v = MetadataValue::from_str(&v)
-                .with_context(|| format!("Failed to parse value as ascii metadata value: {}", v))?;
+                .with_context(|| format!("Failed to parse value as ascii metadata value: {v}"))?;
             out.insert(k, v);
         }
         Ok(AdditionalHeaders(out))

@@ -14,9 +14,9 @@ use tiny_keccak::{Hasher, Sha3};
 /// Standardizes an address / table handle to be a string with length 66 (0x+64 length hex string).
 pub fn standardize_address(handle: &str) -> String {
     if let Some(handle) = handle.strip_prefix("0x") {
-        format!("0x{:0>64}", handle)
+        format!("0x{handle:0>64}")
     } else {
-        format!("0x{:0>64}", handle)
+        format!("0x{handle:0>64}")
     }
 }
 
@@ -128,7 +128,7 @@ pub fn convert_bcs_hex(typ: String, value: String) -> Option<String> {
         "u64" => bcs::from_bytes::<u64>(decoded.as_slice()).map(|e| e.to_string()),
         "u128" => bcs::from_bytes::<u128>(decoded.as_slice()).map(|e| e.to_string()),
         "bool" => bcs::from_bytes::<bool>(decoded.as_slice()).map(|e| e.to_string()),
-        "address" => bcs::from_bytes::<String>(decoded.as_slice()).map(|e| format!("0x{}", e)),
+        "address" => bcs::from_bytes::<String>(decoded.as_slice()).map(|e| format!("0x{e}")),
         _ => Ok(value),
     }
     .ok()
@@ -146,7 +146,7 @@ pub fn convert_bcs_hex_new(typ: u8, value: String) -> Option<String> {
         4 /* u64 */ => bcs::from_bytes::<u64>(decoded.as_slice()).map(|e| e.to_string()),
         5 /* u128 */ => bcs::from_bytes::<u128>(decoded.as_slice()).map(|e| e.to_string()),
         6 /* u256 */ => bcs::from_bytes::<BigDecimal>(decoded.as_slice()).map(|e| e.to_string()),
-        7 /* address */ => bcs::from_bytes::<String>(decoded.as_slice()).map(|e| format!("0x{}", e)),
+        7 /* address */ => bcs::from_bytes::<String>(decoded.as_slice()).map(|e| format!("0x{e}")),
         8 /* byte_vector */ => bcs::from_bytes::<Vec<u8>>(decoded.as_slice()).map(|e| format!("0x{}", hex::encode(e))),
         9 /* string */ => bcs::from_bytes::<String>(decoded.as_slice()),
         _ => Ok(value),

@@ -10,7 +10,7 @@ use chrono::Utc;
 pub const MAX_TIMESTAMP_SECS: i64 = 253_402_300_799;
 
 pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::DateTime<Utc> {
-    let final_ts = if ts.seconds >= MAX_TIMESTAMP_SECS {
+    let final_ts = if ts.seconds >= MAX_TIMESTAMP_SECS || ts.seconds < 0 {
         Timestamp {
             seconds: MAX_TIMESTAMP_SECS,
             nanos: 0,
@@ -19,12 +19,12 @@ pub fn parse_timestamp(ts: &Timestamp, version: i64) -> chrono::DateTime<Utc> {
         *ts
     };
     chrono::DateTime::from_timestamp(final_ts.seconds, final_ts.nanos as u32)
-        .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
+        .unwrap_or_else(|| panic!("Could not parse timestamp {ts:?} for version {version}"))
 }
 
 pub fn parse_timestamp_secs(ts: u64, version: i64) -> chrono::DateTime<Utc> {
     chrono::DateTime::from_timestamp(std::cmp::min(ts, MAX_TIMESTAMP_SECS as u64) as i64, 0)
-        .unwrap_or_else(|| panic!("Could not parse timestamp {:?} for version {}", ts, version))
+        .unwrap_or_else(|| panic!("Could not parse timestamp {ts:?} for version {version}"))
 }
 
 pub fn compute_nanos_since_epoch(datetime: chrono::DateTime<Utc>) -> u64 {
@@ -75,6 +75,22 @@ mod tests {
         .naive_utc();
         assert_eq!(ts.and_utc().timestamp(), 1649560602);
         assert_eq!(ts.year(), 2022);
+
+        let too_high_ts = parse_timestamp(
+            &Timestamp {
+                seconds: u64::MAX as i64, // Convert a really big number to i64
+                nanos: 0,
+            },
+            1,
+        );
+        let max_ts = parse_timestamp(
+            &Timestamp {
+                seconds: MAX_TIMESTAMP_SECS,
+                nanos: 0,
+            },
+            1,
+        );
+        assert_eq!(too_high_ts, max_ts);
 
         let ts2 = parse_timestamp_secs(600000000000000, 2);
         assert_eq!(ts2.year(), 9999);

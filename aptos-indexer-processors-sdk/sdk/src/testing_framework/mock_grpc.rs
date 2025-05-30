@@ -98,7 +98,7 @@ impl MockGrpcServer {
                         println!("Server stopped successfully.");
                     },
                     Err(e) => {
-                        eprintln!("Failed to run gRPC server: {:?}", e);
+                        eprintln!("Failed to run gRPC server: {e:?}");
                     },
                 },
                 Err(_) => {
@@ -109,7 +109,7 @@ impl MockGrpcServer {
 
         // Return the port number so it can be used by other parts of the program
         let port = bound_addr.port();
-        println!("Server is running on port {}", port);
+        println!("Server is running on port {port}",);
 
         Ok(port)
     }
