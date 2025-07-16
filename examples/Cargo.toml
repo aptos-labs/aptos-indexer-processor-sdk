@@ -33,5 +33,5 @@ rayon = "1.10.0"
 sample = { path = "../aptos-indexer-processors-sdk/sample" }
 serde = { version = "1.0.193", features = ["derive", "rc"] }
 serde_json = { version = "1.0.81", features = ["preserve_order"] }
-tokio = { version = "1.37.0", features = ["full"] }
+tokio = { version = "1.44.2", features = ["full"] }
 tracing = "0.1.34"
