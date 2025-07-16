@@ -114,89 +114,87 @@ where
             let poll_step_name = step_name.clone();
             let poll_output_sender = output_sender.clone();
             let mut polling_task = tokio::spawn(async move {
-                let mut last_poll = tokio::time::Instant::now();
                 let poll_duration = poll_step.lock().await.poll_interval();
 
                 while poll_step.lock().await.should_continue_polling().await {
                     // It's possible that the channel always has items, so we need to ensure we call `poll` manually if we need to
-                    if last_poll.elapsed() >= poll_duration {
-                        let polling_duration_for_logging = Instant::now();
-                        let result = match poll_step.lock().await.poll().await {
-                            Ok(result) => result,
-                            Err(e) => {
-                                error!(
-                                    step_name = poll_step_name,
-                                    error = e.to_string(),
-                                    "Failed to poll"
-                                );
-                                break;
-                            },
-                        };
-                        match StepMetricsBuilder::default()
-                            .labels(StepMetricLabels {
-                                step_name: poll_step_name.clone(),
-                            })
-                            .polling_duration_in_secs(
-                                polling_duration_for_logging.elapsed().as_secs_f64(),
-                            )
-                            .build()
-                        {
-                            Ok(mut metrics) => metrics.log_metrics(),
-                            Err(e) => {
-                                error!(
-                                    step_name = poll_step_name,
-                                    error = e.to_string(),
-                                    "Failed to log metrics"
-                                );
-                                break;
-                            },
-                        }
-                        if let Some(outputs_with_context) = result {
-                            for output_with_context in outputs_with_context {
-                                match StepMetricsBuilder::default()
-                                    .labels(StepMetricLabels {
-                                        step_name: poll_step_name.clone(),
-                                    })
-                                    .latest_polled_version(output_with_context.metadata.end_version)
-                                    .latest_polled_transaction_timestamp(
-                                        output_with_context.get_start_transaction_timestamp_unix(),
-                                    )
-                                    .polled_transaction_latency(
-                                        output_with_context.get_transaction_latency(),
-                                    )
-                                    .num_polled_transactions_count(
-                                        output_with_context.get_num_transactions(),
-                                    )
-                                    .polled_size_in_bytes(
-                                        output_with_context.metadata.total_size_in_bytes,
-                                    )
-                                    .build()
-                                {
-                                    Ok(mut metrics) => metrics.log_metrics(),
-                                    Err(e) => {
-                                        error!(
-                                            step_name = poll_step_name,
-                                            error = e.to_string(),
-                                            "Failed to log metrics"
-                                        );
-                                        break;
-                                    },
-                                }
-                                match poll_output_sender.send(output_with_context).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        error!(
-                                            step_name = poll_step_name,
-                                            error = e.to_string(),
-                                            "Error sending output to channel"
-                                        );
-                                        break;
-                                    },
-                                }
-                            }
-                        };
-                        last_poll = tokio::time::Instant::now();
+                    let polling_duration_for_logging = Instant::now();
+                    let result = match poll_step.lock().await.poll().await {
+                        Ok(result) => result,
+                        Err(e) => {
+                            error!(
+                                step_name = poll_step_name,
+                                error = e.to_string(),
+                                "Failed to poll"
+                            );
+                            break;
+                        },
+                    };
+                    match StepMetricsBuilder::default()
+                        .labels(StepMetricLabels {
+                            step_name: poll_step_name.clone(),
+                        })
+                        .polling_duration_in_secs(
+                            polling_duration_for_logging.elapsed().as_secs_f64(),
+                        )
+                        .build()
+                    {
+                        Ok(mut metrics) => metrics.log_metrics(),
+                        Err(e) => {
+                            error!(
+                                step_name = poll_step_name,
+                                error = e.to_string(),
+                                "Failed to log metrics"
+                            );
+                            break;
+                        },
                     }
+                    if let Some(outputs_with_context) = result {
+                        for output_with_context in outputs_with_context {
+                            match StepMetricsBuilder::default()
+                                .labels(StepMetricLabels {
+                                    step_name: poll_step_name.clone(),
+                                })
+                                .latest_polled_version(output_with_context.metadata.end_version)
+                                .latest_polled_transaction_timestamp(
+                                    output_with_context.get_start_transaction_timestamp_unix(),
+                                )
+                                .polled_transaction_latency(
+                                    output_with_context.get_transaction_latency(),
+                                )
+                                .num_polled_transactions_count(
+                                    output_with_context.get_num_transactions(),
+                                )
+                                .polled_size_in_bytes(
+                                    output_with_context.metadata.total_size_in_bytes,
+                                )
+                                .build()
+                            {
+                                Ok(mut metrics) => metrics.log_metrics(),
+                                Err(e) => {
+                                    error!(
+                                        step_name = poll_step_name,
+                                        error = e.to_string(),
+                                        "Failed to log metrics"
+                                    );
+                                    break;
+                                },
+                            }
+                            match poll_output_sender.send(output_with_context).await {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    error!(
+                                        step_name = poll_step_name,
+                                        error = e.to_string(),
+                                        "Error sending output to channel"
+                                    );
+                                    break;
+                                },
+                            }
+                        }
+                    };
+
+                    tokio::time::sleep(poll_duration).await;
                 }
             });
 
