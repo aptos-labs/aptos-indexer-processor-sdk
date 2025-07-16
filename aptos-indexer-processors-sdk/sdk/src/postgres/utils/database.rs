@@ -44,7 +44,7 @@ pub fn clean_data_for_db<T: serde::Serialize + for<'de> serde::Deserialize<'de>>
     }
 }
 
-fn establish_connection(database_url: &str) -> BoxFuture<ConnectionResult<AsyncPgConnection>> {
+fn establish_connection(database_url: &str) -> BoxFuture<'_, ConnectionResult<AsyncPgConnection>> {
     use native_tls::{Certificate, TlsConnector};
     use postgres_native_tls::MakeTlsConnector;
 
