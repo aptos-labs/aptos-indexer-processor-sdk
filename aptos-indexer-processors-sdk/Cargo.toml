@@ -26,7 +26,7 @@ aptos-moving-average = { path = "moving-average" }
 sample = { path = "sample" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
-anyhow = "1.0.98"
+anyhow = "^1.0"
 aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "2dd9c73b27fdcbe78c7391fd43c9a5d00b93e686" }
 aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "2dd9c73b27fdcbe78c7391fd43c9a5d00b93e686" }
 aptos-transaction-filter = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "2dd9c73b27fdcbe78c7391fd43c9a5d00b93e686" }
@@ -41,7 +41,7 @@ clap = { version = "4.3.5", features = ["derive", "unstable-styles"] }
 # Do NOT enable the postgres feature here, it is conditionally enabled in a feature
 # block in the Cargo.toml file for the processor crate.
 # https://github.com/aptos-labs/aptos-indexer-processors/pull/325
-diesel = { version = "=2.2.0", features = [
+diesel = { version = "^2.2.0", features = [
     "chrono",
     "postgres_backend",
     "numeric",
@@ -62,7 +62,7 @@ field_count = "0.1.1"
 futures = "0.3.30"
 futures-util = "0.3.21"
 hex = "0.4.3"
-indexmap = { version = "2.7.0", features = ["serde"] }
+indexmap = { version = "^2.2", features = ["serde"] }
 itertools = "0.13.0"
 
 # Locking this because newer versions of kanal are using the unstable feature error_in_core, which
