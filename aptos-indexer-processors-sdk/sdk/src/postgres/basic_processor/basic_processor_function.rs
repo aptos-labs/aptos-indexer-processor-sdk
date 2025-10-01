@@ -79,7 +79,7 @@ where
     }
 }
 
-async fn run_processor<F, Fut>(
+pub async fn run_processor<F, Fut>(
     processor_name: String,
     transaction_stream_config: TransactionStreamConfig,
     postgres_config: PostgresConfig,
