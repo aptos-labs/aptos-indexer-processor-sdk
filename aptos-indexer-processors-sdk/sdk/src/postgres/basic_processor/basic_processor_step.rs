@@ -35,7 +35,7 @@ where
         (self.process_function)(transactions.data, self.conn_pool.clone())
             .await
             .map_err(|e| ProcessorError::ProcessError {
-                message: format!("Processing transactionsfailed: {e:?}"),
+                message: format!("Processing transactions failed: {e:?}"),
             })?;
         Ok(Some(TransactionContext {
             data: (), // Stub out data since it's not used in the next step
