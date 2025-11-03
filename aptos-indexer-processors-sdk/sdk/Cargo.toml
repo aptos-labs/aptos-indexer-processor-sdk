@@ -17,13 +17,13 @@ anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
 aptos-protos = { workspace = true }
 async-trait = { workspace = true }
-autometrics = { workspace = true }
-axum = { workspace = true }
-backtrace = { workspace = true }
+autometrics = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+backtrace = { workspace = true, optional = true }
 bcs = { workspace = true }
 bigdecimal = { workspace = true }
 chrono = { workspace = true }
-clap = { workspace = true }
+clap = { workspace = true, optional = true }
 derive_builder = { workspace = true }
 diesel = { workspace = true, optional = true }
 diesel-async = { workspace = true, optional = true }
@@ -55,16 +55,27 @@ tokio = { workspace = true }
 tokio-postgres = { workspace = true, optional = true }
 tokio-retry = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }
-toml = { workspace = true }
+toml = { workspace = true, optional = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing-subscriber = { workspace = true, optional = true }
 url = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aptos-system-utils = { workspace = true }
 
 [features]
+# Server framework feature enables the HTTP server with metrics and health check endpoints.
+# This requires tokio net features for the TCP listener.
+server_framework = [
+    "autometrics",
+    "axum",
+    "backtrace",
+    "clap",
+    "toml",
+    "tracing-subscriber",
+    "tokio/net",
+]
 postgres_partial = [
     "diesel",
     "diesel-async",
@@ -72,11 +83,18 @@ postgres_partial = [
     "field_count",
     "postgres-native-tls",
     "native-tls",
+    "server_framework",
     "tokio-postgres",
 ]
 # When using the postgres_full features we enable the diesel/postgres feature. We configure
 # it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
 # Recall that features should always be additive.
 postgres_full = ["postgres_partial", "diesel/postgres"]
-testing_framework = ["testcontainers", "tonic", "tokio-retry", "tokio-stream"]
+testing_framework = [
+    "testcontainers",
+    "tonic",
+    "tokio-retry",
+    "tokio-stream",
+    "tokio/net",
+]
 default = []

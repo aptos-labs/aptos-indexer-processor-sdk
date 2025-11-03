@@ -13,7 +13,7 @@ rust-version = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }
-aptos-indexer-processor-sdk = { workspace = true }
+aptos-indexer-processor-sdk = { workspace = true, features = ["postgres_full"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 diesel = { workspace = true }
