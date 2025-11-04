@@ -126,6 +126,7 @@ dependencies = [
  "aptos-indexer-transaction-stream",
  "aptos-protos",
  "aptos-system-utils",
+ "aptos-transaction-filter",
  "async-trait",
  "autometrics",
  "axum",

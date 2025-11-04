@@ -16,6 +16,7 @@ ahash = { workspace = true }
 anyhow = { workspace = true }
 aptos-indexer-transaction-stream = { workspace = true }
 aptos-protos = { workspace = true }
+aptos-transaction-filter = { workspace = true }
 async-trait = { workspace = true }
 autometrics = { workspace = true }
 axum = { workspace = true }
