@@ -15,7 +15,10 @@ use prost::Message;
 use sample::{sample, SampleRate};
 use std::time::Duration;
 use tokio::time::timeout;
-use tonic::{transport::ClientTlsConfig, Response, Streaming};
+use tonic::{
+    transport::{Channel, ClientTlsConfig},
+    Response, Streaming,
+};
 use tracing::{error, info, warn};
 
 /// GRPC request metadata key for the token ID.
@@ -85,7 +88,7 @@ pub async fn get_stream(
         "[Transaction Stream] Setting up rpc channel"
     );
 
-    let channel = tonic::transport::Channel::from_shared(
+    let channel = Channel::from_shared(
         transaction_stream_config
             .indexer_grpc_data_service_address
             .to_string(),
@@ -102,7 +105,7 @@ pub async fn get_stream(
         .scheme()
         == "https"
     {
-        let config = tonic::transport::channel::ClientTlsConfig::new();
+        let config = ClientTlsConfig::new();
         channel
             .tls_config(config)
             .expect("[Transaction Stream] Failed to create TLS config")
@@ -260,7 +263,7 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
     );
 
     // Minimal channel setup for a single query
-    let mut channel = tonic::transport::Channel::from_shared(
+    let mut channel = Channel::from_shared(
         transaction_stream_config
             .indexer_grpc_data_service_address
             .to_string(),
