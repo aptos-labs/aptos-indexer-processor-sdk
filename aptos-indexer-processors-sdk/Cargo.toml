@@ -87,7 +87,7 @@ testcontainers = "0.20.1"
 thiserror = "1.0.61"
 tiny-keccak = { version = "2.0.2", features = ["keccak", "sha3"] }
 tracing = "0.1.34"
-tokio = { version = "1.37.0", features = [
+tokio = { version = "1.38.2", features = [
     "rt",
     "rt-multi-thread",
     "sync",
