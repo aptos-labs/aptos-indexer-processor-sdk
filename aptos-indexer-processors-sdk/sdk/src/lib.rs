@@ -2,6 +2,7 @@ pub mod builder;
 pub mod common_steps; // TODO: Feature gate this?
 #[cfg(feature = "postgres_partial")]
 pub mod postgres;
+#[cfg(feature = "server_framework")]
 pub mod server_framework;
 pub mod test;
 #[cfg(feature = "testing_framework")]
