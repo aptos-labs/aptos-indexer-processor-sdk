@@ -15,7 +15,7 @@ use prost::Message;
 use sample::{sample, SampleRate};
 use std::time::Duration;
 use tokio::time::timeout;
-use tonic::{Response, Streaming};
+use tonic::{transport::ClientTlsConfig, Response, Streaming};
 use tracing::{error, info, warn};
 
 /// GRPC request metadata key for the token ID.
@@ -259,12 +259,41 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
         "[Transaction Stream] Connecting to GRPC stream to get chain id",
     );
 
-    let transaction_stream_config_for_chain_id = TransactionStreamConfig {
-        starting_version: Some(1),
-        request_ending_version: Some(2),
-        ..transaction_stream_config.clone()
-    };
-    let response = get_stream(transaction_stream_config_for_chain_id).await?;
+    // Minimal channel setup for a single query
+    let mut channel = tonic::transport::Channel::from_shared(
+        transaction_stream_config
+            .indexer_grpc_data_service_address
+            .to_string(),
+    )
+    .expect(
+        "[Transaction Stream] Failed to build GRPC channel, perhaps because the data service URL is invalid",
+    );
+
+    // Add TLS if needed
+    if transaction_stream_config
+        .indexer_grpc_data_service_address
+        .scheme()
+        == "https"
+    {
+        channel = channel
+            .tls_config(ClientTlsConfig::new())
+            .expect("[Transaction Stream] Failed to create TLS config");
+    }
+
+    // Make a point query: starting_version=None, ending_version=None, transactions_count=1
+    let request = grpc_request_builder(
+        None,
+        Some(1),
+        transaction_stream_config.auth_token.clone(),
+        transaction_stream_config.request_name_header.clone(),
+        transaction_stream_config.additional_headers.clone(),
+        transaction_stream_config.transaction_filter.clone(),
+    );
+
+    let response = RawDataClient::connect(channel)
+        .await?
+        .get_transactions(request)
+        .await?;
     let connection_id = match response.metadata().get(GRPC_CONNECTION_ID) {
         Some(connection_id) => connection_id.to_str().unwrap().to_string(),
         None => "".to_string(),
