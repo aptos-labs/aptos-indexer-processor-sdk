@@ -2,6 +2,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 
 pub mod basic_processor;
 pub mod models;
+pub mod progress;
 pub mod subconfigs;
 pub mod utils;
 

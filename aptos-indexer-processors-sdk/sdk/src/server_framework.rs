@@ -1,5 +1,10 @@
 // Copyright © Aptos Foundation
 
+// Re-export health types for convenience.
+pub use crate::health::{
+    default_no_progress_threshold_secs, ProgressHealthChecker, ProgressHealthConfig,
+    ProgressStatusProvider, ReadinessCheck,
+};
 use crate::{
     instrumented_channel::channel_metrics::init_channel_metrics_registry,
     utils::step_metrics::init_step_metrics_registry,
@@ -13,7 +18,8 @@ use backtrace::Backtrace;
 use clap::Parser;
 use prometheus_client::registry::Registry;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-// TODO: remove deprecated lint when new clippy nightly is released
+use std::sync::Arc;
+// TODO: remove deprecated lint when new clippy nightly is released.
 #[allow(deprecated)]
 use std::{fs::File, io::Read, panic::PanicInfo, path::PathBuf, process};
 use tokio::runtime::Handle;
@@ -33,17 +39,31 @@ impl ServerArgs {
     where
         C: RunnableConfig,
     {
-        // Set up the server.
+        self.run_with_readiness_checks::<C>(handle, vec![]).await
+    }
+
+    pub async fn run_with_readiness_checks<C>(
+        &self,
+        handle: Handle,
+        readiness_checks: Vec<Arc<dyn ReadinessCheck>>,
+    ) -> Result<()>
+    where
+        C: RunnableConfig,
+    {
         setup_logging();
         setup_panic_handler();
         let config = load::<GenericConfig<C>>(&self.config_path)?;
-        run_server_with_config(config, handle).await
+        run_server_with_config(config, handle, readiness_checks).await
     }
 }
 
 /// Run a server and the necessary probes. For spawning these tasks, the user must
 /// provide a handle to a runtime they already have.
-pub async fn run_server_with_config<C>(config: GenericConfig<C>, handle: Handle) -> Result<()>
+pub async fn run_server_with_config<C>(
+    config: GenericConfig<C>,
+    handle: Handle,
+    readiness_checks: Vec<Arc<dyn ReadinessCheck>>,
+) -> Result<()>
 where
     C: RunnableConfig,
 {
@@ -51,7 +71,7 @@ where
     let additional_labels = config.metrics_config.additional_labels.clone();
     // Start liveness and readiness probes.
     let task_handler = handle.spawn(async move {
-        register_probes_and_metrics_handler(health_port, additional_labels).await;
+        register_probes_and_metrics_handler(health_port, additional_labels, readiness_checks).await;
         anyhow::Ok(())
     });
     let main_task_handler = handle.spawn(async move { config.run().await });
@@ -126,15 +146,15 @@ pub struct CrashInfo {
 /// ensure that all subsequent thread panics (even Tokio threads) will report the
 /// details/backtrace and then exit.
 pub fn setup_panic_handler() {
-    // TODO: remove deprecated lint when new clippy nightly is released
+    // TODO: remove deprecated lint when new clippy nightly is released.
     #[allow(deprecated)]
     std::panic::set_hook(Box::new(move |pi: &PanicInfo<'_>| {
         handle_panic(pi);
     }));
 }
 
-// Formats and logs panic information
-// TODO: remove deprecated lint when new clippy nightly is released
+// Formats and logs panic information.
+// TODO: remove deprecated lint when new clippy nightly is released.
 #[allow(deprecated)]
 fn handle_panic(panic_info: &PanicInfo<'_>) {
     // The Display formatter for a PanicInfo contains the message, payload and location.
@@ -143,10 +163,11 @@ fn handle_panic(panic_info: &PanicInfo<'_>) {
     let info = CrashInfo { details, backtrace };
     let crash_info = toml::to_string_pretty(&info).unwrap();
     error!("{}", crash_info);
-    // TODO / HACK ALARM: Write crash info synchronously via eprintln! to ensure it is written before the process exits which error! doesn't guarantee.
+    // TODO / HACK ALARM: Write crash info synchronously via eprintln! to ensure it is written
+    // before the process exits which error! doesn't guarantee.
     // This is a workaround until https://github.com/aptos-labs/aptos-core/issues/2038 is resolved.
     eprintln!("{crash_info}",);
-    // Kill the process
+    // Kill the process.
     process::exit(12);
 }
 
@@ -168,9 +189,13 @@ pub fn setup_logging() {
 }
 
 /// Register readiness and liveness probes and set up metrics endpoint.
+///
+/// If `readiness_checks` is provided, the `/readiness` endpoint will call each check
+/// and return 503 if any of them fail, with the failure reasons in the response body.
 pub async fn register_probes_and_metrics_handler(
     port: u16,
     additional_labels: Vec<(String, String)>,
+    readiness_checks: Vec<Arc<dyn ReadinessCheck>>,
 ) {
     let mut registry = Registry::with_labels(
         additional_labels
@@ -183,9 +208,21 @@ pub async fn register_probes_and_metrics_handler(
         .prometheus_client_registry(registry)
         .init();
 
-    let router = Router::new()
-        .route("/readiness", get(StatusCode::OK))
-        .route("/metrics", get(metrics_handler));
+    let router = if readiness_checks.is_empty() {
+        Router::new()
+            .route("/readiness", get(StatusCode::OK))
+            .route("/metrics", get(metrics_handler))
+    } else {
+        Router::new()
+            .route(
+                "/readiness",
+                get({
+                    let checks = readiness_checks.clone();
+                    move || readiness_handler(checks.clone())
+                }),
+            )
+            .route("/metrics", get(metrics_handler))
+    };
 
     #[cfg(target_os = "linux")]
     let router = router.merge(Router::new().route("/profilez", get(profilez_handler)));
@@ -194,6 +231,27 @@ pub async fn register_probes_and_metrics_handler(
         .await
         .expect("Failed to bind TCP listener");
     axum::serve(listener, router).await.unwrap();
+}
+
+/// Readiness handler that runs all registered checks.
+async fn readiness_handler(checks: Vec<Arc<dyn ReadinessCheck>>) -> impl IntoResponse {
+    let mut failures = Vec::new();
+
+    for check in &checks {
+        if let Err(reason) = check.is_ready().await {
+            failures.push(format!("{}: {}", check.name(), reason));
+        }
+    }
+
+    if failures.is_empty() {
+        StatusCode::OK.into_response()
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("Not ready:\n{}", failures.join("\n")),
+        )
+            .into_response()
+    }
 }
 
 async fn metrics_handler() -> impl IntoResponse {
