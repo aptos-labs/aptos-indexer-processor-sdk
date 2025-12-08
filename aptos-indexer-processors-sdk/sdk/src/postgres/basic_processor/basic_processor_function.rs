@@ -37,7 +37,7 @@ pub struct ProcessConfig {
     pub transaction_stream_config: TransactionStreamConfig,
     pub postgres_config: PostgresConfig,
     /// Optional configuration for progress health checking.
-    /// If provided, the `/readiness` endpoint will check if the processor is making progress.
+    /// If provided, the `/healthz` endpoint will check if the processor is making progress.
     #[serde(default)]
     pub progress_health_config: Option<ProgressHealthConfig>,
 }

@@ -190,7 +190,7 @@ pub fn setup_logging() {
 
 /// Register readiness and liveness probes and set up metrics endpoint.
 ///
-/// If `readiness_checks` is provided, the `/readiness` endpoint will call each check
+/// If `readiness_checks` is provided, the `/healthz` endpoint will call each check
 /// and return 503 if any of them fail, with the failure reasons in the response body.
 pub async fn register_probes_and_metrics_handler(
     port: u16,
@@ -210,12 +210,12 @@ pub async fn register_probes_and_metrics_handler(
 
     let router = if readiness_checks.is_empty() {
         Router::new()
-            .route("/readiness", get(StatusCode::OK))
+            .route("/healthz", get(StatusCode::OK))
             .route("/metrics", get(metrics_handler))
     } else {
         Router::new()
             .route(
-                "/readiness",
+                "/healthz",
                 get({
                     let checks = readiness_checks.clone();
                     move || readiness_handler(checks.clone())
