@@ -1,8 +1,10 @@
-build
+# Other
+*.swp
 
 # Rust specific ignores
 # Please follow https://help.github.com/en/articles/ignoring-files to create a global
 # .gitignore file locally for IDE/Emacs/Vim generated files.
+build
 **/target
 **/*.rs.bk
 .idea/
