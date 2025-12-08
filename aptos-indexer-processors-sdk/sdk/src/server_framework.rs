@@ -2,8 +2,8 @@
 
 // Re-export health types for convenience.
 pub use crate::health::{
-    default_no_progress_threshold_secs, ProgressHealthChecker, ProgressHealthConfig,
-    ProgressStatusProvider, ReadinessCheck,
+    default_no_progress_threshold_secs, HealthCheck, ProgressHealthChecker, ProgressHealthConfig,
+    ProgressStatusProvider,
 };
 use crate::{
     instrumented_channel::channel_metrics::init_channel_metrics_registry,
@@ -39,13 +39,13 @@ impl ServerArgs {
     where
         C: RunnableConfig,
     {
-        self.run_with_readiness_checks::<C>(handle, vec![]).await
+        self.run_with_health_checks::<C>(handle, vec![]).await
     }
 
-    pub async fn run_with_readiness_checks<C>(
+    pub async fn run_with_health_checks<C>(
         &self,
         handle: Handle,
-        readiness_checks: Vec<Arc<dyn ReadinessCheck>>,
+        health_checks: Vec<Arc<dyn HealthCheck>>,
     ) -> Result<()>
     where
         C: RunnableConfig,
@@ -53,7 +53,7 @@ impl ServerArgs {
         setup_logging();
         setup_panic_handler();
         let config = load::<GenericConfig<C>>(&self.config_path)?;
-        run_server_with_config(config, handle, readiness_checks).await
+        run_server_with_config(config, handle, health_checks).await
     }
 }
 
@@ -62,16 +62,16 @@ impl ServerArgs {
 pub async fn run_server_with_config<C>(
     config: GenericConfig<C>,
     handle: Handle,
-    readiness_checks: Vec<Arc<dyn ReadinessCheck>>,
+    health_checks: Vec<Arc<dyn HealthCheck>>,
 ) -> Result<()>
 where
     C: RunnableConfig,
 {
     let health_port = config.health_check_port;
     let additional_labels = config.metrics_config.additional_labels.clone();
-    // Start liveness and readiness probes.
+    // Start health and metrics probes.
     let task_handler = handle.spawn(async move {
-        register_probes_and_metrics_handler(health_port, additional_labels, readiness_checks).await;
+        register_probes_and_metrics_handler(health_port, additional_labels, health_checks).await;
         anyhow::Ok(())
     });
     let main_task_handler = handle.spawn(async move { config.run().await });
@@ -188,14 +188,14 @@ pub fn setup_logging() {
         .init();
 }
 
-/// Register readiness and liveness probes and set up metrics endpoint.
+/// Register health and metrics probes and set up metrics endpoint.
 ///
-/// If `readiness_checks` is provided, the `/healthz` endpoint will call each check
+/// If `health_checks` is provided, the `/healthz` endpoint will call each check
 /// and return 503 if any of them fail, with the failure reasons in the response body.
 pub async fn register_probes_and_metrics_handler(
     port: u16,
     additional_labels: Vec<(String, String)>,
-    readiness_checks: Vec<Arc<dyn ReadinessCheck>>,
+    health_checks: Vec<Arc<dyn HealthCheck>>,
 ) {
     let mut registry = Registry::with_labels(
         additional_labels
@@ -208,7 +208,7 @@ pub async fn register_probes_and_metrics_handler(
         .prometheus_client_registry(registry)
         .init();
 
-    let router = if readiness_checks.is_empty() {
+    let router = if health_checks.is_empty() {
         Router::new()
             .route("/healthz", get(StatusCode::OK))
             .route("/metrics", get(metrics_handler))
@@ -217,8 +217,8 @@ pub async fn register_probes_and_metrics_handler(
             .route(
                 "/healthz",
                 get({
-                    let checks = readiness_checks.clone();
-                    move || readiness_handler(checks.clone())
+                    let checks = health_checks.clone();
+                    move || health_handler(checks.clone())
                 }),
             )
             .route("/metrics", get(metrics_handler))
@@ -233,12 +233,12 @@ pub async fn register_probes_and_metrics_handler(
     axum::serve(listener, router).await.unwrap();
 }
 
-/// Readiness handler that runs all registered checks.
-async fn readiness_handler(checks: Vec<Arc<dyn ReadinessCheck>>) -> impl IntoResponse {
+/// Health handler that runs all registered checks.
+async fn health_handler(checks: Vec<Arc<dyn HealthCheck>>) -> impl IntoResponse {
     let mut failures = Vec::new();
 
     for check in &checks {
-        if let Err(reason) = check.is_ready().await {
+        if let Err(reason) = check.is_healthy().await {
             failures.push(format!("{}: {}", check.name(), reason));
         }
     }
@@ -248,7 +248,7 @@ async fn readiness_handler(checks: Vec<Arc<dyn ReadinessCheck>>) -> impl IntoRes
     } else {
         (
             StatusCode::SERVICE_UNAVAILABLE,
-            format!("Not ready:\n{}", failures.join("\n")),
+            format!("Not healthy:\n{}", failures.join("\n")),
         )
             .into_response()
     }

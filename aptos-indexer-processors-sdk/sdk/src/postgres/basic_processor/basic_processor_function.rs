@@ -18,7 +18,7 @@ use crate::{
     },
     server_framework::{
         load, register_probes_and_metrics_handler, setup_logging, setup_panic_handler,
-        GenericConfig, ProgressHealthChecker, ProgressHealthConfig, ReadinessCheck, ServerArgs,
+        GenericConfig, HealthCheck, ProgressHealthChecker, ProgressHealthConfig, ServerArgs,
     },
     traits::IntoRunnableStep,
     utils::{chain_id_check::check_or_update_chain_id, errors::ProcessorError},
@@ -69,8 +69,8 @@ where
     .await
     .expect("Failed to create connection pool");
 
-    // Build readiness checks.
-    let mut readiness_checks: Vec<Arc<dyn ReadinessCheck>> = vec![];
+    // Build health checks.
+    let mut health_checks: Vec<Arc<dyn HealthCheck>> = vec![];
     if let Some(progress_config) = progress_health_config {
         let status_provider =
             PostgresProgressStatusProvider::new(processor_name.clone(), db_pool.clone());
@@ -79,12 +79,12 @@ where
             Box::new(status_provider),
             progress_config,
         );
-        readiness_checks.push(Arc::new(progress_checker));
+        health_checks.push(Arc::new(progress_checker));
     }
 
-    // Start liveness and readiness probes.
+    // Start health and metrics probes.
     let task_handler = handle.spawn(async move {
-        register_probes_and_metrics_handler(health_port, additional_labels, readiness_checks).await;
+        register_probes_and_metrics_handler(health_port, additional_labels, health_checks).await;
         anyhow::Ok(())
     });
     let main_task_handler = handle.spawn(async move {

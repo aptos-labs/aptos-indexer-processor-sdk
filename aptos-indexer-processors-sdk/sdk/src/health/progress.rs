@@ -1,6 +1,6 @@
 //! Progress health checking for processors.
 
-use super::core::ReadinessCheck;
+use super::core::HealthCheck;
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ pub trait ProgressStatusProvider: Send + Sync {
     async fn get_last_updated(&self) -> Result<Option<NaiveDateTime>, String>;
 }
 
-/// A readiness check that verifies the processor is making forward progress.
+/// A health check that verifies the processor is making forward progress.
 ///
 /// This is generic over the status provider, allowing different backends (postgres, etc.).
 pub struct ProgressHealthChecker {
@@ -62,12 +62,12 @@ impl ProgressHealthChecker {
 }
 
 #[async_trait]
-impl ReadinessCheck for ProgressHealthChecker {
+impl HealthCheck for ProgressHealthChecker {
     fn name(&self) -> &str {
         "ProgressHealth"
     }
 
-    async fn is_ready(&self) -> Result<(), String> {
+    async fn is_healthy(&self) -> Result<(), String> {
         let last_updated = self.status_provider.get_last_updated().await?;
 
         match last_updated {
