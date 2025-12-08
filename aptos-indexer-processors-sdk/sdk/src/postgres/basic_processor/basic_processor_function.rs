@@ -6,6 +6,7 @@ use crate::{
         TransactionStreamStep, VersionTrackerStep, DEFAULT_UPDATE_PROCESSOR_STATUS_SECS,
     },
     postgres::{
+        progress::PostgresProgressStatusProvider,
         subconfigs::postgres_config::PostgresConfig,
         utils::{
             checkpoint::{
@@ -17,7 +18,7 @@ use crate::{
     },
     server_framework::{
         load, register_probes_and_metrics_handler, setup_logging, setup_panic_handler,
-        GenericConfig, ServerArgs,
+        GenericConfig, HealthCheck, ProgressHealthChecker, ProgressHealthConfig, ServerArgs,
     },
     traits::IntoRunnableStep,
     utils::{chain_id_check::check_or_update_chain_id, errors::ProcessorError},
@@ -27,6 +28,7 @@ use aptos_protos::transaction::v1::Transaction;
 use clap::Parser;
 use diesel_migrations::EmbeddedMigrations;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::info;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -34,6 +36,10 @@ use tracing::info;
 pub struct ProcessConfig {
     pub transaction_stream_config: TransactionStreamConfig,
     pub postgres_config: PostgresConfig,
+    /// Optional configuration for progress health checking.
+    /// If provided, the `/healthz` endpoint will check if the processor is making progress.
+    #[serde(default)]
+    pub progress_health_config: Option<ProgressHealthConfig>,
 }
 
 /// Processes transactions with a custom handler function.
@@ -54,9 +60,31 @@ where
 
     let health_port = config.health_check_port;
     let additional_labels = config.metrics_config.additional_labels.clone();
-    // Start liveness and readiness probes.
+    let progress_health_config = config.server_config.progress_health_config.clone();
+
+    let db_pool = new_db_pool(
+        &config.server_config.postgres_config.connection_string,
+        Some(config.server_config.postgres_config.db_pool_size),
+    )
+    .await
+    .expect("Failed to create connection pool");
+
+    // Build health checks.
+    let mut health_checks: Vec<Arc<dyn HealthCheck>> = vec![];
+    if let Some(progress_config) = progress_health_config {
+        let status_provider =
+            PostgresProgressStatusProvider::new(processor_name.clone(), db_pool.clone());
+        let progress_checker = ProgressHealthChecker::new(
+            processor_name.clone(),
+            Box::new(status_provider),
+            progress_config,
+        );
+        health_checks.push(Arc::new(progress_checker));
+    }
+
+    // Start health and metrics probes.
     let task_handler = handle.spawn(async move {
-        register_probes_and_metrics_handler(health_port, additional_labels).await;
+        register_probes_and_metrics_handler(health_port, additional_labels, health_checks).await;
         anyhow::Ok(())
     });
     let main_task_handler = handle.spawn(async move {
@@ -65,6 +93,7 @@ where
             config.server_config.transaction_stream_config,
             config.server_config.postgres_config,
             embedded_migrations,
+            db_pool,
             process_function,
         )
         .await
@@ -84,21 +113,14 @@ pub async fn run_processor<F, Fut>(
     transaction_stream_config: TransactionStreamConfig,
     postgres_config: PostgresConfig,
     embedded_migrations: EmbeddedMigrations,
+    db_pool: ArcDbPool,
     process_function: F,
 ) -> Result<()>
 where
     F: FnMut(Vec<Transaction>, ArcDbPool) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<(), ProcessorError>> + Send + 'static,
 {
-    // Create a connection pool
-    let db_pool = new_db_pool(
-        &postgres_config.connection_string,
-        Some(postgres_config.db_pool_size),
-    )
-    .await
-    .expect("Failed to create connection pool");
-
-    // Run user migrations
+    // Run user migrations.
     run_migrations(
         postgres_config.connection_string.clone(),
         db_pool.clone(),
@@ -106,7 +128,7 @@ where
     )
     .await;
 
-    // Run SDK migrations
+    // Run SDK migrations.
     run_migrations(
         postgres_config.connection_string.clone(),
         db_pool.clone(),
@@ -120,7 +142,7 @@ where
     )
     .await?;
 
-    // Merge the starting version from config and the latest processed version from the DB
+    // Merge the starting version from config and the latest processed version from the DB.
     let starting_version = get_starting_version(
         processor_name.as_str(),
         transaction_stream_config.clone(),
@@ -128,7 +150,7 @@ where
     )
     .await?;
 
-    // Define processor steps
+    // Define processor steps.
     let transaction_stream_config = transaction_stream_config.clone();
     let transaction_stream = TransactionStreamStep::new(TransactionStreamConfig {
         starting_version: Some(starting_version),
@@ -144,14 +166,14 @@ where
     let version_tracker =
         VersionTrackerStep::new(processor_status_saver, DEFAULT_UPDATE_PROCESSOR_STATUS_SECS);
 
-    // Connect processor steps together
+    // Connect processor steps together.
     let (_, buffer_receiver) =
         ProcessorBuilder::new_with_inputless_first_step(transaction_stream.into_runnable_step())
             .connect_to(basic_processor_step.into_runnable_step(), 10)
             .connect_to(version_tracker.into_runnable_step(), 10)
             .end_and_return_output_receiver(10);
 
-    // (Optional) Parse the results
+    // (Optional) Parse the results.
     loop {
         match buffer_receiver.recv().await {
             Ok(_) => {},
