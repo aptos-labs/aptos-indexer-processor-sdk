@@ -813,9 +813,9 @@ dependencies = [
 
 [[package]]
 name = "diesel"
-version = "2.2.0"
+version = "2.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35b696af9ff4c0d2a507db2c5faafa8aa0205e297e5f11e203a24226d5355e7a"
+checksum = "229850a212cd9b84d4f0290ad9d294afc0ae70fccaa8949dbe8b43ffafa1e20c"
 dependencies = [
  "bigdecimal",
  "bitflags 2.9.0",
