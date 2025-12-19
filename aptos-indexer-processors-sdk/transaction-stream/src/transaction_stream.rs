@@ -346,7 +346,7 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
                         .indexer_grpc_data_service_address
                         .to_string(),
                     connection_id = connection_id,
-                    "[Transaction Stream] Stream ended before getting response fo for chain id"
+                    "[Transaction Stream] Stream ended before getting response for chain id"
                 );
                 Err(anyhow!("Stream ended before getting response for chain id"))
             },
