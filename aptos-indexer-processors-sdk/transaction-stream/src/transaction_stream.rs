@@ -283,9 +283,9 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
             .expect("[Transaction Stream] Failed to create TLS config");
     }
 
-    // Make a point query for the latest transaction
+    // Make a point query to get the chain id
     let request = grpc_request_builder(
-        None,
+        transaction_stream_config.starting_version.or(Some(0)),
         Some(1),
         transaction_stream_config.auth_token.clone(),
         transaction_stream_config.request_name_header.clone(),
