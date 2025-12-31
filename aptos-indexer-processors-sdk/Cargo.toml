@@ -27,9 +27,9 @@ sample = { path = "sample" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.98"
-aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "2c0d9dd8fd1c27c10bc264a66917d86e8b0467b5" }
-aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "2c0d9dd8fd1c27c10bc264a66917d86e8b0467b5" }
-aptos-transaction-filter = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "2c0d9dd8fd1c27c10bc264a66917d86e8b0467b5" }
+aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "d181eb37ea0681d5248cd9aa7a536dd3787f03e8" }
+aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "d181eb37ea0681d5248cd9aa7a536dd3787f03e8" }
+aptos-transaction-filter = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "d181eb37ea0681d5248cd9aa7a536dd3787f03e8" }
 async-trait = "0.1.80"
 autometrics = { version = "1.0.1", features = ["prometheus-exporter"] }
 axum = "0.7.5"
