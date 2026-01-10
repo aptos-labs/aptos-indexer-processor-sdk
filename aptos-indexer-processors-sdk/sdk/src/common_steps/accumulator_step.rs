@@ -260,3 +260,139 @@ impl<T: Accumulatable + Send + 'static> RunnableStep<T, T> for AccumulatorStep<T
         (output_receiver, handle)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::transaction_context::TransactionMetadata;
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct TestData {
+        items: Vec<u64>,
+    }
+
+    #[async_trait]
+    impl Accumulatable for TestData {
+        async fn accumulate(&mut self, other: Self) {
+            self.items.extend(other.items);
+        }
+    }
+
+    fn make_test_context(
+        items: Vec<u64>,
+        start_version: u64,
+        end_version: u64,
+        size_in_bytes: u64,
+    ) -> TransactionContext<TestData> {
+        TransactionContext {
+            data: TestData { items },
+            metadata: TransactionMetadata {
+                start_version,
+                end_version,
+                start_transaction_timestamp: None,
+                end_transaction_timestamp: None,
+                total_size_in_bytes: size_in_bytes,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn test_accumulate_first_item() {
+        let mut step: AccumulatorStep<TestData> = AccumulatorStep::new(Some(1000));
+        let ctx = make_test_context(vec![1, 2, 3], 0, 2, 100);
+
+        step.accumulate(ctx).await;
+
+        assert!(step.accumulator.is_some());
+        let acc = step.accumulator.as_ref().unwrap();
+        assert_eq!(acc.data.items, vec![1, 2, 3]);
+        assert_eq!(acc.metadata.start_version, 0);
+        assert_eq!(acc.metadata.end_version, 2);
+        assert_eq!(acc.metadata.total_size_in_bytes, 100);
+    }
+
+    #[tokio::test]
+    async fn test_accumulate_multiple_items() {
+        let mut step: AccumulatorStep<TestData> = AccumulatorStep::new(Some(10000));
+
+        let ctx1 = make_test_context(vec![1, 2], 0, 1, 50);
+        let ctx2 = make_test_context(vec![3, 4], 2, 3, 60);
+        let ctx3 = make_test_context(vec![5], 4, 4, 40);
+
+        step.accumulate(ctx1).await;
+        step.accumulate(ctx2).await;
+        step.accumulate(ctx3).await;
+
+        let acc = step.accumulator.as_ref().unwrap();
+        assert_eq!(acc.data.items, vec![1, 2, 3, 4, 5]);
+        assert_eq!(acc.metadata.start_version, 0);
+        assert_eq!(acc.metadata.end_version, 4);
+        assert_eq!(acc.metadata.total_size_in_bytes, 150);
+    }
+
+    #[tokio::test]
+    async fn test_flush_empty_accumulator() {
+        let mut step: AccumulatorStep<TestData> = AccumulatorStep::new(Some(1000));
+
+        let result = step.flush();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_flush_with_data() {
+        let mut step: AccumulatorStep<TestData> = AccumulatorStep::new(Some(1000));
+
+        let ctx1 = make_test_context(vec![1, 2], 0, 1, 100);
+        let ctx2 = make_test_context(vec![3, 4], 2, 3, 200);
+
+        step.accumulate(ctx1).await;
+        step.accumulate(ctx2).await;
+
+        let result = step.flush();
+        assert!(result.is_some());
+
+        let flushed = result.unwrap();
+        assert_eq!(flushed.data.items, vec![1, 2, 3, 4]);
+        assert_eq!(flushed.metadata.start_version, 0);
+        assert_eq!(flushed.metadata.end_version, 3);
+        assert_eq!(flushed.metadata.total_size_in_bytes, 300);
+
+        assert!(step.accumulator.is_none());
+        assert_eq!(step.get_accumulator_size_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_accumulate_impl() {
+        let mut step: AccumulatorStep<TestData> = AccumulatorStep::new(Some(1000));
+
+        let ctx1 = make_test_context(vec![1], 0, 0, 50);
+        let ctx2 = make_test_context(vec![2], 1, 1, 50);
+
+        step.accumulate_impl(ctx1).await;
+        step.accumulate_impl(ctx2).await;
+
+        let acc = step.accumulator.as_ref().unwrap();
+        assert_eq!(acc.data.items, vec![1, 2]);
+        assert_eq!(acc.metadata.total_size_in_bytes, 100);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_flush_cycles() {
+        let mut step: AccumulatorStep<TestData> = AccumulatorStep::new(Some(1000));
+
+        step.accumulate(make_test_context(vec![1, 2], 0, 1, 100))
+            .await;
+        let result1 = step.flush();
+        assert!(result1.is_some());
+        assert_eq!(result1.unwrap().data.items, vec![1, 2]);
+
+        step.accumulate(make_test_context(vec![3, 4], 2, 3, 100))
+            .await;
+        let result2 = step.flush();
+        assert!(result2.is_some());
+        assert_eq!(result2.unwrap().data.items, vec![3, 4]);
+
+        let result3 = step.flush();
+        assert!(result3.is_none());
+    }
+}
