@@ -15,10 +15,10 @@ rust-version = "1.78"
 [workspace.dependencies]
 postgres-basic-events-example = { path = "postgres-basic-events-example" }
 
+anyhow = "1.0.86"
 aptos-indexer-processor-sdk = { path = "../aptos-indexer-processors-sdk/sdk", features = [
     "postgres_full",
 ] }
-anyhow = "1.0.86"
 async-trait = "0.1.80"
 clap = { version = "4.3.5", features = ["derive", "unstable-styles"] }
 diesel = { version = "~2.3", features = [
