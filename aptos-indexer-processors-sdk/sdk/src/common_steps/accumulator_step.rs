@@ -37,6 +37,7 @@ impl Accumulatable for Vec<Transaction> {
 ///    a. If the output channel is NOT full:
 ///       - If the accumulator has data, accumulate the input and flush
 ///       - Otherwise, pass the input through as is
+///
 ///    b. If the output channel is full:
 ///       - Accumulate the input
 ///       - Keep receiving and accumulating inputs until the output channel has space
@@ -211,7 +212,12 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                         tokio::select! {
                             input_with_context = input_receiver.recv() => {
                                 if let Ok(input_with_context) = input_with_context {
-                                    step.accumulate(input_with_context).await;
+                                    if !output_sender.is_full() {
+                                        step.accumulate_impl(input_with_context);
+                                        break;
+                                    } else {
+                                        step.accumulate(input_with_context).await;
+                                    }
                                 }
                             },
                             _ = tokio::time::sleep(FLUSH_POLL_INTERVAL_MS) => {
