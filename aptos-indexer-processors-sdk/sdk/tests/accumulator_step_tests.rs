@@ -49,10 +49,11 @@ async fn receive_with_timeout<T>(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_passthrough_when_channel_not_full() {
-    let step: AccumulatorStep<TestBatch> = AccumulatorStep::new(10000);
+    let step = AccumulatorStep::new(10000);
 
     let (input_sender, input_receiver) = instrumented_bounded_channel("input", 10);
-    let (output_receiver, _handle) = step.spawn(Some(input_receiver), 10, None);
+    let (output_receiver, _handle) =
+        RunnableStep::<TestBatch, TestBatch>::spawn(step, Some(input_receiver), 10, None);
 
     let batch1 = make_test_context(vec![1, 2, 3], 0, 2, 100);
     input_sender.send(batch1.clone()).await.unwrap();
@@ -75,10 +76,11 @@ async fn test_passthrough_when_channel_not_full() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_multiple_accumulation_cycles() {
     // Test that the step correctly handles multiple accumulation and flush cycles
-    let step: AccumulatorStep<TestBatch> = AccumulatorStep::new(10000);
+    let step = AccumulatorStep::new(10000);
 
     let (input_sender, input_receiver) = instrumented_bounded_channel("input", 10);
-    let (output_receiver, _handle) = step.spawn(Some(input_receiver), 1, None);
+    let (output_receiver, _handle) =
+        RunnableStep::<TestBatch, TestBatch>::spawn(step, Some(input_receiver), 1, None);
 
     // batch1: passes through to output channel (output now full)
     let batch1 = make_test_context(vec![1], 0, 0, 100);
@@ -148,9 +150,10 @@ async fn test_multiple_accumulation_cycles() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_accumulation_when_output_full() {
     // Use a large buffer size so we don't hit backpressure during this test
-    let step: AccumulatorStep<TestBatch> = AccumulatorStep::new(10000);
+    let step = AccumulatorStep::new(10000);
     let (input_sender, input_receiver) = instrumented_bounded_channel("input", 10);
-    let (output_receiver, _handle) = step.spawn(Some(input_receiver), 1, None);
+    let (output_receiver, _handle) =
+        RunnableStep::<TestBatch, TestBatch>::spawn(step, Some(input_receiver), 1, None);
 
     // batch1: passes through to output channel (output now full)
     let batch1 = make_test_context(vec![1], 0, 0, 100);
