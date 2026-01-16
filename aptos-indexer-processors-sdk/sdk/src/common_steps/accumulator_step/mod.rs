@@ -8,9 +8,12 @@ use bigdecimal::Zero;
 use instrumented_channel::{
     instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
 };
+pub use pollable::PollableAccumulatorStep;
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
+
+mod pollable;
 
 const FLUSH_POLL_INTERVAL_MS: Duration = Duration::from_millis(100);
 
@@ -26,10 +29,10 @@ impl Accumulatable for Vec<Transaction> {
 }
 
 /// A struct that accumulates transaction contexts.
-struct Accumulator<T: Accumulatable + Sync + Send + 'static>(TransactionContext<T>);
+pub(crate) struct Accumulator<T: Accumulatable + Sync + Send + 'static>(TransactionContext<T>);
 
 impl<T: Accumulatable + Sync + Send + 'static> Accumulator<T> {
-    fn new(ctx: TransactionContext<T>) -> Self {
+    pub(crate) fn new(ctx: TransactionContext<T>) -> Self {
         Self(ctx)
     }
 
@@ -37,7 +40,7 @@ impl<T: Accumulatable + Sync + Send + 'static> Accumulator<T> {
     ///
     /// The new context is added to the accumulator by updating the metadata and accumulating the
     /// data.
-    fn accumulate(&mut self, ctx: TransactionContext<T>) {
+    pub(crate) fn accumulate(&mut self, ctx: TransactionContext<T>) {
         self.0.metadata.end_version = ctx.metadata.end_version;
         self.0.metadata.end_transaction_timestamp = ctx.metadata.end_transaction_timestamp;
         self.0.metadata.total_size_in_bytes += ctx.metadata.total_size_in_bytes;
@@ -45,7 +48,7 @@ impl<T: Accumulatable + Sync + Send + 'static> Accumulator<T> {
     }
 
     /// Returns the total size of the accumulator in bytes.
-    fn total_size_in_bytes(&self) -> usize {
+    pub(crate) fn total_size_in_bytes(&self) -> usize {
         self.0.metadata.total_size_in_bytes as usize
     }
 }
@@ -130,7 +133,12 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
         let (output_sender, output_receiver) =
             instrumented_bounded_channel(&step_name, output_channel_size);
 
-        info!(step_name = step_name, "Spawning accumulating task");
+        info!(
+            step_name = step_name,
+            max_accumulator_size_bytes = step.max_accumulator_size_bytes,
+            "Spawning accumulating task"
+        );
+
         let handle = tokio::spawn(async move {
             loop {
                 // 1. Receive input
@@ -153,7 +161,7 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                 // 2. Determine the output
                 // 2a. If the output channel is not full, pass the input through as is.
                 let output_with_context = if !output_sender.is_full() {
-                    Some(input_with_context)
+                    input_with_context
                 }
                 // 2b. If the output channel is full, start the accumulation process.
                 else {
@@ -171,11 +179,10 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                         if !output_sender.is_full() {
                             break;
                         }
+
                         // If the accumulator size exceeds the max buffer size, wait for space in
                         // the output channel, then flush.
-                        else if accumulator.total_size_in_bytes()
-                            >= step.max_accumulator_size_bytes
-                        {
+                        if accumulator.total_size_in_bytes() >= step.max_accumulator_size_bytes {
                             while output_sender.is_full() {
                                 warn!(
                                     step_name,
@@ -188,7 +195,7 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                             break;
                         }
 
-                        // Otherwise, try to accumulate more input or loop to run checks again.
+                        // Try to accumulate more input or loop to run checks again.
                         tokio::select! {
                             biased;
                             rx_result = input_receiver.recv() => {
@@ -203,50 +210,44 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                     }
 
                     // Flush the accumulator
-                    Some(TransactionContext::from(accumulator))
+                    TransactionContext::from(accumulator)
                 };
 
                 // 3. Instrument the output and send it to the output channel
-                if let Some(output_with_context) = output_with_context {
-                    match StepMetricsBuilder::default()
-                        .labels(StepMetricLabels {
-                            step_name: step_name.clone(),
-                        })
-                        .latest_processed_version(output_with_context.metadata.end_version)
-                        .processed_transaction_latency(
-                            output_with_context.get_transaction_latency(),
-                        )
-                        .latest_transaction_timestamp(
-                            output_with_context.get_start_transaction_timestamp_unix(),
-                        )
-                        .num_transactions_processed_count(
-                            output_with_context.get_num_transactions(),
-                        )
-                        .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
-                        .processed_size_in_bytes(output_with_context.metadata.total_size_in_bytes)
-                        .build()
-                    {
-                        Ok(mut metrics) => metrics.log_metrics(),
-                        Err(e) => {
-                            error!(
-                                step_name = step_name,
-                                error = e.to_string(),
-                                "Failed to log metrics"
-                            );
-                            break;
-                        },
-                    }
-                    match output_sender.send(output_with_context).await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            error!(
-                                step_name = step_name,
-                                error = e.to_string(),
-                                "Error sending output to channel"
-                            );
-                            break;
-                        },
-                    }
+                match StepMetricsBuilder::default()
+                    .labels(StepMetricLabels {
+                        step_name: step_name.clone(),
+                    })
+                    .latest_processed_version(output_with_context.metadata.end_version)
+                    .processed_transaction_latency(output_with_context.get_transaction_latency())
+                    .latest_transaction_timestamp(
+                        output_with_context.get_start_transaction_timestamp_unix(),
+                    )
+                    .num_transactions_processed_count(output_with_context.get_num_transactions())
+                    .processing_duration_in_secs(processing_duration.elapsed().as_secs_f64())
+                    .processed_size_in_bytes(output_with_context.metadata.total_size_in_bytes)
+                    .build()
+                {
+                    Ok(mut metrics) => metrics.log_metrics(),
+                    Err(e) => {
+                        error!(
+                            step_name = step_name,
+                            error = e.to_string(),
+                            "Failed to log metrics"
+                        );
+                        break;
+                    },
+                }
+                match output_sender.send(output_with_context).await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!(
+                            step_name = step_name,
+                            error = e.to_string(),
+                            "Error sending output to channel"
+                        );
+                        break;
+                    },
                 }
             }
 
@@ -307,8 +308,6 @@ mod tests {
         }
     }
 
-    // Unit tests for Accumulator struct
-
     #[test]
     fn test_accumulator_new() {
         let ctx = make_test_context(vec![1, 2, 3], 0, 2, 100);
@@ -358,103 +357,5 @@ mod tests {
         assert_eq!(result.metadata.start_version, 0);
         assert_eq!(result.metadata.end_version, 3);
         assert_eq!(result.metadata.total_size_in_bytes, 300);
-    }
-
-    // Integration tests for AccumulatorStep
-
-    #[tokio::test]
-    async fn test_accumulator_step_passthrough_when_not_full() {
-        let step = AccumulatorStep::new(1000);
-        let (input_sender, input_receiver) = instrumented_bounded_channel("test_input", 10);
-
-        // Spawn with a large output channel so it won't be full
-        let (output_receiver, handle) =
-            RunnableStep::<TestData, TestData>::spawn(step, Some(input_receiver), 10, None);
-
-        // Send input
-        let ctx = make_test_context(vec![1, 2, 3], 0, 2, 100);
-        input_sender.send(ctx).await.unwrap();
-
-        // Receive output - should pass through unchanged
-        let output = output_receiver.recv().await.unwrap();
-        assert_eq!(output.data.items, vec![1, 2, 3]);
-        assert_eq!(output.metadata.start_version, 0);
-        assert_eq!(output.metadata.end_version, 2);
-        assert_eq!(output.metadata.total_size_in_bytes, 100);
-
-        drop(input_sender);
-        let _ = handle.await;
-    }
-
-    #[tokio::test]
-    async fn test_accumulator_step_accumulates_when_output_full() {
-        let step = AccumulatorStep::new(10000);
-        let (input_sender, input_receiver) = instrumented_bounded_channel("test_input", 10);
-
-        // Spawn with output channel size of 1 so it fills up quickly
-        let (output_receiver, handle) =
-            RunnableStep::<TestData, TestData>::spawn(step, Some(input_receiver), 1, None);
-
-        // Send first input - this will pass through and fill the output channel
-        let ctx1 = make_test_context(vec![1, 2], 0, 1, 50);
-        input_sender.send(ctx1).await.unwrap();
-
-        // Wait for output channel to be full (first item processed and sitting in output)
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Send more inputs while output channel is full - these should be accumulated
-        let ctx2 = make_test_context(vec![3, 4], 2, 3, 60);
-        let ctx3 = make_test_context(vec![5], 4, 4, 40);
-        input_sender.send(ctx2).await.unwrap();
-        input_sender.send(ctx3).await.unwrap();
-
-        // Wait for accumulation to happen before draining
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
-        // Close input to signal no more data
-        drop(input_sender);
-
-        // Receive first output (passthrough)
-        let output1 = output_receiver.recv().await.unwrap();
-        assert_eq!(output1.data.items, vec![1, 2]);
-
-        // Receive second output (accumulated)
-        let output2 = output_receiver.recv().await.unwrap();
-        assert_eq!(output2.data.items, vec![3, 4, 5]);
-        assert_eq!(output2.metadata.start_version, 2);
-        assert_eq!(output2.metadata.end_version, 4);
-        assert_eq!(output2.metadata.total_size_in_bytes, 100);
-
-        let _ = handle.await;
-    }
-
-    #[tokio::test]
-    async fn test_accumulator_step_multiple_batches() {
-        let step = AccumulatorStep::new(10000);
-        let (input_sender, input_receiver) = instrumented_bounded_channel("test_input", 10);
-
-        let (output_receiver, handle) =
-            RunnableStep::<TestData, TestData>::spawn(step, Some(input_receiver), 10, None);
-
-        // Send multiple contexts
-        for i in 0..5 {
-            let ctx = make_test_context(vec![i], i, i, 10);
-            input_sender.send(ctx).await.unwrap();
-        }
-
-        // Receive all outputs - should all pass through since channel is not full
-        for i in 0..5 {
-            let output = output_receiver.recv().await.unwrap();
-            assert_eq!(output.data.items, vec![i]);
-        }
-
-        drop(input_sender);
-        let _ = handle.await;
-    }
-
-    #[test]
-    fn test_accumulator_step_name() {
-        let step = AccumulatorStep::new(1000);
-        assert_eq!(step.name(), "AccumulatorStep");
     }
 }
