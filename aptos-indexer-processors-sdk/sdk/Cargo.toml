@@ -11,6 +11,41 @@ publish = { workspace = true }
 repository = { workspace = true }
 rust-version = { workspace = true }
 
+[features]
+# Server framework feature enables the HTTP server with metrics and health check endpoints.
+# This requires tokio net features for the TCP listener.
+server_framework = [
+    "autometrics",
+    "axum",
+    "backtrace",
+    "clap",
+    "toml",
+    "tracing-subscriber",
+    "tokio/net",
+]
+postgres_partial = [
+    "diesel",
+    "diesel-async",
+    "diesel_migrations",
+    "field_count",
+    "postgres-native-tls",
+    "native-tls",
+    "server_framework",
+    "tokio-postgres",
+]
+# When using the postgres_full features we enable the diesel/postgres feature. We configure
+# it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
+# Recall that features should always be additive.
+postgres_full = ["postgres_partial", "diesel/postgres"]
+testing_framework = [
+    "testcontainers",
+    "tonic",
+    "tokio-retry",
+    "tokio-stream",
+    "tokio/net",
+]
+default = []
+
 [dependencies]
 ahash = { workspace = true }
 anyhow = { workspace = true }
@@ -64,38 +99,3 @@ url = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aptos-system-utils = { workspace = true }
-
-[features]
-# Server framework feature enables the HTTP server with metrics and health check endpoints.
-# This requires tokio net features for the TCP listener.
-server_framework = [
-    "autometrics",
-    "axum",
-    "backtrace",
-    "clap",
-    "toml",
-    "tracing-subscriber",
-    "tokio/net",
-]
-postgres_partial = [
-    "diesel",
-    "diesel-async",
-    "diesel_migrations",
-    "field_count",
-    "postgres-native-tls",
-    "native-tls",
-    "server_framework",
-    "tokio-postgres",
-]
-# When using the postgres_full features we enable the diesel/postgres feature. We configure
-# it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
-# Recall that features should always be additive.
-postgres_full = ["postgres_partial", "diesel/postgres"]
-testing_framework = [
-    "testcontainers",
-    "tonic",
-    "tokio-retry",
-    "tokio-stream",
-    "tokio/net",
-]
-default = []
