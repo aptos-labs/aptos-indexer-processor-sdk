@@ -1,5 +1,5 @@
 use aptos_indexer_processor_sdk::{
-    common_steps::{Accumulatable, AccumulatorStep},
+    common_steps::{Accumulatable, AccumulatorStep, PollableAccumulatorStep},
     instrumented_channel::instrumented_bounded_channel,
     traits::RunnableStep,
     types::transaction_context::{TransactionContext, TransactionMetadata},
@@ -195,4 +195,37 @@ async fn test_accumulation_when_output_full() {
     assert_eq!(received2.metadata.end_version, 3);
     // Total size should be sum of all accumulated batches
     assert_eq!(received2.metadata.total_size_in_bytes, 300);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_pollable_accumulator_flushes_on_timeout() {
+    let step = PollableAccumulatorStep::new(100, 1_000_000);
+    let (input_sender, input_receiver) = instrumented_bounded_channel("test_input", 10);
+
+    let (output_receiver, _handle) =
+        RunnableStep::<TestBatch, TestBatch>::spawn(step, Some(input_receiver), 10, None);
+
+    // Send two items
+    input_sender
+        .send(make_test_context(vec![1, 2], 0, 1, 50))
+        .await
+        .unwrap();
+    input_sender
+        .send(make_test_context(vec![3, 4], 2, 3, 50))
+        .await
+        .unwrap();
+
+    // Test to see accumulator does not flush before interval
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    assert_eq!(output_receiver.len(), 0);
+
+    // Wait for flush (timeout + some buffer)
+    let result = tokio::time::timeout(Duration::from_millis(100), output_receiver.recv()).await;
+    assert!(result.is_ok(), "Should receive flushed output");
+
+    let output = result.unwrap().unwrap();
+    assert_eq!(output.data.items, vec![1, 2, 3, 4]);
+    assert_eq!(output.metadata.start_version, 0);
+    assert_eq!(output.metadata.end_version, 3);
+    assert_eq!(output.metadata.total_size_in_bytes, 100);
 }
