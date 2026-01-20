@@ -94,7 +94,7 @@ impl<T: Accumulatable + Sync + Send + 'static> From<Accumulator<T>> for Transact
 /// └─────────────────────┘     └─────────────────────┘     └─────────────────────┘
 /// ```
 pub struct AccumulatorStep {
-    /// Maximum size of accummulated bytes.
+    /// Maximum size of accumulated bytes.
     ///
     /// If the accumulator size exceeds the max buffer size, the step will wait for a flush before
     /// accumulating more.
@@ -173,7 +173,7 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                     );
                     let mut accumulator = Accumulator::new(input_with_context);
 
-                    // Loop untill the accumulator can be flushed.
+                    // Loop until the accumulator can be flushed.
                     loop {
                         // If the output channel is not full, flush.
                         if !output_sender.is_full() {
