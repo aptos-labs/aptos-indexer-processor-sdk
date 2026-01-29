@@ -33,8 +33,11 @@ where
     T: Send + 'static,
     S: ProcessorStatusSaver + Send + 'static,
 {
-    // Last successful batch of sequentially processed transactions. Includes metadata to write to storage.
+    /// Last successful batch of sequentially processed transactions. Includes metadata to write to
+    /// storage.
     last_success_batch: Option<TransactionContext<()>>,
+    /// Last batch that was saved to storage. Used to avoid redundant saves.
+    last_saved_batch: Option<TransactionContext<()>>,
     polling_interval_secs: u64,
     processor_status_saver: S,
     _marker: PhantomData<T>,
@@ -49,6 +52,7 @@ where
     pub fn new(processor_status_saver: S, polling_interval_secs: u64) -> Self {
         Self {
             last_success_batch: None,
+            last_saved_batch: None,
             processor_status_saver,
             polling_interval_secs,
             _marker: PhantomData,
@@ -57,12 +61,15 @@ where
 
     async fn save_processor_status(&mut self) -> Result<(), ProcessorError> {
         if let Some(last_success_batch) = self.last_success_batch.as_ref() {
-            self.processor_status_saver
-                .save_processor_status(last_success_batch)
-                .await
-        } else {
-            Ok(())
+            // Only save if the batch has changed since last save
+            if self.last_saved_batch.as_ref() != Some(last_success_batch) {
+                self.processor_status_saver
+                    .save_processor_status(last_success_batch)
+                    .await?;
+                self.last_saved_batch = Some(last_success_batch.clone());
+            }
         }
+        Ok(())
     }
 }
 
