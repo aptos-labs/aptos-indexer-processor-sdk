@@ -63,7 +63,7 @@ impl Stream for StallingResponseStream {
                             last_version: 0,
                         }),
                     })));
-                }
+                },
             }
         }
 
@@ -93,7 +93,9 @@ impl RawData for StallingMockGrpcServer {
 
         // Reject connections after max_connections
         if count > self.max_connections {
-            return Err(Status::unavailable("Server is no longer accepting connections"));
+            return Err(Status::unavailable(
+                "Server is no longer accepting connections",
+            ));
         }
 
         let stream = StallingResponseStream::new(self.stall_duration);

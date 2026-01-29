@@ -444,7 +444,8 @@ impl TransactionStream {
             let grpc_channel_recv_latency = std::time::Instant::now();
 
             let txn_pb_res = match tokio::time::timeout(
-                self.transaction_stream_config.indexer_grpc_response_item_timeout(),
+                self.transaction_stream_config
+                    .indexer_grpc_response_item_timeout(),
                 self.stream.next(),
             )
             .await
@@ -517,7 +518,9 @@ impl TransactionStream {
                                         actual_start_version = start_version, // actual start version
                                         "[Transaction Stream] Received batch with gap from GRPC stream"
                                     );
-                                    return Err(anyhow!("Received batch with gap from GRPC stream"));
+                                    return Err(anyhow!(
+                                        "Received batch with gap from GRPC stream"
+                                    ));
                                 }
                             }
                             self.last_fetched_version = Some(end_version as i64);
@@ -565,11 +568,16 @@ impl TransactionStream {
                 // Timeout receiving datastream response - reconnect and retry
                 Err(_) => {
                     warn!(
-                        stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
+                        stream_address = self
+                            .transaction_stream_config
+                            .indexer_grpc_data_service_address
+                            .to_string(),
                         connection_id = self.connection_id,
                         start_version = self.transaction_stream_config.starting_version,
                         end_version = self.transaction_stream_config.request_ending_version,
-                        timeout_secs = self.transaction_stream_config.indexer_grpc_response_item_timeout_secs,
+                        timeout_secs = self
+                            .transaction_stream_config
+                            .indexer_grpc_response_item_timeout_secs,
                         "[Transaction Stream] Response item timeout. Reconnecting..."
                     );
                     self.reconnect_to_grpc_with_retries().await?;
