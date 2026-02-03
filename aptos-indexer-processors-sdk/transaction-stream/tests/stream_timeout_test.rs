@@ -167,6 +167,7 @@ async fn test_transaction_stream_reconnects_on_timeout() {
         indexer_grpc_response_item_timeout_secs: timeout_duration_secs,
         indexer_grpc_reconnection_max_retries: 2,
         transaction_filter: None,
+        backup_endpoints: vec![],
     };
 
     // Initialize the transaction stream (uses connection 1)

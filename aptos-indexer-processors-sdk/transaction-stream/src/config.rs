@@ -4,6 +4,17 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;
 
+/// Configuration for a backup gRPC endpoint.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BackupEndpoint {
+    /// The gRPC endpoint URL
+    pub address: Url,
+    /// Optional auth token for this endpoint. If None, uses the primary endpoint's token.
+    #[serde(default)]
+    pub auth_token: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TransactionStreamConfig {
@@ -26,6 +37,9 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_reconnection_max_retries: u64,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
+    /// Backup gRPC endpoints for failover. Tried in order after primary fails.
+    #[serde(default)]
+    pub backup_endpoints: Vec<BackupEndpoint>,
 }
 
 impl TransactionStreamConfig {
@@ -66,8 +80,34 @@ impl TransactionStreamConfig {
         60
     }
 
-    /// Default max retries for reconnecting to grpc. Defaults to 100.
+    /// Default max retries for reconnecting to grpc. Defaults to 5.
     pub const fn default_indexer_grpc_reconnection_max_retries() -> u64 {
         5
+    }
+
+    /// Total number of endpoints (primary + backups)
+    pub fn total_endpoints(&self) -> usize {
+        1 + self.backup_endpoints.len()
+    }
+
+    /// Get address for endpoint at index (0 = primary, 1+ = backup)
+    pub fn endpoint_address(&self, index: usize) -> Option<&Url> {
+        if index == 0 {
+            Some(&self.indexer_grpc_data_service_address)
+        } else {
+            self.backup_endpoints.get(index - 1).map(|b| &b.address)
+        }
+    }
+
+    /// Get auth token for endpoint at index (0 = primary, 1+ = backup).
+    /// Backup endpoints inherit primary token if not specified.
+    pub fn endpoint_auth_token(&self, index: usize) -> Option<&str> {
+        if index == 0 {
+            Some(&self.auth_token)
+        } else {
+            self.backup_endpoints.get(index - 1).map(|b| {
+                b.auth_token.as_deref().unwrap_or(&self.auth_token)
+            })
+        }
     }
 }
