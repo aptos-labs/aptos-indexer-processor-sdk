@@ -50,7 +50,7 @@ pub struct TransactionsPBResponse {
 pub fn grpc_request_builder(
     starting_version: Option<u64>,
     transactions_count: Option<u64>,
-    grpc_auth_token: String,
+    grpc_auth_token: Option<String>,
     request_name_header: String,
     additional_headers: AdditionalHeaders,
     transaction_filter: Option<BooleanTransactionFilter>,
@@ -61,12 +61,12 @@ pub fn grpc_request_builder(
         transaction_filter: transaction_filter.map(Into::into),
         ..GetTransactionsRequest::default()
     });
-    request.metadata_mut().insert(
-        GRPC_API_GATEWAY_API_KEY_HEADER,
-        format!("Bearer {}", grpc_auth_token.clone())
-            .parse()
-            .unwrap(),
-    );
+    if let Some(auth_token) = grpc_auth_token {
+        request.metadata_mut().insert(
+            GRPC_API_GATEWAY_API_KEY_HEADER,
+            format!("Bearer {}", auth_token).parse().unwrap(),
+        );
+    }
     request.metadata_mut().insert(
         GRPC_REQUEST_NAME_HEADER,
         request_name_header.parse().unwrap(),
@@ -96,7 +96,7 @@ pub async fn get_stream_for_endpoint(
     let auth_token = transaction_stream_config
         .endpoint_auth_token(endpoint_index)
         .ok_or_else(|| anyhow!("Invalid endpoint index: {}", endpoint_index))?
-        .to_string();
+        .map(|s| s.to_string());
 
     info!(
         stream_address = endpoint_address.to_string(),
@@ -301,7 +301,7 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
     let request = grpc_request_builder(
         None,
         Some(1),
-        transaction_stream_config.auth_token.clone(),
+        Some(transaction_stream_config.auth_token.clone()),
         transaction_stream_config.request_name_header.clone(),
         transaction_stream_config.additional_headers.clone(),
         transaction_stream_config.transaction_filter.clone(),

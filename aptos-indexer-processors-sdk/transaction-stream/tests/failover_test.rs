@@ -320,13 +320,13 @@ async fn test_config_endpoint_helpers() {
     assert!(config.endpoint_address(3).is_none());
 
     // Test endpoint_auth_token
-    assert_eq!(config.endpoint_auth_token(0).unwrap(), "primary_token");
+    assert_eq!(config.endpoint_auth_token(0).unwrap(), Some("primary_token"));
     assert_eq!(
         config.endpoint_auth_token(1).unwrap(),
-        "primary_token"
-    ); // Inherits primary
-    assert_eq!(config.endpoint_auth_token(2).unwrap(), "backup2_token"); // Own token
-    assert!(config.endpoint_auth_token(3).is_none());
+        None
+    ); // No auth token specified, no auth required
+    assert_eq!(config.endpoint_auth_token(2).unwrap(), Some("backup2_token")); // Own token
+    assert!(config.endpoint_auth_token(3).is_none()); // Invalid index
 }
 
 #[tokio::test]

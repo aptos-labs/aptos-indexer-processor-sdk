@@ -10,7 +10,7 @@ use url::Url;
 pub struct BackupEndpoint {
     /// The gRPC endpoint URL
     pub address: Url,
-    /// Optional auth token for this endpoint. If None, uses the primary endpoint's token.
+    /// Optional auth token for this endpoint. If None, no auth token is sent.
     #[serde(default)]
     pub auth_token: Option<String>,
 }
@@ -100,14 +100,15 @@ impl TransactionStreamConfig {
     }
 
     /// Get auth token for endpoint at index (0 = primary, 1+ = backup).
-    /// Backup endpoints inherit primary token if not specified.
-    pub fn endpoint_auth_token(&self, index: usize) -> Option<&str> {
+    /// Returns None if the endpoint index is invalid, or Some(None) if no auth token is configured.
+    /// Primary endpoint always has an auth token. Backup endpoints return None if not specified.
+    pub fn endpoint_auth_token(&self, index: usize) -> Option<Option<&str>> {
         if index == 0 {
-            Some(&self.auth_token)
+            Some(Some(&self.auth_token))
         } else {
-            self.backup_endpoints.get(index - 1).map(|b| {
-                b.auth_token.as_deref().unwrap_or(&self.auth_token)
-            })
+            self.backup_endpoints
+                .get(index - 1)
+                .map(|b| b.auth_token.as_deref())
         }
     }
 }
