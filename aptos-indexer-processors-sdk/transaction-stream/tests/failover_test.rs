@@ -184,44 +184,41 @@ async fn test_failover_to_backup_endpoint() {
         .await
         .expect("Failed to start backup server");
 
-    // Create config with backup endpoint
+    // Create config with failing primary and working backup
     let mut config = create_base_config(primary_port);
-    config.backup_endpoints = vec![BackupEndpoint {
-        address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
-        auth_token: None, // Uses primary token
-    }];
-
-    // Note: TransactionStream::new will fail on primary, but we should test reconnection
-    // For initial connection, we need a server that works initially
-    // Let's modify the test to use a different approach
-
-    // Start with a working backup directly for this test
-    let working_connection_count = Arc::new(AtomicU64::new(0));
-    let working_server = WorkingMockGrpcServer::new(working_connection_count.clone(), 0);
-    let working_port = working_server
-        .run()
-        .await
-        .expect("Failed to start working server");
-
-    // Use working server as primary for initial connection
-    let mut config = create_base_config(working_port);
     config.backup_endpoints = vec![BackupEndpoint {
         address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
         auth_token: None,
     }];
 
-    // Initialize the transaction stream
+    // TransactionStream::new tries primary (fails), then backup (works)
     let mut transaction_stream = TransactionStream::new(config)
         .await
-        .expect("Failed to create transaction stream");
+        .expect("Should connect via backup after primary fails");
 
-    // First batch should succeed
+    // Verify primary was attempted and failed
+    let primary_attempts = primary_connection_count.load(Ordering::SeqCst);
+    assert!(
+        primary_attempts > 0,
+        "Primary should have been attempted: {}",
+        primary_attempts
+    );
+
+    // Verify backup was used
+    let backup_attempts = backup_connection_count.load(Ordering::SeqCst);
+    assert!(
+        backup_attempts > 0,
+        "Backup should have been used after primary failed: {}",
+        backup_attempts
+    );
+
+    // First batch should succeed from backup
     let result = transaction_stream.get_next_transaction_batch().await;
-    assert!(result.is_ok(), "First batch should succeed");
+    assert!(result.is_ok(), "First batch should succeed from backup");
 
     println!(
-        "Test completed. Working server connections: {}",
-        working_connection_count.load(Ordering::SeqCst)
+        "Test completed. Primary attempts: {}, Backup attempts: {}",
+        primary_attempts, backup_attempts
     );
 }
 
