@@ -649,6 +649,9 @@ impl TransactionStream {
     }
 
     pub async fn reconnect_to_grpc_with_retries(&mut self) -> Result<()> {
+        // Always start from primary so we switch back when it recovers
+        self.current_endpoint_index = 0;
+
         let mut reconnection_retries = 0;
         let max_retries = self.transaction_stream_config.indexer_grpc_reconnection_max_retries;
         let total_endpoints = self.transaction_stream_config.total_endpoints();

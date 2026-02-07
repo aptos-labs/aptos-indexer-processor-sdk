@@ -330,6 +330,63 @@ async fn test_config_endpoint_helpers() {
 }
 
 #[tokio::test]
+async fn test_reconnect_tries_primary_first() {
+    // Primary always fails, backup always works.
+    // After initial failover to backup, reconnection should still try primary first.
+    let primary_connection_count = Arc::new(AtomicU64::new(0));
+    let primary_server = FailingMockGrpcServer::new(primary_connection_count.clone());
+    let primary_port = primary_server
+        .run()
+        .await
+        .expect("Failed to start primary server");
+
+    let backup_connection_count = Arc::new(AtomicU64::new(0));
+    let backup_server = WorkingMockGrpcServer::new(backup_connection_count.clone(), 0);
+    let backup_port = backup_server
+        .run()
+        .await
+        .expect("Failed to start backup server");
+
+    let mut config = create_base_config(primary_port);
+    config.backup_endpoints = vec![BackupEndpoint {
+        address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
+        auth_token: None,
+    }];
+
+    // Initial connection: primary fails, falls to backup
+    let mut transaction_stream = TransactionStream::new(config)
+        .await
+        .expect("Should connect via backup");
+
+    let primary_count_after_init = primary_connection_count.load(Ordering::SeqCst);
+    assert!(
+        primary_count_after_init > 0,
+        "Primary should have been attempted during init"
+    );
+
+    // Reset primary counter to track reconnection attempts
+    primary_connection_count.store(0, Ordering::SeqCst);
+
+    // Force a reconnection by calling reconnect_to_grpc_with_retries directly.
+    // This should reset to primary (fails), then fall to backup (succeeds).
+    let result = transaction_stream.reconnect_to_grpc_with_retries().await;
+    assert!(result.is_ok(), "Should reconnect via backup");
+
+    let primary_count_after_reconnect = primary_connection_count.load(Ordering::SeqCst);
+    assert!(
+        primary_count_after_reconnect > 0,
+        "Primary should have been retried during reconnection, but got {} attempts",
+        primary_count_after_reconnect
+    );
+
+    println!(
+        "Primary attempts after reconnect: {}, Backup total: {}",
+        primary_count_after_reconnect,
+        backup_connection_count.load(Ordering::SeqCst)
+    );
+}
+
+#[tokio::test]
 async fn test_backward_compatibility_no_backup_endpoints() {
     // Test that config without backup_endpoints works (backward compatibility)
     let working_connection_count = Arc::new(AtomicU64::new(0));
