@@ -2,7 +2,6 @@ use crate::{
     config::TransactionStreamConfig,
     utils::{additional_headers::AdditionalHeaders, time::timestamp_to_iso},
 };
-use url::Url;
 use anyhow::{anyhow, Result};
 use aptos_moving_average::MovingAverage;
 use aptos_protos::{
@@ -89,24 +88,22 @@ pub async fn get_stream_for_endpoint(
     transaction_stream_config: TransactionStreamConfig,
     endpoint_index: usize,
 ) -> Result<Response<Streaming<TransactionsResponse>>> {
-    let endpoint_address = transaction_stream_config
-        .endpoint_address(endpoint_index)
-        .ok_or_else(|| anyhow!("Invalid endpoint index: {}", endpoint_index))?
-        .clone();
-    let auth_token = transaction_stream_config
-        .endpoint_auth_token(endpoint_index)
-        .ok_or_else(|| anyhow!("Invalid endpoint index: {}", endpoint_index))?
-        .map(|s| s.to_string());
+    let endpoint = transaction_stream_config
+        .get_endpoint(endpoint_index)
+        .ok_or_else(|| anyhow!("Invalid endpoint index: {}", endpoint_index))?;
+    let endpoint_address = endpoint.address.clone();
+    let endpoint_address_str = endpoint_address.to_string();
+    let auth_token = endpoint.auth_token.map(|s| s.to_string());
 
     info!(
-        stream_address = endpoint_address.to_string(),
+        stream_address = endpoint_address_str,
         endpoint_index = endpoint_index,
         start_version = transaction_stream_config.starting_version,
         end_version = transaction_stream_config.request_ending_version,
         "[Transaction Stream] Setting up rpc channel"
     );
 
-    let channel = Channel::from_shared(endpoint_address.to_string())
+    let channel = Channel::from_shared(endpoint_address_str.clone())
         .expect(
             "[Transaction Stream] Failed to build GRPC channel, perhaps because the data service URL is invalid",
         )
@@ -124,7 +121,7 @@ pub async fn get_stream_for_endpoint(
     };
 
     info!(
-        stream_address = endpoint_address.to_string(),
+        stream_address = endpoint_address_str,
         endpoint_index = endpoint_index,
         start_version = transaction_stream_config.starting_version,
         end_version = transaction_stream_config.request_ending_version,
@@ -145,7 +142,7 @@ pub async fn get_stream_for_endpoint(
                 Ok(client) => break Ok(client),
                 Err(e) => {
                     error!(
-                        stream_address = endpoint_address.to_string(),
+                        stream_address = endpoint_address_str,
                         endpoint_index = endpoint_index,
                         start_version = transaction_stream_config.starting_version,
                         end_version = transaction_stream_config.request_ending_version,
@@ -162,7 +159,7 @@ pub async fn get_stream_for_endpoint(
             },
             Err(e) => {
                 error!(
-                    stream_address = endpoint_address.to_string(),
+                    stream_address = endpoint_address_str,
                     endpoint_index = endpoint_index,
                     start_version = transaction_stream_config.starting_version,
                     end_version = transaction_stream_config.request_ending_version,
@@ -199,7 +196,7 @@ pub async fn get_stream_for_endpoint(
     });
 
     info!(
-        stream_address = endpoint_address.to_string(),
+        stream_address = endpoint_address_str,
         endpoint_index = endpoint_index,
         start_version = transaction_stream_config.starting_version,
         end_version = transaction_stream_config.request_ending_version,
@@ -231,7 +228,7 @@ pub async fn get_stream_for_endpoint(
                 Ok(response) => break Ok(response),
                 Err(e) => {
                     error!(
-                        stream_address = endpoint_address.to_string(),
+                        stream_address = endpoint_address_str,
                         endpoint_index = endpoint_index,
                         start_version = transaction_stream_config.starting_version,
                         end_version = transaction_stream_config.request_ending_version,
@@ -248,7 +245,7 @@ pub async fn get_stream_for_endpoint(
             },
             Err(e) => {
                 error!(
-                    stream_address = endpoint_address.to_string(),
+                    stream_address = endpoint_address_str,
                     endpoint_index = endpoint_index,
                     start_version = transaction_stream_config.starting_version,
                     end_version = transaction_stream_config.request_ending_version,
@@ -447,12 +444,14 @@ impl TransactionStream {
         transaction_stream_config: TransactionStreamConfig,
         endpoint_index: usize,
     ) -> Result<(Streaming<TransactionsResponse>, String)> {
-        let endpoint_address = transaction_stream_config
-            .endpoint_address(endpoint_index)
-            .ok_or_else(|| anyhow!("Invalid endpoint index: {}", endpoint_index))?;
+        let endpoint_address_str = transaction_stream_config
+            .get_endpoint(endpoint_index)
+            .ok_or_else(|| anyhow!("Invalid endpoint index: {}", endpoint_index))?
+            .address
+            .to_string();
 
         info!(
-            stream_address = endpoint_address.to_string(),
+            stream_address = endpoint_address_str,
             endpoint_index = endpoint_index,
             start_version = transaction_stream_config.starting_version,
             end_version = transaction_stream_config.request_ending_version,
@@ -464,7 +463,7 @@ impl TransactionStream {
             None => "".to_string(),
         };
         info!(
-            stream_address = endpoint_address.to_string(),
+            stream_address = endpoint_address_str,
             endpoint_index = endpoint_index,
             connection_id = connection_id,
             start_version = transaction_stream_config.starting_version,
@@ -669,7 +668,7 @@ impl TransactionStream {
                 },
                 Err(e) => {
                     warn!(
-                        stream_address = self.current_endpoint_address().to_string(),
+                        stream_address = self.current_endpoint_address_str(),
                         endpoint_index = self.current_endpoint_index,
                         retry = reconnection_retries,
                         error = ?e,
@@ -687,8 +686,8 @@ impl TransactionStream {
                     info!(
                         current_endpoint = self.current_endpoint_index,
                         next_endpoint = next_index,
-                        current_address = self.current_endpoint_address().to_string(),
-                        next_address = self.transaction_stream_config.endpoint_address(next_index).map(|u| u.to_string()).unwrap_or_default(),
+                        current_address = self.current_endpoint_address_str(),
+                        next_address = self.transaction_stream_config.get_endpoint(next_index).map(|e| e.address.to_string()).unwrap_or_default(),
                         "[Transaction Stream] Switching to backup endpoint"
                     );
                     self.current_endpoint_index = next_index;
@@ -710,20 +709,22 @@ impl TransactionStream {
         }
     }
 
-    /// Returns the current endpoint address
-    fn current_endpoint_address(&self) -> &Url {
+    /// Returns the current endpoint address as a string
+    fn current_endpoint_address_str(&self) -> String {
         self.transaction_stream_config
-            .endpoint_address(self.current_endpoint_index)
+            .get_endpoint(self.current_endpoint_index)
             .expect("current_endpoint_index should always be valid")
+            .address
+            .to_string()
     }
 
     pub async fn reconnect_to_grpc(&mut self) -> Result<()> {
         // Upon reconnection, requested starting version should be the last fetched version + 1
         let request_starting_version = self.last_fetched_version.map(|v| (v + 1) as u64);
-        let endpoint_address = self.current_endpoint_address().clone();
+        let endpoint_address_str = self.current_endpoint_address_str();
 
         info!(
-            stream_address = endpoint_address.to_string(),
+            stream_address = endpoint_address_str,
             endpoint_index = self.current_endpoint_index,
             requested_starting_version = request_starting_version,
             requested_ending_version = self.transaction_stream_config.request_ending_version,
@@ -746,7 +747,7 @@ impl TransactionStream {
         self.stream = response.into_inner();
 
         info!(
-            stream_address = endpoint_address.to_string(),
+            stream_address = endpoint_address_str,
             endpoint_index = self.current_endpoint_index,
             connection_id = self.connection_id,
             starting_version = request_starting_version,

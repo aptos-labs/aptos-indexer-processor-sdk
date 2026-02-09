@@ -15,6 +15,13 @@ pub struct BackupEndpoint {
     pub auth_token: Option<String>,
 }
 
+/// A resolved endpoint with address and optional auth token.
+#[derive(Debug)]
+pub struct Endpoint<'a> {
+    pub address: &'a Url,
+    pub auth_token: Option<&'a str>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TransactionStreamConfig {
@@ -90,25 +97,19 @@ impl TransactionStreamConfig {
         1 + self.backup_endpoints.len()
     }
 
-    /// Get address for endpoint at index (0 = primary, 1+ = backup)
-    pub fn endpoint_address(&self, index: usize) -> Option<&Url> {
+    /// Get the endpoint at the given index (0 = primary, 1+ = backup).
+    /// Returns None if the index is out of bounds.
+    pub fn get_endpoint(&self, index: usize) -> Option<Endpoint<'_>> {
         if index == 0 {
-            Some(&self.indexer_grpc_data_service_address)
+            Some(Endpoint {
+                address: &self.indexer_grpc_data_service_address,
+                auth_token: Some(&self.auth_token),
+            })
         } else {
-            self.backup_endpoints.get(index - 1).map(|b| &b.address)
-        }
-    }
-
-    /// Get auth token for endpoint at index (0 = primary, 1+ = backup).
-    /// Returns None if the endpoint index is invalid, or Some(None) if no auth token is configured.
-    /// Primary endpoint always has an auth token. Backup endpoints return None if not specified.
-    pub fn endpoint_auth_token(&self, index: usize) -> Option<Option<&str>> {
-        if index == 0 {
-            Some(Some(&self.auth_token))
-        } else {
-            self.backup_endpoints
-                .get(index - 1)
-                .map(|b| b.auth_token.as_deref())
+            self.backup_endpoints.get(index - 1).map(|b| Endpoint {
+                address: &b.address,
+                auth_token: b.auth_token.as_deref(),
+            })
         }
     }
 }

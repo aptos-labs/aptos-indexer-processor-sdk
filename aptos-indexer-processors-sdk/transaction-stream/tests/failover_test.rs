@@ -289,7 +289,7 @@ async fn test_config_endpoint_helpers() {
         backup_endpoints: vec![
             BackupEndpoint {
                 address: Url::parse("http://backup1.example.com").unwrap(),
-                auth_token: None, // Should use primary token
+                auth_token: None, // No auth required
             },
             BackupEndpoint {
                 address: Url::parse("http://backup2.example.com").unwrap(),
@@ -301,29 +301,20 @@ async fn test_config_endpoint_helpers() {
     // Test total_endpoints
     assert_eq!(config.total_endpoints(), 3);
 
-    // Test endpoint_address
-    assert_eq!(
-        config.endpoint_address(0).unwrap().as_str(),
-        "http://primary.example.com/"
-    );
-    assert_eq!(
-        config.endpoint_address(1).unwrap().as_str(),
-        "http://backup1.example.com/"
-    );
-    assert_eq!(
-        config.endpoint_address(2).unwrap().as_str(),
-        "http://backup2.example.com/"
-    );
-    assert!(config.endpoint_address(3).is_none());
+    // Test get_endpoint
+    let ep0 = config.get_endpoint(0).unwrap();
+    assert_eq!(ep0.address.as_str(), "http://primary.example.com/");
+    assert_eq!(ep0.auth_token, Some("primary_token"));
 
-    // Test endpoint_auth_token
-    assert_eq!(config.endpoint_auth_token(0).unwrap(), Some("primary_token"));
-    assert_eq!(
-        config.endpoint_auth_token(1).unwrap(),
-        None
-    ); // No auth token specified, no auth required
-    assert_eq!(config.endpoint_auth_token(2).unwrap(), Some("backup2_token")); // Own token
-    assert!(config.endpoint_auth_token(3).is_none()); // Invalid index
+    let ep1 = config.get_endpoint(1).unwrap();
+    assert_eq!(ep1.address.as_str(), "http://backup1.example.com/");
+    assert_eq!(ep1.auth_token, None); // No auth token specified, no auth required
+
+    let ep2 = config.get_endpoint(2).unwrap();
+    assert_eq!(ep2.address.as_str(), "http://backup2.example.com/");
+    assert_eq!(ep2.auth_token, Some("backup2_token")); // Own token
+
+    assert!(config.get_endpoint(3).is_none()); // Invalid index
 }
 
 #[tokio::test]
