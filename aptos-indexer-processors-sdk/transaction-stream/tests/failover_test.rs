@@ -298,23 +298,18 @@ async fn test_config_endpoint_helpers() {
         ],
     };
 
-    // Test total_endpoints
-    assert_eq!(config.total_endpoints(), 3);
+    // Test get_endpoints
+    let endpoints = config.get_endpoints();
+    assert_eq!(endpoints.len(), 3);
 
-    // Test get_endpoint
-    let ep0 = config.get_endpoint(0).unwrap();
-    assert_eq!(ep0.address.as_str(), "http://primary.example.com/");
-    assert_eq!(ep0.auth_token, Some("primary_token"));
+    assert_eq!(endpoints[0].address.as_str(), "http://primary.example.com/");
+    assert_eq!(endpoints[0].auth_token.as_deref(), Some("primary_token"));
 
-    let ep1 = config.get_endpoint(1).unwrap();
-    assert_eq!(ep1.address.as_str(), "http://backup1.example.com/");
-    assert_eq!(ep1.auth_token, None); // No auth token specified, no auth required
+    assert_eq!(endpoints[1].address.as_str(), "http://backup1.example.com/");
+    assert_eq!(endpoints[1].auth_token, None); // No auth token specified, no auth required
 
-    let ep2 = config.get_endpoint(2).unwrap();
-    assert_eq!(ep2.address.as_str(), "http://backup2.example.com/");
-    assert_eq!(ep2.auth_token, Some("backup2_token")); // Own token
-
-    assert!(config.get_endpoint(3).is_none()); // Invalid index
+    assert_eq!(endpoints[2].address.as_str(), "http://backup2.example.com/");
+    assert_eq!(endpoints[2].auth_token.as_deref(), Some("backup2_token")); // Own token
 }
 
 #[tokio::test]

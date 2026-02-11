@@ -16,10 +16,10 @@ pub struct BackupEndpoint {
 }
 
 /// A resolved endpoint with address and optional auth token.
-#[derive(Debug)]
-pub struct Endpoint<'a> {
-    pub address: &'a Url,
-    pub auth_token: Option<&'a str>,
+#[derive(Clone, Debug)]
+pub struct Endpoint {
+    pub address: Url,
+    pub auth_token: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -97,19 +97,19 @@ impl TransactionStreamConfig {
         1 + self.backup_endpoints.len()
     }
 
-    /// Get the endpoint at the given index (0 = primary, 1+ = backup).
-    /// Returns None if the index is out of bounds.
-    pub fn get_endpoint(&self, index: usize) -> Option<Endpoint<'_>> {
-        if index == 0 {
-            Some(Endpoint {
-                address: &self.indexer_grpc_data_service_address,
-                auth_token: Some(&self.auth_token),
-            })
-        } else {
-            self.backup_endpoints.get(index - 1).map(|b| Endpoint {
-                address: &b.address,
-                auth_token: b.auth_token.as_deref(),
-            })
+    /// Returns all endpoints in order: primary first, then backups.
+    pub fn get_endpoints(&self) -> Vec<Endpoint> {
+        let mut endpoints = Vec::with_capacity(1 + self.backup_endpoints.len());
+        endpoints.push(Endpoint {
+            address: self.indexer_grpc_data_service_address.clone(),
+            auth_token: Some(self.auth_token.clone()),
+        });
+        for backup in &self.backup_endpoints {
+            endpoints.push(Endpoint {
+                address: backup.address.clone(),
+                auth_token: backup.auth_token.clone(),
+            });
         }
+        endpoints
     }
 }
