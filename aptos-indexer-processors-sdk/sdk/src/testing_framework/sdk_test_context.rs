@@ -225,6 +225,7 @@ impl SdkTestContext {
             indexer_grpc_reconnection_timeout_secs: 10,
             indexer_grpc_response_item_timeout_secs: 60,
             indexer_grpc_reconnection_max_retries: Default::default(),
+            indexer_grpc_reconnection_retry_delay_ms: Default::default(),
             transaction_filter: None,
             backup_endpoints: vec![],
         }

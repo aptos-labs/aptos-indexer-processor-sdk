@@ -36,6 +36,10 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_response_item_timeout_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_retries")]
     pub indexer_grpc_reconnection_max_retries: u64,
+    #[serde(
+        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_retry_delay_ms"
+    )]
+    pub indexer_grpc_reconnection_retry_delay_ms: u64,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.
@@ -84,6 +88,15 @@ impl TransactionStreamConfig {
     /// Default max retries for reconnecting to grpc. Defaults to 5.
     pub const fn default_indexer_grpc_reconnection_max_retries() -> u64 {
         5
+    }
+
+    /// Default delay between reconnection retries in milliseconds. Defaults to 100ms.
+    pub const fn default_indexer_grpc_reconnection_retry_delay_ms() -> u64 {
+        100
+    }
+
+    pub const fn indexer_grpc_reconnection_retry_delay(&self) -> Duration {
+        Duration::from_millis(self.indexer_grpc_reconnection_retry_delay_ms)
     }
 
     /// Total number of endpoints (primary + backups)

@@ -161,6 +161,7 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
         indexer_grpc_reconnection_timeout_secs: 1,
         indexer_grpc_response_item_timeout_secs: 2,
         indexer_grpc_reconnection_max_retries: 2,
+        indexer_grpc_reconnection_retry_delay_ms: 100,
         transaction_filter: None,
         backup_endpoints: vec![],
     }
@@ -287,6 +288,7 @@ async fn test_config_endpoint_helpers() {
         indexer_grpc_reconnection_timeout_secs: 5,
         indexer_grpc_response_item_timeout_secs: 60,
         indexer_grpc_reconnection_max_retries: 5,
+        indexer_grpc_reconnection_retry_delay_ms: 100,
         transaction_filter: None,
         backup_endpoints: vec![
             Endpoint {
@@ -397,4 +399,74 @@ async fn test_backward_compatibility_no_backup_endpoints() {
 
     let result = transaction_stream.get_next_transaction_batch().await;
     assert!(result.is_ok(), "Should work with no backup endpoints");
+}
+
+#[tokio::test]
+async fn test_configurable_reconnection_retry_delay() {
+    // Primary server always fails, backup works.
+    // Use a custom retry delay and verify it's respected by measuring elapsed time.
+    let primary_connection_count = Arc::new(AtomicU64::new(0));
+    let primary_server = FailingMockGrpcServer::new(primary_connection_count.clone());
+    let primary_port = primary_server
+        .run()
+        .await
+        .expect("Failed to start primary server");
+
+    let backup_connection_count = Arc::new(AtomicU64::new(0));
+    let backup_server = WorkingMockGrpcServer::new(backup_connection_count.clone(), 0);
+    let backup_port = backup_server
+        .run()
+        .await
+        .expect("Failed to start backup server");
+
+    // Use a 200ms retry delay with 2 retries on primary before failover
+    let mut config = create_base_config(primary_port);
+    config.indexer_grpc_reconnection_retry_delay_ms = 200;
+    config.indexer_grpc_reconnection_max_retries = 2;
+    config.backup_endpoints = vec![Endpoint {
+        address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
+        auth_token: None,
+        is_primary: false,
+    }];
+
+    // Measure how long reconnection takes — 2 retries × 200ms = at least 400ms
+    let mut transaction_stream = TransactionStream::new(config)
+        .await
+        .expect("Should connect via backup");
+
+    // Consume the initial batch
+    let _ = transaction_stream.get_next_transaction_batch().await;
+
+    // Reset counters
+    primary_connection_count.store(0, Ordering::SeqCst);
+    backup_connection_count.store(0, Ordering::SeqCst);
+
+    let start = std::time::Instant::now();
+    let result = transaction_stream.reconnect_to_grpc_with_retries().await;
+    let elapsed = start.elapsed();
+
+    assert!(result.is_ok(), "Should reconnect via backup");
+    // 2 retries on primary with 200ms delay each = at least 400ms
+    assert!(
+        elapsed >= std::time::Duration::from_millis(350),
+        "Expected at least ~400ms delay from 2 retries × 200ms, but got {:?}",
+        elapsed
+    );
+
+    // Verify the default config uses 100ms
+    let default_config = create_base_config(primary_port);
+    assert_eq!(default_config.indexer_grpc_reconnection_retry_delay_ms, 100);
+    assert_eq!(
+        default_config.indexer_grpc_reconnection_retry_delay(),
+        std::time::Duration::from_millis(100)
+    );
+}
+
+#[tokio::test]
+async fn test_retry_delay_default_value() {
+    // Verify the default value is 100ms
+    assert_eq!(
+        TransactionStreamConfig::default_indexer_grpc_reconnection_retry_delay_ms(),
+        100
+    );
 }

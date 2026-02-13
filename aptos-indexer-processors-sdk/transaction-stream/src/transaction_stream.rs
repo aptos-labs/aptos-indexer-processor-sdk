@@ -645,9 +645,11 @@ impl TransactionStream {
             let endpoint_address_str = endpoint.address.to_string();
 
             for retry in 1..=max_retries {
-                // Sleep for 100ms between reconnect tries
-                // TODO: Turn this into exponential backoff
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(
+                    self.transaction_stream_config
+                        .indexer_grpc_reconnection_retry_delay(),
+                )
+                .await;
 
                 match self.reconnect_to_grpc(endpoint).await {
                     Ok(_) => {
