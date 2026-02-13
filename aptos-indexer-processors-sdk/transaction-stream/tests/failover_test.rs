@@ -1,5 +1,5 @@
 use aptos_indexer_transaction_stream::{
-    config::{BackupEndpoint, TransactionStreamConfig},
+    config::{Endpoint, TransactionStreamConfig},
     transaction_stream::TransactionStream,
 };
 use aptos_protos::indexer::v1::{
@@ -153,7 +153,7 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
             .unwrap(),
         starting_version: Some(0),
         request_ending_version: None,
-        auth_token: "primary_token".to_string(),
+        auth_token: Some("primary_token".to_string()),
         request_name_header: "test".to_string(),
         additional_headers: Default::default(),
         indexer_grpc_http2_ping_interval_secs: 30,
@@ -186,9 +186,10 @@ async fn test_failover_to_backup_endpoint() {
 
     // Create config with failing primary and working backup
     let mut config = create_base_config(primary_port);
-    config.backup_endpoints = vec![BackupEndpoint {
+    config.backup_endpoints = vec![Endpoint {
         address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
         auth_token: None,
+        is_primary: false,
     }];
 
     // TransactionStream::new tries primary (fails), then backup (works)
@@ -241,9 +242,10 @@ async fn test_all_endpoints_exhausted() {
 
     // Create config with failing backup endpoint
     let mut config = create_base_config(primary_port);
-    config.backup_endpoints = vec![BackupEndpoint {
+    config.backup_endpoints = vec![Endpoint {
         address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
         auth_token: None,
+        is_primary: false,
     }];
 
     // Attempt to create stream should fail after exhausting all endpoints
@@ -277,7 +279,7 @@ async fn test_config_endpoint_helpers() {
         indexer_grpc_data_service_address: Url::parse("http://primary.example.com").unwrap(),
         starting_version: Some(0),
         request_ending_version: None,
-        auth_token: "primary_token".to_string(),
+        auth_token: Some("primary_token".to_string()),
         request_name_header: "test".to_string(),
         additional_headers: Default::default(),
         indexer_grpc_http2_ping_interval_secs: 30,
@@ -287,13 +289,15 @@ async fn test_config_endpoint_helpers() {
         indexer_grpc_reconnection_max_retries: 5,
         transaction_filter: None,
         backup_endpoints: vec![
-            BackupEndpoint {
+            Endpoint {
                 address: Url::parse("http://backup1.example.com").unwrap(),
                 auth_token: None, // No auth required
+                is_primary: false,
             },
-            BackupEndpoint {
+            Endpoint {
                 address: Url::parse("http://backup2.example.com").unwrap(),
                 auth_token: Some("backup2_token".to_string()), // Different token
+                is_primary: false,
             },
         ],
     };
@@ -331,9 +335,10 @@ async fn test_reconnect_tries_primary_first() {
         .expect("Failed to start backup server");
 
     let mut config = create_base_config(primary_port);
-    config.backup_endpoints = vec![BackupEndpoint {
+    config.backup_endpoints = vec![Endpoint {
         address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
         auth_token: None,
+        is_primary: false,
     }];
 
     // Initial connection: primary fails, falls to backup

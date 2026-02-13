@@ -80,21 +80,19 @@ pub async fn get_stream(
     transaction_stream_config: TransactionStreamConfig,
 ) -> Result<Response<Streaming<TransactionsResponse>>> {
     let endpoints = transaction_stream_config.get_endpoints();
-    get_stream_for_endpoint(transaction_stream_config, &endpoints[0], 0).await
+    get_stream_for_endpoint(transaction_stream_config, &endpoints[0]).await
 }
 
 /// Given a `TransactionStreamConfig` and endpoint, returns a stream of transactions.
-/// `endpoint_index` is used only for logging.
 pub async fn get_stream_for_endpoint(
     transaction_stream_config: TransactionStreamConfig,
     endpoint: &Endpoint,
-    endpoint_index: usize,
 ) -> Result<Response<Streaming<TransactionsResponse>>> {
     let endpoint_address_str = endpoint.address.to_string();
 
     info!(
         stream_address = endpoint_address_str,
-        endpoint_index = endpoint_index,
+        is_primary = endpoint.is_primary,
         start_version = transaction_stream_config.starting_version,
         end_version = transaction_stream_config.request_ending_version,
         "[Transaction Stream] Setting up rpc channel"
@@ -119,7 +117,7 @@ pub async fn get_stream_for_endpoint(
 
     info!(
         stream_address = endpoint_address_str,
-        endpoint_index = endpoint_index,
+        is_primary = endpoint.is_primary,
         start_version = transaction_stream_config.starting_version,
         end_version = transaction_stream_config.request_ending_version,
         "[Transaction Stream] Setting up GRPC client"
@@ -140,7 +138,7 @@ pub async fn get_stream_for_endpoint(
                 Err(e) => {
                     error!(
                         stream_address = endpoint_address_str,
-                        endpoint_index = endpoint_index,
+                        is_primary = endpoint.is_primary,
                         start_version = transaction_stream_config.starting_version,
                         end_version = transaction_stream_config.request_ending_version,
                         error = ?e,
@@ -157,7 +155,7 @@ pub async fn get_stream_for_endpoint(
             Err(e) => {
                 error!(
                     stream_address = endpoint_address_str,
-                    endpoint_index = endpoint_index,
+                    is_primary = endpoint.is_primary,
                     start_version = transaction_stream_config.starting_version,
                     end_version = transaction_stream_config.request_ending_version,
                     retries = connect_retries,
@@ -194,7 +192,7 @@ pub async fn get_stream_for_endpoint(
 
     info!(
         stream_address = endpoint_address_str,
-        endpoint_index = endpoint_index,
+        is_primary = endpoint.is_primary,
         start_version = transaction_stream_config.starting_version,
         end_version = transaction_stream_config.request_ending_version,
         num_of_transactions = ?count,
@@ -226,7 +224,7 @@ pub async fn get_stream_for_endpoint(
                 Err(e) => {
                     error!(
                         stream_address = endpoint_address_str,
-                        endpoint_index = endpoint_index,
+                        is_primary = endpoint.is_primary,
                         start_version = transaction_stream_config.starting_version,
                         end_version = transaction_stream_config.request_ending_version,
                         error = ?e,
@@ -243,7 +241,7 @@ pub async fn get_stream_for_endpoint(
             Err(e) => {
                 error!(
                     stream_address = endpoint_address_str,
-                    endpoint_index = endpoint_index,
+                    is_primary = endpoint.is_primary,
                     start_version = transaction_stream_config.starting_version,
                     end_version = transaction_stream_config.request_ending_version,
                     retries = connect_retries,
@@ -295,7 +293,7 @@ pub async fn get_chain_id(transaction_stream_config: TransactionStreamConfig) ->
     let request = grpc_request_builder(
         None,
         Some(1),
-        Some(transaction_stream_config.auth_token.clone()),
+        transaction_stream_config.auth_token.clone(),
         transaction_stream_config.request_name_header.clone(),
         transaction_stream_config.additional_headers.clone(),
         transaction_stream_config.transaction_filter.clone(),
@@ -390,8 +388,7 @@ pub struct TransactionStream {
     reconnection_retries: u64,
     last_fetched_version: Option<i64>,
     fetch_ma: MovingAverage,
-    /// Current endpoint index (0 = primary, 1+ = backup)
-    current_endpoint_index: usize,
+    current_endpoint_is_primary: bool,
 }
 
 impl TransactionStream {
@@ -400,12 +397,12 @@ impl TransactionStream {
 
         // Try each endpoint in order until one succeeds
         let mut last_error = None;
-        for (endpoint_index, endpoint) in endpoints.iter().enumerate() {
-            match Self::init_stream(&transaction_stream_config, endpoint, endpoint_index).await {
+        for endpoint in endpoints.iter() {
+            match Self::init_stream(&transaction_stream_config, endpoint).await {
                 Ok((stream, connection_id)) => {
-                    if endpoint_index > 0 {
+                    if !endpoint.is_primary {
                         info!(
-                            endpoint_index = endpoint_index,
+                            is_primary = endpoint.is_primary,
                             "[Transaction Stream] Successfully connected using backup endpoint"
                         );
                     }
@@ -418,13 +415,12 @@ impl TransactionStream {
                             .starting_version
                             .map(|v| v as i64 - 1),
                         fetch_ma: MovingAverage::new(3000),
-                        current_endpoint_index: endpoint_index,
+                        current_endpoint_is_primary: endpoint.is_primary,
                     });
                 },
                 Err(e) => {
                     warn!(
-                        endpoint_index = endpoint_index,
-                        total_endpoints = endpoints.len(),
+                        is_primary = endpoint.is_primary,
                         error = ?e,
                         "[Transaction Stream] Failed to connect to endpoint, trying next"
                     );
@@ -440,25 +436,24 @@ impl TransactionStream {
     async fn init_stream(
         transaction_stream_config: &TransactionStreamConfig,
         endpoint: &Endpoint,
-        endpoint_index: usize,
     ) -> Result<(Streaming<TransactionsResponse>, String)> {
         let endpoint_address_str = endpoint.address.to_string();
 
         info!(
             stream_address = endpoint_address_str,
-            endpoint_index = endpoint_index,
+            is_primary = endpoint.is_primary,
             start_version = transaction_stream_config.starting_version,
             end_version = transaction_stream_config.request_ending_version,
             "[Transaction Stream] Connecting to GRPC stream",
         );
-        let resp_stream = get_stream_for_endpoint(transaction_stream_config.clone(), endpoint, endpoint_index).await?;
+        let resp_stream = get_stream_for_endpoint(transaction_stream_config.clone(), endpoint).await?;
         let connection_id = match resp_stream.metadata().get(GRPC_CONNECTION_ID) {
             Some(connection_id) => connection_id.to_str().unwrap().to_string(),
             None => "".to_string(),
         };
         info!(
             stream_address = endpoint_address_str,
-            endpoint_index = endpoint_index,
+            is_primary = endpoint.is_primary,
             connection_id = connection_id,
             start_version = transaction_stream_config.starting_version,
             end_version = transaction_stream_config.request_ending_version,
@@ -646,7 +641,7 @@ impl TransactionStream {
         let endpoints = self.transaction_stream_config.get_endpoints();
         let max_retries = self.transaction_stream_config.indexer_grpc_reconnection_max_retries;
 
-        for (endpoint_index, endpoint) in endpoints.iter().enumerate() {
+        for endpoint in endpoints.iter() {
             let endpoint_address_str = endpoint.address.to_string();
 
             for retry in 1..=max_retries {
@@ -654,15 +649,15 @@ impl TransactionStream {
                 // TODO: Turn this into exponential backoff
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
-                match self.reconnect_to_grpc(endpoint, endpoint_index).await {
+                match self.reconnect_to_grpc(endpoint).await {
                     Ok(_) => {
-                        self.current_endpoint_index = endpoint_index;
+                        self.current_endpoint_is_primary = endpoint.is_primary;
                         return Ok(());
                     },
                     Err(e) => {
                         warn!(
                             stream_address = endpoint_address_str,
-                            endpoint_index = endpoint_index,
+                            is_primary = endpoint.is_primary,
                             retry = retry,
                             error = ?e,
                             "[Transaction Stream] Error reconnecting to GRPC stream"
@@ -671,16 +666,12 @@ impl TransactionStream {
                 }
             }
 
-            // Log switching to next endpoint
-            if endpoint_index + 1 < endpoints.len() {
-                info!(
-                    current_endpoint = endpoint_index,
-                    next_endpoint = endpoint_index + 1,
-                    current_address = endpoint_address_str,
-                    next_address = endpoints[endpoint_index + 1].address.to_string(),
-                    "[Transaction Stream] Switching to backup endpoint"
-                );
-            }
+            // Log that this endpoint failed, will try next
+            info!(
+                stream_address = endpoint_address_str,
+                is_primary = endpoint.is_primary,
+                "[Transaction Stream] Endpoint exhausted, trying next"
+            );
         }
 
         // All endpoints exhausted
@@ -695,14 +686,14 @@ impl TransactionStream {
         ))
     }
 
-    async fn reconnect_to_grpc(&mut self, endpoint: &Endpoint, endpoint_index: usize) -> Result<()> {
+    async fn reconnect_to_grpc(&mut self, endpoint: &Endpoint) -> Result<()> {
         // Upon reconnection, requested starting version should be the last fetched version + 1
         let request_starting_version = self.last_fetched_version.map(|v| (v + 1) as u64);
         let endpoint_address_str = endpoint.address.to_string();
 
         info!(
             stream_address = endpoint_address_str,
-            endpoint_index = endpoint_index,
+            is_primary = endpoint.is_primary,
             requested_starting_version = request_starting_version,
             requested_ending_version = self.transaction_stream_config.request_ending_version,
             reconnection_retries = self.reconnection_retries,
@@ -714,7 +705,7 @@ impl TransactionStream {
             ..self.transaction_stream_config.clone()
         };
 
-        let response = get_stream_for_endpoint(config_with_version, endpoint, endpoint_index).await?;
+        let response = get_stream_for_endpoint(config_with_version, endpoint).await?;
 
         let connection_id = match response.metadata().get(GRPC_CONNECTION_ID) {
             Some(connection_id) => connection_id.to_str().unwrap().to_string(),
@@ -725,7 +716,7 @@ impl TransactionStream {
 
         info!(
             stream_address = endpoint_address_str,
-            endpoint_index = endpoint_index,
+            is_primary = endpoint.is_primary,
             connection_id = self.connection_id,
             starting_version = request_starting_version,
             ending_version = self.transaction_stream_config.request_ending_version,

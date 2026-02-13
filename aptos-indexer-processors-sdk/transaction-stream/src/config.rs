@@ -4,22 +4,15 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;
 
-/// Configuration for a backup gRPC endpoint.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct BackupEndpoint {
-    /// The gRPC endpoint URL
-    pub address: Url,
-    /// Optional auth token for this endpoint. If None, no auth token is sent.
-    #[serde(default)]
-    pub auth_token: Option<String>,
-}
-
-/// A resolved endpoint with address and optional auth token.
-#[derive(Clone, Debug)]
 pub struct Endpoint {
     pub address: Url,
+    #[serde(default)]
     pub auth_token: Option<String>,
+    /// Whether this is the primary endpoint. Set programmatically, not from config.
+    #[serde(skip, default)]
+    pub is_primary: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -28,7 +21,8 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_data_service_address: Url,
     pub starting_version: Option<u64>,
     pub request_ending_version: Option<u64>,
-    pub auth_token: String,
+    #[serde(default)]
+    pub auth_token: Option<String>,
     pub request_name_header: String,
     #[serde(default)]
     pub additional_headers: AdditionalHeaders,
@@ -46,7 +40,7 @@ pub struct TransactionStreamConfig {
     pub transaction_filter: Option<BooleanTransactionFilter>,
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.
     #[serde(default)]
-    pub backup_endpoints: Vec<BackupEndpoint>,
+    pub backup_endpoints: Vec<Endpoint>,
 }
 
 impl TransactionStreamConfig {
@@ -102,12 +96,14 @@ impl TransactionStreamConfig {
         let mut endpoints = Vec::with_capacity(1 + self.backup_endpoints.len());
         endpoints.push(Endpoint {
             address: self.indexer_grpc_data_service_address.clone(),
-            auth_token: Some(self.auth_token.clone()),
+            auth_token: self.auth_token.clone(),
+            is_primary: true,
         });
         for backup in &self.backup_endpoints {
             endpoints.push(Endpoint {
                 address: backup.address.clone(),
                 auth_token: backup.auth_token.clone(),
+                is_primary: false,
             });
         }
         endpoints
