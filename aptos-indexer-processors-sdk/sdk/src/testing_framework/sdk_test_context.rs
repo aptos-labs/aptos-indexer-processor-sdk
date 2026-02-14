@@ -217,7 +217,7 @@ impl SdkTestContext {
                 .expect("Could not parse database url"),
             starting_version: Some(self.request_start_version),
             request_ending_version,
-            auth_token: "".to_string(),
+            auth_token: None,
             request_name_header: "sdk-testing".to_string(),
             additional_headers: Default::default(),
             indexer_grpc_http2_ping_interval_secs: 30,
@@ -225,7 +225,9 @@ impl SdkTestContext {
             indexer_grpc_reconnection_timeout_secs: 10,
             indexer_grpc_response_item_timeout_secs: 60,
             indexer_grpc_reconnection_max_retries: Default::default(),
+            indexer_grpc_reconnection_retry_delay_ms: Default::default(),
             transaction_filter: None,
+            backup_endpoints: vec![],
         }
     }
 }

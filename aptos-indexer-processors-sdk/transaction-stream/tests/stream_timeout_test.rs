@@ -158,7 +158,7 @@ async fn test_transaction_stream_reconnects_on_timeout() {
             .unwrap(),
         starting_version: Some(0),
         request_ending_version: None,
-        auth_token: "test_token".to_string(),
+        auth_token: Some("test_token".to_string()),
         request_name_header: "test".to_string(),
         additional_headers: Default::default(),
         indexer_grpc_http2_ping_interval_secs: 30,
@@ -166,7 +166,9 @@ async fn test_transaction_stream_reconnects_on_timeout() {
         indexer_grpc_reconnection_timeout_secs: 5,
         indexer_grpc_response_item_timeout_secs: timeout_duration_secs,
         indexer_grpc_reconnection_max_retries: 2,
+        indexer_grpc_reconnection_retry_delay_ms: 100,
         transaction_filter: None,
+        backup_endpoints: vec![],
     };
 
     // Initialize the transaction stream (uses connection 1)
