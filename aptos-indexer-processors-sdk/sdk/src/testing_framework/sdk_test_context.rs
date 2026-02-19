@@ -228,6 +228,8 @@ impl SdkTestContext {
             indexer_grpc_reconnection_retry_delay_ms: Default::default(),
             transaction_filter: None,
             backup_endpoints: vec![],
+            max_latency_ms: None,
+            latency_grace_period_secs: None,
         }
     }
 }
@@ -371,9 +373,10 @@ mod tests {
         assert_eq!(sdk_test_context.get_request_start_version(), 100);
         assert_eq!(sdk_test_context.get_transactions_count(), 2);
         assert_eq!(sdk_test_context.transaction_batches.len(), 3);
-        assert_eq!(sdk_test_context.get_test_transaction_versions(), vec![
-            100, 200
-        ]);
+        assert_eq!(
+            sdk_test_context.get_test_transaction_versions(),
+            vec![100, 200]
+        );
 
         assert!(sdk_test_context.init_mock_grpc().await.is_ok());
         let transaction_stream_config = sdk_test_context.create_transaction_stream_config();

@@ -1,6 +1,9 @@
 use crate::{
     config::{Endpoint, TransactionStreamConfig},
-    utils::{additional_headers::AdditionalHeaders, time::timestamp_to_iso},
+    utils::{
+        additional_headers::AdditionalHeaders,
+        time::{time_diff_since_pb_timestamp_in_secs, timestamp_to_iso},
+    },
 };
 use anyhow::{anyhow, Result};
 use aptos_moving_average::MovingAverage;
@@ -13,8 +16,8 @@ use aptos_transaction_filter::BooleanTransactionFilter;
 use futures_util::StreamExt;
 use prost::Message;
 use sample::{sample, SampleRate};
-use std::time::Duration;
-use tokio::time::timeout;
+use std::{collections::HashMap, time::Duration};
+use tokio::time::{timeout, Instant};
 use tonic::{
     transport::{Channel, ClientTlsConfig},
     Response, Streaming,
@@ -30,6 +33,10 @@ const GRPC_REQUEST_NAME_HEADER: &str = "x-aptos-request-name";
 const GRPC_CONNECTION_ID: &str = "x-aptos-connection-id";
 /// 256MB
 pub const MAX_RESPONSE_SIZE: usize = 1024 * 1024 * 256;
+/// Use a small bounded timeout when probing backup endpoints for latency-based failover.
+const LATENCY_FAILOVER_PROBE_TIMEOUT_MULTIPLIER: u32 = 2;
+/// Avoid repeatedly probing endpoints that have recently failed latency probes.
+const LATENCY_FAILOVER_ENDPOINT_COOLDOWN_SECS: u64 = 30;
 
 /// TransactionsPBResponse is a struct that holds the transactions fetched from the stream.
 /// It also includes some contextual information about the transactions.
@@ -388,7 +395,9 @@ pub struct TransactionStream {
     reconnection_retries: u64,
     last_fetched_version: Option<i64>,
     fetch_ma: MovingAverage,
-    current_endpoint_is_primary: bool,
+    current_endpoint_index: usize,
+    latency_exceeded_since: Option<(usize, Instant)>,
+    latency_failover_cooldown_until: HashMap<usize, Instant>,
 }
 
 impl TransactionStream {
@@ -397,7 +406,7 @@ impl TransactionStream {
 
         // Try each endpoint in order until one succeeds
         let mut last_error = None;
-        for endpoint in endpoints.iter() {
+        for (index, endpoint) in endpoints.iter().enumerate() {
             match Self::init_stream(&transaction_stream_config, endpoint).await {
                 Ok((stream, connection_id)) => {
                     if !endpoint.is_primary {
@@ -415,7 +424,9 @@ impl TransactionStream {
                             .starting_version
                             .map(|v| v as i64 - 1),
                         fetch_ma: MovingAverage::new(3000),
-                        current_endpoint_is_primary: endpoint.is_primary,
+                        current_endpoint_index: index,
+                        latency_exceeded_since: None,
+                        latency_failover_cooldown_until: HashMap::new(),
                     });
                 },
                 Err(e) => {
@@ -446,7 +457,8 @@ impl TransactionStream {
             end_version = transaction_stream_config.request_ending_version,
             "[Transaction Stream] Connecting to GRPC stream",
         );
-        let resp_stream = get_stream_for_endpoint(transaction_stream_config.clone(), endpoint).await?;
+        let resp_stream =
+            get_stream_for_endpoint(transaction_stream_config.clone(), endpoint).await?;
         let connection_id = match resp_stream.metadata().get(GRPC_CONNECTION_ID) {
             Some(connection_id) => connection_id.to_str().unwrap().to_string(),
             None => "".to_string(),
@@ -570,6 +582,59 @@ impl TransactionStream {
                                 size_in_bytes,
                             };
 
+                            // Latency-based failover check
+                            if let Some((max_latency, grace_period)) =
+                                self.transaction_stream_config.latency_failover_config()
+                            {
+                                if let Some(ref end_ts) = txn_pb.end_txn_timestamp {
+                                    let latency_secs = time_diff_since_pb_timestamp_in_secs(end_ts);
+                                    let latency_ms = (latency_secs * 1000.0) as u64;
+
+                                    if latency_ms > max_latency.as_millis() as u64 {
+                                        let mut should_attempt_failover = false;
+                                        match self.latency_exceeded_since.as_ref() {
+                                            Some((tracked_endpoint_index, since))
+                                                if *tracked_endpoint_index
+                                                    == self.current_endpoint_index =>
+                                            {
+                                                should_attempt_failover =
+                                                    since.elapsed() >= grace_period;
+                                            },
+                                            _ => {
+                                                info!(
+                                                    latency_ms = latency_ms,
+                                                    max_latency_ms =
+                                                        max_latency.as_millis() as u64,
+                                                    "[Transaction Stream] Latency exceeded threshold, starting grace period"
+                                                );
+                                                self.latency_exceeded_since = Some((
+                                                    self.current_endpoint_index,
+                                                    Instant::now(),
+                                                ));
+                                            },
+                                        };
+
+                                        if should_attempt_failover {
+                                            warn!(
+                                                latency_ms = latency_ms,
+                                                grace_period_secs = grace_period.as_secs(),
+                                                current_endpoint_index = self.current_endpoint_index,
+                                                "[Transaction Stream] Latency exceeded threshold for grace period, attempting failover"
+                                            );
+                                            self.attempt_latency_failover().await;
+                                        };
+                                    } else {
+                                        // Latency is within threshold, reset tracking
+                                        if self.latency_exceeded_since.take().is_some() {
+                                            info!(
+                                                latency_ms = latency_ms,
+                                                "[Transaction Stream] Latency dropped below threshold, resetting grace period"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
                             return Ok(txn_pb);
                         },
                         // Error receiving datastream response
@@ -639,9 +704,11 @@ impl TransactionStream {
     pub async fn reconnect_to_grpc_with_retries(&mut self) -> Result<()> {
         // Always start from primary so we switch back when it recovers
         let endpoints = self.transaction_stream_config.get_endpoints();
-        let max_retries = self.transaction_stream_config.indexer_grpc_reconnection_max_retries;
+        let max_retries = self
+            .transaction_stream_config
+            .indexer_grpc_reconnection_max_retries;
 
-        for endpoint in endpoints.iter() {
+        for (index, endpoint) in endpoints.iter().enumerate() {
             let endpoint_address_str = endpoint.address.to_string();
 
             for retry in 1..=max_retries {
@@ -653,7 +720,7 @@ impl TransactionStream {
 
                 match self.reconnect_to_grpc(endpoint).await {
                     Ok(_) => {
-                        self.current_endpoint_is_primary = endpoint.is_primary;
+                        self.current_endpoint_index = index;
                         return Ok(());
                     },
                     Err(e) => {
@@ -688,7 +755,112 @@ impl TransactionStream {
         ))
     }
 
+    /// Attempts a latency-based failover to the next available endpoint.
+    /// Unlike `reconnect_to_grpc_with_retries` (which starts from the primary),
+    /// this method advances to the next endpoint since the current one is slow, not broken.
+    async fn attempt_latency_failover(&mut self) {
+        let endpoints = self.transaction_stream_config.get_endpoints();
+        let total = endpoints.len();
+        let now = Instant::now();
+
+        if total <= 1 {
+            warn!("[Transaction Stream] Only one endpoint configured, cannot failover for latency");
+            self.latency_exceeded_since = None;
+            return;
+        }
+
+        let probe_timeout = self
+            .transaction_stream_config
+            .indexer_grpc_reconnection_timeout()
+            .checked_mul(LATENCY_FAILOVER_PROBE_TIMEOUT_MULTIPLIER)
+            .unwrap_or_else(|| {
+                self.transaction_stream_config
+                    .indexer_grpc_reconnection_timeout()
+            });
+        let cooldown_duration = Duration::from_secs(LATENCY_FAILOVER_ENDPOINT_COOLDOWN_SECS);
+
+        // Try each other endpoint starting from the next one
+        for offset in 1..total {
+            let index = (self.current_endpoint_index + offset) % total;
+            let endpoint = &endpoints[index];
+            let endpoint_address_str = endpoint.address.to_string();
+
+            if let Some(cooldown_until) = self.latency_failover_cooldown_until.get(&index) {
+                if *cooldown_until > now {
+                    info!(
+                        stream_address = endpoint_address_str,
+                        endpoint_index = index,
+                        "[Transaction Stream] Skipping endpoint on latency-failover cooldown"
+                    );
+                    continue;
+                }
+                self.latency_failover_cooldown_until.remove(&index);
+            }
+
+            match timeout(
+                probe_timeout,
+                self.reconnect_to_grpc_with_max_retries(endpoint, 1),
+            )
+            .await
+            {
+                Ok(Ok(_)) => {
+                    info!(
+                        stream_address = endpoint_address_str,
+                        endpoint_index = index,
+                        "[Transaction Stream] Latency failover successful"
+                    );
+                    self.current_endpoint_index = index;
+                    self.latency_exceeded_since = None;
+                    self.latency_failover_cooldown_until.remove(&index);
+                    return;
+                },
+                Ok(Err(e)) => {
+                    warn!(
+                        stream_address = endpoint_address_str,
+                        endpoint_index = index,
+                        error = ?e,
+                        cooldown_secs = LATENCY_FAILOVER_ENDPOINT_COOLDOWN_SECS,
+                        "[Transaction Stream] Latency failover probe failed"
+                    );
+                },
+                Err(e) => {
+                    warn!(
+                        stream_address = endpoint_address_str,
+                        endpoint_index = index,
+                        error = ?e,
+                        probe_timeout_secs = probe_timeout.as_secs(),
+                        cooldown_secs = LATENCY_FAILOVER_ENDPOINT_COOLDOWN_SECS,
+                        "[Transaction Stream] Latency failover probe timed out"
+                    );
+                },
+            }
+
+            self.latency_failover_cooldown_until
+                .insert(index, Instant::now() + cooldown_duration);
+        }
+
+        // All other endpoints failed - stay on current, reset grace period
+        warn!(
+            current_endpoint_index = self.current_endpoint_index,
+            "[Transaction Stream] All other endpoints failed during latency failover, staying on current endpoint"
+        );
+        self.latency_exceeded_since = None;
+    }
+
     async fn reconnect_to_grpc(&mut self, endpoint: &Endpoint) -> Result<()> {
+        self.reconnect_to_grpc_with_max_retries(
+            endpoint,
+            self.transaction_stream_config
+                .indexer_grpc_reconnection_max_retries,
+        )
+        .await
+    }
+
+    async fn reconnect_to_grpc_with_max_retries(
+        &mut self,
+        endpoint: &Endpoint,
+        max_retries: u64,
+    ) -> Result<()> {
         // Upon reconnection, requested starting version should be the last fetched version + 1
         let request_starting_version = self.last_fetched_version.map(|v| (v + 1) as u64);
         let endpoint_address_str = endpoint.address.to_string();
@@ -704,6 +876,7 @@ impl TransactionStream {
 
         let config_with_version = TransactionStreamConfig {
             starting_version: request_starting_version,
+            indexer_grpc_reconnection_max_retries: max_retries,
             ..self.transaction_stream_config.clone()
         };
 
@@ -715,6 +888,7 @@ impl TransactionStream {
         };
         self.connection_id = connection_id;
         self.stream = response.into_inner();
+        self.latency_exceeded_since = None;
 
         info!(
             stream_address = endpoint_address_str,
@@ -722,6 +896,7 @@ impl TransactionStream {
             connection_id = self.connection_id,
             starting_version = request_starting_version,
             ending_version = self.transaction_stream_config.request_ending_version,
+            max_retries = max_retries,
             reconnection_retries = self.reconnection_retries,
             "[Transaction Stream] Successfully reconnected to GRPC stream"
         );

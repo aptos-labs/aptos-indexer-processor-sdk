@@ -149,8 +149,11 @@ impl WorkingMockGrpcServer {
 
 fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
     TransactionStreamConfig {
-        indexer_grpc_data_service_address: Url::parse(&format!("http://127.0.0.1:{}", primary_port))
-            .unwrap(),
+        indexer_grpc_data_service_address: Url::parse(&format!(
+            "http://127.0.0.1:{}",
+            primary_port
+        ))
+        .unwrap(),
         starting_version: Some(0),
         request_ending_version: None,
         auth_token: Some("primary_token".to_string()),
@@ -164,6 +167,8 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
         indexer_grpc_reconnection_retry_delay_ms: 100,
         transaction_filter: None,
         backup_endpoints: vec![],
+        max_latency_ms: None,
+        latency_grace_period_secs: None,
     }
 }
 
@@ -302,6 +307,8 @@ async fn test_config_endpoint_helpers() {
                 is_primary: false,
             },
         ],
+        max_latency_ms: None,
+        latency_grace_period_secs: None,
     };
 
     // Test get_endpoints
