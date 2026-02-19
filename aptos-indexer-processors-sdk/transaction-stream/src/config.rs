@@ -36,15 +36,23 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_response_item_timeout_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_retries")]
     pub indexer_grpc_reconnection_max_retries: u64,
-    #[serde(
-        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_retry_delay_ms"
-    )]
+    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_retry_delay_ms")]
     pub indexer_grpc_reconnection_retry_delay_ms: u64,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.
     #[serde(default)]
     pub backup_endpoints: Vec<Endpoint>,
+    /// Maximum tolerable transaction latency in milliseconds.
+    /// When both this and `latency_grace_period_secs` are set, the stream will
+    /// proactively fail over to the next endpoint if transaction latency exceeds
+    /// this threshold for longer than the grace period.
+    #[serde(default)]
+    pub max_latency_ms: Option<u64>,
+    /// How long (in seconds) latency must continuously exceed `max_latency_ms`
+    /// before triggering a latency-based failover.
+    #[serde(default)]
+    pub latency_grace_period_secs: Option<u64>,
 }
 
 impl TransactionStreamConfig {
@@ -97,6 +105,18 @@ impl TransactionStreamConfig {
 
     pub const fn indexer_grpc_reconnection_retry_delay(&self) -> Duration {
         Duration::from_millis(self.indexer_grpc_reconnection_retry_delay_ms)
+    }
+
+    /// Returns the latency failover config as a `(max_latency, grace_period)` pair,
+    /// or `None` if the feature is not fully configured.
+    pub fn latency_failover_config(&self) -> Option<(Duration, Duration)> {
+        match (self.max_latency_ms, self.latency_grace_period_secs) {
+            (Some(max_latency_ms), Some(grace_period_secs)) => Some((
+                Duration::from_millis(max_latency_ms),
+                Duration::from_secs(grace_period_secs),
+            )),
+            _ => None,
+        }
     }
 
     /// Total number of endpoints (primary + backups)
