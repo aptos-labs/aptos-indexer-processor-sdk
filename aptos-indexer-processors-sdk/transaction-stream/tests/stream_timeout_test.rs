@@ -166,7 +166,9 @@ async fn test_transaction_stream_reconnects_on_timeout() {
         indexer_grpc_reconnection_timeout_secs: 5,
         indexer_grpc_response_item_timeout_secs: timeout_duration_secs,
         indexer_grpc_reconnection_max_retries: 2,
-        indexer_grpc_reconnection_retry_delay_ms: 100,
+        indexer_grpc_reconnection_initial_delay_ms: 50,
+        indexer_grpc_reconnection_max_delay_ms: 30_000,
+        indexer_grpc_reconnection_jitter_percent: 0,
         transaction_filter: None,
         backup_endpoints: vec![],
     };

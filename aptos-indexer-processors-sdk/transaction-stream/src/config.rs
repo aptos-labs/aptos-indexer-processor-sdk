@@ -2,6 +2,7 @@ use crate::utils::additional_headers::AdditionalHeaders;
 use aptos_transaction_filter::BooleanTransactionFilter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tokio_retry::strategy::ExponentialBackoff;
 use url::Url;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -36,10 +37,23 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_response_item_timeout_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_retries")]
     pub indexer_grpc_reconnection_max_retries: u64,
+    /// Initial delay (in ms) for exponential backoff on reconnection. Each subsequent retry
+    /// doubles this value, up to `reconnection_max_delay_ms`.
     #[serde(
-        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_retry_delay_ms"
+        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_initial_delay_ms"
     )]
-    pub indexer_grpc_reconnection_retry_delay_ms: u64,
+    pub indexer_grpc_reconnection_initial_delay_ms: u64,
+    /// Maximum delay (in ms) that the exponential backoff can grow to.
+    #[serde(
+        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_delay_ms"
+    )]
+    pub indexer_grpc_reconnection_max_delay_ms: u64,
+    /// Random jitter applied to each backoff delay, expressed as a ± percentage (e.g. 20 means
+    /// the actual delay will be within ±20% of the computed backoff).
+    #[serde(
+        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_jitter_percent"
+    )]
+    pub indexer_grpc_reconnection_jitter_percent: u64,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.
@@ -85,18 +99,34 @@ impl TransactionStreamConfig {
         60
     }
 
-    /// Default max retries for reconnecting to grpc. Defaults to 5.
+    /// Default max retries for reconnecting to grpc. Defaults to 10.
     pub const fn default_indexer_grpc_reconnection_max_retries() -> u64 {
-        5
+        10
     }
 
-    /// Default delay between reconnection retries in milliseconds. Defaults to 100ms.
-    pub const fn default_indexer_grpc_reconnection_retry_delay_ms() -> u64 {
-        100
+    /// Default initial delay for reconnection backoff in milliseconds. Defaults to 1000ms.
+    pub const fn default_indexer_grpc_reconnection_initial_delay_ms() -> u64 {
+        1000
     }
 
-    pub const fn indexer_grpc_reconnection_retry_delay(&self) -> Duration {
-        Duration::from_millis(self.indexer_grpc_reconnection_retry_delay_ms)
+    /// Default maximum delay cap for reconnection backoff in milliseconds. Defaults to 30s.
+    pub const fn default_indexer_grpc_reconnection_max_delay_ms() -> u64 {
+        30_000
+    }
+
+    /// Default jitter as a percentage (±) applied to each backoff delay. Defaults to 20%.
+    pub const fn default_indexer_grpc_reconnection_jitter_percent() -> u64 {
+        20
+    }
+
+    /// Build an iterator of backoff delays using `tokio-retry`'s `ExponentialBackoff`,
+    /// with configurable ±jitter applied on top. Each successive delay doubles the
+    /// previous one (capped at `max_delay_ms`), then jitter is added.
+    pub fn reconnection_backoff_iter(&self) -> impl Iterator<Item = Duration> {
+        let jitter_pct = self.indexer_grpc_reconnection_jitter_percent;
+        ExponentialBackoff::from_millis(self.indexer_grpc_reconnection_initial_delay_ms)
+            .max_delay(Duration::from_millis(self.indexer_grpc_reconnection_max_delay_ms))
+            .map(move |d| apply_jitter(d, jitter_pct))
     }
 
     /// Total number of endpoints (primary + backups)
@@ -121,4 +151,22 @@ impl TransactionStreamConfig {
         }
         endpoints
     }
+}
+
+/// Apply ±jitter_percent jitter to a duration. Uses subsecond nanoseconds from the
+/// system clock as a lightweight entropy source so we avoid adding a `rand` dependency.
+fn apply_jitter(d: Duration, jitter_percent: u64) -> Duration {
+    if jitter_percent == 0 {
+        return d;
+    }
+    let base_ms = d.as_millis() as f64;
+    let fraction = jitter_percent as f64 / 100.0;
+    let jitter_range = base_ms * fraction;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as f64;
+    // Map nanos (0..1e9) to [-1.0, 1.0).
+    let jitter = (nanos / 500_000_000.0 - 1.0) * jitter_range;
+    Duration::from_millis((base_ms + jitter).max(0.0) as u64)
 }

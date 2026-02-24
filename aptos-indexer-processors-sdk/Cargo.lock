@@ -189,6 +189,7 @@ dependencies = [
  "sample",
  "serde",
  "tokio",
+ "tokio-retry",
  "tokio-stream",
  "tonic",
  "tracing",
