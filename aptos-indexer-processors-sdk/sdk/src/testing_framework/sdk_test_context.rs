@@ -227,7 +227,7 @@ impl SdkTestContext {
             indexer_grpc_reconnection_max_retries: Default::default(),
             indexer_grpc_reconnection_initial_delay_ms: Default::default(),
             indexer_grpc_reconnection_max_delay_ms: Default::default(),
-            indexer_grpc_reconnection_jitter_percent: Default::default(),
+            indexer_grpc_reconnection_enable_jitter: Default::default(),
             transaction_filter: None,
             backup_endpoints: vec![],
         }

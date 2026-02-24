@@ -163,7 +163,7 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
         indexer_grpc_reconnection_max_retries: 2,
         indexer_grpc_reconnection_initial_delay_ms: 50,
         indexer_grpc_reconnection_max_delay_ms: 30_000,
-        indexer_grpc_reconnection_jitter_percent: 0,
+        indexer_grpc_reconnection_enable_jitter: false,
         transaction_filter: None,
         backup_endpoints: vec![],
     }
@@ -292,7 +292,7 @@ async fn test_config_endpoint_helpers() {
         indexer_grpc_reconnection_max_retries: 5,
         indexer_grpc_reconnection_initial_delay_ms: 1000,
         indexer_grpc_reconnection_max_delay_ms: 30_000,
-        indexer_grpc_reconnection_jitter_percent: 20,
+        indexer_grpc_reconnection_enable_jitter: true,
         transaction_filter: None,
         backup_endpoints: vec![
             Endpoint {
@@ -426,7 +426,7 @@ async fn test_exponential_backoff_reconnection() {
     // Small delays to keep the test fast but large enough to measure growth.
     let mut config = create_base_config(primary_port);
     config.indexer_grpc_reconnection_initial_delay_ms = 100;
-    config.indexer_grpc_reconnection_jitter_percent = 0;
+    config.indexer_grpc_reconnection_enable_jitter = false;
     config.indexer_grpc_reconnection_max_retries = 1;
     config.backup_endpoints = vec![Endpoint {
         address: Url::parse(&format!("http://127.0.0.1:{}", backup_port)).unwrap(),
@@ -469,8 +469,5 @@ async fn test_backoff_default_values() {
         TransactionStreamConfig::default_indexer_grpc_reconnection_max_delay_ms(),
         30_000
     );
-    assert_eq!(
-        TransactionStreamConfig::default_indexer_grpc_reconnection_jitter_percent(),
-        20
-    );
+    assert!(TransactionStreamConfig::default_indexer_grpc_reconnection_enable_jitter());
 }
