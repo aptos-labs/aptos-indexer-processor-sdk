@@ -222,12 +222,8 @@ impl SdkTestContext {
             additional_headers: Default::default(),
             indexer_grpc_http2_ping_interval_secs: 30,
             indexer_grpc_http2_ping_timeout_secs: 10,
-            indexer_grpc_reconnection_timeout_secs: 10,
             indexer_grpc_response_item_timeout_secs: 60,
-            indexer_grpc_reconnection_max_retries: Default::default(),
-            indexer_grpc_reconnection_initial_delay_ms: Default::default(),
-            indexer_grpc_reconnection_max_delay_ms: Default::default(),
-            indexer_grpc_reconnection_enable_jitter: Default::default(),
+            reconnection_config: Default::default(),
             transaction_filter: None,
             backup_endpoints: vec![],
         }

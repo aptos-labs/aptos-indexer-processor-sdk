@@ -16,6 +16,85 @@ pub struct Endpoint {
     pub is_primary: bool,
 }
 
+/// Settings that control how gRPC reconnections are retried, including exponential
+/// backoff and jitter (via `tokio-retry`'s `ExponentialBackoff`).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReconnectionConfig {
+    /// Timeout in seconds for establishing a gRPC connection.
+    #[serde(default = "ReconnectionConfig::default_timeout_secs")]
+    pub timeout_secs: u64,
+    /// Maximum number of retry attempts per endpoint.
+    #[serde(default = "ReconnectionConfig::default_max_retries")]
+    pub max_retries: u64,
+    /// Initial delay in milliseconds for exponential backoff. Each subsequent retry doubles.
+    #[serde(default = "ReconnectionConfig::default_initial_delay_ms")]
+    pub initial_delay_ms: u64,
+    /// Maximum delay in milliseconds that the exponential backoff can grow to.
+    #[serde(default = "ReconnectionConfig::default_max_delay_ms")]
+    pub max_delay_ms: u64,
+    /// Whether to apply full-jitter randomization to each backoff delay (recommended for
+    /// avoiding thundering-herd reconnects).
+    #[serde(default = "ReconnectionConfig::default_enable_jitter")]
+    pub enable_jitter: bool,
+}
+
+impl Default for ReconnectionConfig {
+    fn default() -> Self {
+        Self {
+            timeout_secs: Self::default_timeout_secs(),
+            max_retries: Self::default_max_retries(),
+            initial_delay_ms: Self::default_initial_delay_ms(),
+            max_delay_ms: Self::default_max_delay_ms(),
+            enable_jitter: Self::default_enable_jitter(),
+        }
+    }
+}
+
+impl ReconnectionConfig {
+    pub const fn default_timeout_secs() -> u64 {
+        5
+    }
+
+    pub const fn default_max_retries() -> u64 {
+        5
+    }
+
+    pub const fn default_initial_delay_ms() -> u64 {
+        50
+    }
+
+    pub const fn default_max_delay_ms() -> u64 {
+        10_000
+    }
+
+    pub const fn default_enable_jitter() -> bool {
+        true
+    }
+
+    pub const fn timeout(&self) -> Duration {
+        Duration::from_secs(self.timeout_secs)
+    }
+
+    /// Build an infinite iterator of backoff delays using `tokio-retry`'s
+    /// `ExponentialBackoff`. Each successive delay doubles the previous one (capped at
+    /// `max_delay_ms`). When jitter is enabled, each delay is randomized to a value
+    /// between 0 and the computed delay ("full jitter").
+    ///
+    /// Callers should bound the iterator (e.g. `.take(max_retries)`) to match their
+    /// retry budget.
+    pub fn backoff_iter(&self) -> Box<dyn Iterator<Item = Duration> + Send> {
+        let backoff = ExponentialBackoff::from_millis(self.initial_delay_ms)
+            .max_delay(Duration::from_millis(self.max_delay_ms));
+
+        if self.enable_jitter {
+            Box::new(backoff.map(jitter))
+        } else {
+            Box::new(backoff)
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TransactionStreamConfig {
@@ -31,26 +110,10 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_http2_ping_interval_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_http2_ping_timeout")]
     pub indexer_grpc_http2_ping_timeout_secs: u64,
-    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_timeout")]
-    pub indexer_grpc_reconnection_timeout_secs: u64,
     #[serde(default = "TransactionStreamConfig::default_indexer_grpc_response_item_timeout")]
     pub indexer_grpc_response_item_timeout_secs: u64,
-    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_retries")]
-    pub indexer_grpc_reconnection_max_retries: u64,
-    /// Initial delay (in ms) for exponential backoff on reconnection. Each subsequent retry
-    /// doubles this value, up to `reconnection_max_delay_ms`.
-    #[serde(
-        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_initial_delay_ms"
-    )]
-    pub indexer_grpc_reconnection_initial_delay_ms: u64,
-    /// Maximum delay (in ms) that the exponential backoff can grow to.
-    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_delay_ms")]
-    pub indexer_grpc_reconnection_max_delay_ms: u64,
-    /// Whether to apply random jitter to backoff delays. Jitter adds a random duration
-    /// between 0 and the computed delay, spreading out reconnection attempts across
-    /// processors ("full jitter" strategy). Defaults to true.
-    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_enable_jitter")]
-    pub indexer_grpc_reconnection_enable_jitter: bool,
+    #[serde(default)]
+    pub reconnection_config: ReconnectionConfig,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.
@@ -67,74 +130,24 @@ impl TransactionStreamConfig {
         Duration::from_secs(self.indexer_grpc_http2_ping_timeout_secs)
     }
 
-    pub const fn indexer_grpc_reconnection_timeout(&self) -> Duration {
-        Duration::from_secs(self.indexer_grpc_reconnection_timeout_secs)
-    }
-
     pub const fn indexer_grpc_response_item_timeout(&self) -> Duration {
         Duration::from_secs(self.indexer_grpc_response_item_timeout_secs)
     }
 
-    /// Indexer GRPC http2 ping interval in seconds. Defaults to 30.
     /// Tonic ref: https://docs.rs/tonic/latest/tonic/transport/channel/struct.Endpoint.html#method.http2_keep_alive_interval
     pub const fn default_indexer_grpc_http2_ping_interval() -> u64 {
         30
     }
 
-    /// Indexer GRPC http2 ping timeout in seconds. Defaults to 10.
     pub const fn default_indexer_grpc_http2_ping_timeout() -> u64 {
         10
     }
 
-    /// Default timeout for establishing a grpc connection. Defaults to 5 seconds.
-    pub const fn default_indexer_grpc_reconnection_timeout() -> u64 {
-        5
-    }
-
-    /// Default timeout for receiving an item from grpc stream. Defaults to 60 seconds.
     pub const fn default_indexer_grpc_response_item_timeout() -> u64 {
         60
     }
 
-    /// Default max retries for reconnecting to grpc. Defaults to 10.
-    pub const fn default_indexer_grpc_reconnection_max_retries() -> u64 {
-        10
-    }
-
-    /// Default initial delay for reconnection backoff in milliseconds. Defaults to 100ms.
-    pub const fn default_indexer_grpc_reconnection_initial_delay_ms() -> u64 {
-        50
-    }
-
-    /// Default maximum delay cap for reconnection backoff in milliseconds. Defaults to 10s.
-    pub const fn default_indexer_grpc_reconnection_max_delay_ms() -> u64 {
-        10_000
-    }
-
-    /// Whether to apply jitter to backoff delays. Defaults to true.
-    pub const fn default_indexer_grpc_reconnection_enable_jitter() -> bool {
-        true
-    }
-
-    /// Build an iterator of backoff delays using `tokio-retry`'s `ExponentialBackoff`.
-    /// Each successive delay doubles the previous one (capped at `max_delay_ms`).
-    /// When jitter is enabled, each delay is randomized to a value between 0 and the
-    /// computed delay (the "full jitter" strategy from `tokio-retry`).
-    pub fn reconnection_backoff_iter(&self) -> Box<dyn Iterator<Item = Duration> + Send> {
-        let backoff =
-            ExponentialBackoff::from_millis(self.indexer_grpc_reconnection_initial_delay_ms)
-                .max_delay(Duration::from_millis(
-                    self.indexer_grpc_reconnection_max_delay_ms,
-                ));
-
-        if self.indexer_grpc_reconnection_enable_jitter {
-            Box::new(backoff.map(jitter))
-        } else {
-            Box::new(backoff)
-        }
-    }
-
-    /// Total number of endpoints (primary + backups)
+    /// Total number of endpoints (primary + backups).
     pub fn total_endpoints(&self) -> usize {
         1 + self.backup_endpoints.len()
     }
@@ -156,4 +169,16 @@ impl TransactionStreamConfig {
         }
         endpoints
     }
+}
+
+/// Increment retry_count, advance the backoff iterator, and sleep for the yielded
+/// delay. Returns `None` when the iterator is exhausted (i.e. retries are used up).
+pub async fn wait_for_next_retry(
+    backoff: &mut impl Iterator<Item = Duration>,
+    retry_count: &mut u64,
+) -> Option<Duration> {
+    let delay = backoff.next()?;
+    *retry_count += 1;
+    tokio::time::sleep(delay).await;
+    Some(delay)
 }
