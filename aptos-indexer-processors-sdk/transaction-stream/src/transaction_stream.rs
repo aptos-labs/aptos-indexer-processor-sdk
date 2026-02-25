@@ -171,6 +171,8 @@ pub async fn get_stream_for_endpoint(
                 {
                     break Err(anyhow!("Timed out connecting to GRPC client"));
                 }
+                // Note: This should never be None because we break after <max_retries>,
+                // and this iterator is designed to have <max_retries> items.
                 if let Some(delay) = backoff.next() {
                     tokio::time::sleep(delay).await;
                 }
@@ -458,7 +460,8 @@ impl TransactionStream {
             end_version = transaction_stream_config.request_ending_version,
             "[Transaction Stream] Connecting to GRPC stream",
         );
-        let resp_stream = get_stream_for_endpoint(transaction_stream_config.clone(), endpoint).await?;
+        let resp_stream =
+            get_stream_for_endpoint(transaction_stream_config.clone(), endpoint).await?;
         let connection_id = match resp_stream.metadata().get(GRPC_CONNECTION_ID) {
             Some(connection_id) => connection_id.to_str().unwrap().to_string(),
             None => "".to_string(),
@@ -651,7 +654,9 @@ impl TransactionStream {
     pub async fn reconnect_to_grpc_with_retries(&mut self) -> Result<()> {
         // Always start from primary so we switch back when it recovers.
         let endpoints = self.transaction_stream_config.get_endpoints();
-        let max_retries = self.transaction_stream_config.indexer_grpc_reconnection_max_retries;
+        let max_retries = self
+            .transaction_stream_config
+            .indexer_grpc_reconnection_max_retries;
 
         // Single backoff iterator shared across all endpoints so delays keep growing.
         let mut backoff = self.transaction_stream_config.reconnection_backoff_iter();
@@ -697,6 +702,7 @@ impl TransactionStream {
             );
         }
 
+        // All endpoints exhausted
         error!(
             total_endpoints = endpoints.len(),
             "[Transaction Stream] All {} endpoints exhausted. Will not retry.",

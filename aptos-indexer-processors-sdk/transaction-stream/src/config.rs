@@ -44,16 +44,12 @@ pub struct TransactionStreamConfig {
     )]
     pub indexer_grpc_reconnection_initial_delay_ms: u64,
     /// Maximum delay (in ms) that the exponential backoff can grow to.
-    #[serde(
-        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_delay_ms"
-    )]
+    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_max_delay_ms")]
     pub indexer_grpc_reconnection_max_delay_ms: u64,
     /// Whether to apply random jitter to backoff delays. Jitter adds a random duration
     /// between 0 and the computed delay, spreading out reconnection attempts across
     /// processors ("full jitter" strategy). Defaults to true.
-    #[serde(
-        default = "TransactionStreamConfig::default_indexer_grpc_reconnection_enable_jitter"
-    )]
+    #[serde(default = "TransactionStreamConfig::default_indexer_grpc_reconnection_enable_jitter")]
     pub indexer_grpc_reconnection_enable_jitter: bool,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
@@ -105,14 +101,14 @@ impl TransactionStreamConfig {
         10
     }
 
-    /// Default initial delay for reconnection backoff in milliseconds. Defaults to 1000ms.
+    /// Default initial delay for reconnection backoff in milliseconds. Defaults to 100ms.
     pub const fn default_indexer_grpc_reconnection_initial_delay_ms() -> u64 {
-        1000
+        50
     }
 
-    /// Default maximum delay cap for reconnection backoff in milliseconds. Defaults to 30s.
+    /// Default maximum delay cap for reconnection backoff in milliseconds. Defaults to 10s.
     pub const fn default_indexer_grpc_reconnection_max_delay_ms() -> u64 {
-        30_000
+        10_000
     }
 
     /// Whether to apply jitter to backoff delays. Defaults to true.
@@ -125,10 +121,11 @@ impl TransactionStreamConfig {
     /// When jitter is enabled, each delay is randomized to a value between 0 and the
     /// computed delay (the "full jitter" strategy from `tokio-retry`).
     pub fn reconnection_backoff_iter(&self) -> Box<dyn Iterator<Item = Duration> + Send> {
-        let backoff = ExponentialBackoff::from_millis(
-            self.indexer_grpc_reconnection_initial_delay_ms,
-        )
-        .max_delay(Duration::from_millis(self.indexer_grpc_reconnection_max_delay_ms));
+        let backoff =
+            ExponentialBackoff::from_millis(self.indexer_grpc_reconnection_initial_delay_ms)
+                .max_delay(Duration::from_millis(
+                    self.indexer_grpc_reconnection_max_delay_ms,
+                ));
 
         if self.indexer_grpc_reconnection_enable_jitter {
             Box::new(backoff.map(jitter))

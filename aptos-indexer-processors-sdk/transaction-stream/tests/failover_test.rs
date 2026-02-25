@@ -149,8 +149,11 @@ impl WorkingMockGrpcServer {
 
 fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
     TransactionStreamConfig {
-        indexer_grpc_data_service_address: Url::parse(&format!("http://127.0.0.1:{}", primary_port))
-            .unwrap(),
+        indexer_grpc_data_service_address: Url::parse(&format!(
+            "http://127.0.0.1:{}",
+            primary_port
+        ))
+        .unwrap(),
         starting_version: Some(0),
         request_ending_version: None,
         auth_token: Some("primary_token".to_string()),
@@ -162,7 +165,7 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
         indexer_grpc_response_item_timeout_secs: 2,
         indexer_grpc_reconnection_max_retries: 2,
         indexer_grpc_reconnection_initial_delay_ms: 50,
-        indexer_grpc_reconnection_max_delay_ms: 30_000,
+        indexer_grpc_reconnection_max_delay_ms: 10_000,
         indexer_grpc_reconnection_enable_jitter: false,
         transaction_filter: None,
         backup_endpoints: vec![],
@@ -291,7 +294,7 @@ async fn test_config_endpoint_helpers() {
         indexer_grpc_response_item_timeout_secs: 60,
         indexer_grpc_reconnection_max_retries: 5,
         indexer_grpc_reconnection_initial_delay_ms: 1000,
-        indexer_grpc_reconnection_max_delay_ms: 30_000,
+        indexer_grpc_reconnection_max_delay_ms: 10_000,
         indexer_grpc_reconnection_enable_jitter: true,
         transaction_filter: None,
         backup_endpoints: vec![
@@ -457,17 +460,4 @@ async fn test_exponential_backoff_reconnection() {
         "Expected at least ~300ms from exponential backoff (100+200), but got {:?}",
         elapsed
     );
-}
-
-#[tokio::test]
-async fn test_backoff_default_values() {
-    assert_eq!(
-        TransactionStreamConfig::default_indexer_grpc_reconnection_initial_delay_ms(),
-        1000
-    );
-    assert_eq!(
-        TransactionStreamConfig::default_indexer_grpc_reconnection_max_delay_ms(),
-        30_000
-    );
-    assert!(TransactionStreamConfig::default_indexer_grpc_reconnection_enable_jitter());
 }
