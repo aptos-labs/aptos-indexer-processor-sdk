@@ -1,5 +1,6 @@
 use aptos_indexer_transaction_stream::{
-    config::TransactionStreamConfig, transaction_stream::TransactionStream,
+    config::{ReconnectionConfig, TransactionStreamConfig},
+    transaction_stream::TransactionStream,
 };
 use aptos_protos::indexer::v1::{
     raw_data_server::{RawData, RawDataServer},
@@ -163,10 +164,14 @@ async fn test_transaction_stream_reconnects_on_timeout() {
         additional_headers: Default::default(),
         indexer_grpc_http2_ping_interval_secs: 30,
         indexer_grpc_http2_ping_timeout_secs: 10,
-        indexer_grpc_reconnection_timeout_secs: 5,
         indexer_grpc_response_item_timeout_secs: timeout_duration_secs,
-        indexer_grpc_reconnection_max_retries: 2,
-        indexer_grpc_reconnection_retry_delay_ms: 100,
+        reconnection_config: ReconnectionConfig {
+            timeout_secs: 5,
+            max_retries: 2,
+            initial_delay_ms: 50,
+            max_delay_ms: 10_000,
+            enable_jitter: false,
+        },
         transaction_filter: None,
         backup_endpoints: vec![],
     };
