@@ -81,11 +81,9 @@ fn recurse_remove_null_bytes_from_json(sub_json: &mut Value) {
                 recurse_remove_null_bytes_from_json(value);
             }
         },
-        Value::String(str) => {
-            if !str.is_empty() {
-                let replacement = string_null_byte_replacement(str);
-                *str = replacement;
-            }
+        Value::String(str) if !str.is_empty() => {
+            let replacement = string_null_byte_replacement(str);
+            *str = replacement;
         },
         _ => {},
     }
