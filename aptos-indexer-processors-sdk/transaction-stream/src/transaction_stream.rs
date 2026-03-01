@@ -468,8 +468,8 @@ impl TransactionStream {
     /// 1. If we lose the connection, we will try reconnecting X times within Y seconds before crashing.
     /// 2. If we specified an end version and we hit that, we will stop fetching, but we will make sure that
     ///    all existing transactions are processed
-    /// 3. If no transactions are received within the response item timeout (default 60s),
-    ///    we will automatically reconnect and retry.
+    /// 3. If no transactions are received within the idle timeout (default 10s), the connection is
+    ///    considered stale and we will automatically close it, reconnect, and retry.
     ///
     /// Returns
     /// - true if should continue fetching
@@ -600,7 +600,8 @@ impl TransactionStream {
                         },
                     }
                 },
-                // Timeout receiving datastream response - reconnect and retry
+                // No transactions received within the idle timeout. The stream may be
+                // stale (open but no longer delivering data). Close and reconnect.
                 Err(_) => {
                     warn!(
                         stream_address = self
@@ -613,7 +614,8 @@ impl TransactionStream {
                         timeout_secs = self
                             .transaction_stream_config
                             .indexer_grpc_response_item_timeout_secs,
-                        "[Transaction Stream] Response item timeout. Reconnecting..."
+                        "[Transaction Stream] No transactions received for {}s, stream may be stale. Closing connection and reconnecting",
+                        self.transaction_stream_config.indexer_grpc_response_item_timeout_secs,
                     );
                     self.reconnect_to_grpc_with_retries().await?;
                     continue;

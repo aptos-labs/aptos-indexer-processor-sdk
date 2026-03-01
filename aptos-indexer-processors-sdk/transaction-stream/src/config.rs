@@ -80,9 +80,11 @@ impl TransactionStreamConfig {
         5
     }
 
-    /// Default timeout for receiving an item from grpc stream. Defaults to 60 seconds.
+    /// Idle timeout for the transaction stream. If no new transactions are received within
+    /// this duration, the connection is considered stale and will be closed and reconnected.
+    /// Defaults to 10 seconds.
     pub const fn default_indexer_grpc_response_item_timeout() -> u64 {
-        60
+        10
     }
 
     /// Default max retries for reconnecting to grpc. Defaults to 5.
