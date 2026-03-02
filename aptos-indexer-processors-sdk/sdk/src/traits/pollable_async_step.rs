@@ -1,6 +1,6 @@
 use crate::{
     traits::{
-        processable::RunnableStepType, IntoRunnableStep, NamedStep, Processable, RunnableStep,
+        IntoRunnableStep, NamedStep, Processable, RunnableStep, processable::RunnableStepType,
     },
     types::transaction_context::TransactionContext,
     utils::{
@@ -12,7 +12,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bigdecimal::Zero;
 use instrumented_channel::{
-    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+    InstrumentedAsyncReceiver, InstrumentedAsyncSender, instrumented_bounded_channel,
 };
 use std::{
     sync::Arc,

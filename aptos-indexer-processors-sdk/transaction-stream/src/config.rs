@@ -2,7 +2,7 @@ use crate::utils::additional_headers::AdditionalHeaders;
 use aptos_transaction_filter::BooleanTransactionFilter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tokio_retry::strategy::{jitter, ExponentialBackoff};
+use tokio_retry::strategy::{ExponentialBackoff, jitter};
 use url::Url;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

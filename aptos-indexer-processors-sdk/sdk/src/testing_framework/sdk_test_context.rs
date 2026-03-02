@@ -5,17 +5,17 @@ use crate::{
 };
 use anyhow::Context;
 use aptos_protos::{indexer::v1::TransactionsResponse, transaction::v1::Transaction};
-use serde_json::{to_string_pretty, Error as SerdeError, Value};
+use serde_json::{Error as SerdeError, Value, to_string_pretty};
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
     time::Duration,
 };
-use tokio::time::{timeout, Duration as TokioDuration};
+use tokio::time::{Duration as TokioDuration, timeout};
 use tokio_retry::{
-    strategy::{jitter, ExponentialBackoff},
     Retry,
+    strategy::{ExponentialBackoff, jitter},
 };
 use url::Url;
 

@@ -1,23 +1,23 @@
 use crate::{
-    config::{wait_for_next_retry, Endpoint, TransactionStreamConfig},
+    config::{Endpoint, TransactionStreamConfig, wait_for_next_retry},
     utils::{additional_headers::AdditionalHeaders, time::timestamp_to_iso},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use aptos_moving_average::MovingAverage;
 use aptos_protos::{
-    indexer::v1::{raw_data_client::RawDataClient, GetTransactionsRequest, TransactionsResponse},
+    indexer::v1::{GetTransactionsRequest, TransactionsResponse, raw_data_client::RawDataClient},
     transaction::v1::Transaction,
     util::timestamp::Timestamp,
 };
 use aptos_transaction_filter::BooleanTransactionFilter;
 use futures_util::StreamExt;
 use prost::Message;
-use sample::{sample, SampleRate};
+use sample::{SampleRate, sample};
 use std::time::Duration;
 use tokio::time::timeout;
 use tonic::{
-    transport::{Channel, ClientTlsConfig},
     Response, Streaming,
+    transport::{Channel, ClientTlsConfig},
 };
 use tracing::{error, info, warn};
 
@@ -131,7 +131,12 @@ pub async fn get_stream_for_endpoint(
         .backoff_iter()
         .take(reconnection.max_retries as usize);
     let res = loop {
-        match timeout(reconnection.timeout(), RawDataClient::connect(channel.clone())).await {
+        match timeout(
+            reconnection.timeout(),
+            RawDataClient::connect(channel.clone()),
+        )
+        .await
+        {
             Ok(Ok(client)) => break Ok(client),
             Ok(Err(e)) => {
                 warn!(
@@ -143,7 +148,10 @@ pub async fn get_stream_for_endpoint(
                     error = ?e,
                     "[Transaction Stream] Error connecting to GRPC client"
                 );
-                if wait_for_next_retry(&mut backoff, &mut retry_count).await.is_none() {
+                if wait_for_next_retry(&mut backoff, &mut retry_count)
+                    .await
+                    .is_none()
+                {
                     break Err(anyhow!("Error connecting to GRPC client").context(e));
                 }
             },
@@ -157,7 +165,10 @@ pub async fn get_stream_for_endpoint(
                     error = ?e,
                     "[Transaction Stream] Timed out connecting to GRPC client"
                 );
-                if wait_for_next_retry(&mut backoff, &mut retry_count).await.is_none() {
+                if wait_for_next_retry(&mut backoff, &mut retry_count)
+                    .await
+                    .is_none()
+                {
                     break Err(anyhow!("Timed out connecting to GRPC client"));
                 }
             },
@@ -221,7 +232,10 @@ pub async fn get_stream_for_endpoint(
                     error = ?e,
                     "[Transaction Stream] Error making grpc request. Retrying..."
                 );
-                if wait_for_next_retry(&mut backoff, &mut retry_count).await.is_none() {
+                if wait_for_next_retry(&mut backoff, &mut retry_count)
+                    .await
+                    .is_none()
+                {
                     break Err(anyhow!("Error making grpc request").context(e));
                 }
             },
@@ -235,7 +249,10 @@ pub async fn get_stream_for_endpoint(
                     error = ?e,
                     "[Transaction Stream] Timeout making grpc request. Retrying...",
                 );
-                if wait_for_next_retry(&mut backoff, &mut retry_count).await.is_none() {
+                if wait_for_next_retry(&mut backoff, &mut retry_count)
+                    .await
+                    .is_none()
+                {
                     break Err(anyhow!("Timeout making grpc request").context(e));
                 }
             },
@@ -457,112 +474,106 @@ impl TransactionStream {
             )
             .await
             {
-                Ok(response) => {
-                    match response {
-                        Some(Ok(r)) => {
-                            self.reconnection_retries = 0;
+                Ok(response) => match response {
+                    Some(Ok(r)) => {
+                        self.reconnection_retries = 0;
 
-                            let start_version = match r.processed_range {
-                                Some(range) => range.first_version,
-                                None => r.transactions.as_slice().first().unwrap().version,
-                            };
-                            let end_version = match r.processed_range {
-                                Some(range) => range.last_version,
-                                None => r.transactions.as_slice().last().unwrap().version,
-                            };
+                        let start_version = match r.processed_range {
+                            Some(range) => range.first_version,
+                            None => r.transactions.as_slice().first().unwrap().version,
+                        };
+                        let end_version = match r.processed_range {
+                            Some(range) => range.last_version,
+                            None => r.transactions.as_slice().last().unwrap().version,
+                        };
 
-                            let start_txn_timestamp =
-                                r.transactions.as_slice().first().and_then(|t| t.timestamp);
-                            let end_txn_timestamp =
-                                r.transactions.as_slice().last().and_then(|t| t.timestamp);
+                        let start_txn_timestamp =
+                            r.transactions.as_slice().first().and_then(|t| t.timestamp);
+                        let end_txn_timestamp =
+                            r.transactions.as_slice().last().and_then(|t| t.timestamp);
 
-                            let size_in_bytes = r.encoded_len() as u64;
-                            let chain_id: u64 = r
-                                .chain_id
-                                .expect("[Transaction Stream] Chain Id doesn't exist.");
-                            let num_txns = r.transactions.len();
-                            let duration_in_secs =
-                                grpc_channel_recv_latency.elapsed().as_secs_f64();
-                            self.fetch_ma.tick_now(num_txns as u64);
+                        let size_in_bytes = r.encoded_len() as u64;
+                        let chain_id: u64 = r
+                            .chain_id
+                            .expect("[Transaction Stream] Chain Id doesn't exist.");
+                        let num_txns = r.transactions.len();
+                        let duration_in_secs = grpc_channel_recv_latency.elapsed().as_secs_f64();
+                        self.fetch_ma.tick_now(num_txns as u64);
 
-                            sample!(
-                                SampleRate::Duration(Duration::from_secs(1)),
-                                info!(
-                                    stream_address = self
-                                        .transaction_stream_config
-                                        .indexer_grpc_data_service_address
-                                        .to_string(),
-                                    connection_id = self.connection_id,
-                                    start_version = start_version,
-                                    end_version = end_version,
-                                    start_txn_timestamp_iso = start_txn_timestamp
-                                        .as_ref()
-                                        .map(timestamp_to_iso)
-                                        .unwrap_or_default(),
-                                    end_txn_timestamp_iso = end_txn_timestamp
-                                        .as_ref()
-                                        .map(timestamp_to_iso)
-                                        .unwrap_or_default(),
-                                    num_of_transactions = end_version - start_version + 1,
-                                    size_in_bytes = size_in_bytes,
-                                    duration_in_secs = duration_in_secs,
-                                    tps = self.fetch_ma.avg().ceil() as u64,
-                                    bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
-                                    "[Transaction Stream] Received transactions from GRPC.",
-                                )
-                            );
-
-                            if let Some(last_fetched_version) = self.last_fetched_version {
-                                if last_fetched_version + 1 != start_version as i64 {
-                                    error!(
-                                        last_fetched_version = self.last_fetched_version,
-                                        expected_start_version =
-                                            self.last_fetched_version.map(|v| v + 1),
-                                        actual_start_version = start_version,
-                                        "[Transaction Stream] Received batch with gap from GRPC stream"
-                                    );
-                                    return Err(anyhow!(
-                                        "Received batch with gap from GRPC stream"
-                                    ));
-                                }
-                            }
-                            self.last_fetched_version = Some(end_version as i64);
-
-                            return Ok(TransactionsPBResponse {
-                                transactions: r.transactions,
-                                chain_id,
-                                start_version,
-                                end_version,
-                                start_txn_timestamp,
-                                end_txn_timestamp,
-                                size_in_bytes,
-                            });
-                        },
-                        Some(Err(rpc_error)) => {
-                            warn!(
-                                stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
-                                connection_id = self.connection_id,
-                                start_version = self.transaction_stream_config.starting_version,
-                                end_version = self.transaction_stream_config.request_ending_version,
-                                error = ?rpc_error,
-                                "[Transaction Stream] Error receiving datastream response."
-                            );
-                            Err(anyhow!("Error receiving datastream response"))
-                        },
-                        None => {
-                            warn!(
+                        sample!(
+                            SampleRate::Duration(Duration::from_secs(1)),
+                            info!(
                                 stream_address = self
                                     .transaction_stream_config
                                     .indexer_grpc_data_service_address
                                     .to_string(),
                                 connection_id = self.connection_id,
-                                start_version = self.transaction_stream_config.starting_version,
-                                end_version = self.transaction_stream_config.request_ending_version,
-                                "[Transaction Stream] Stream ended."
+                                start_version = start_version,
+                                end_version = end_version,
+                                start_txn_timestamp_iso = start_txn_timestamp
+                                    .as_ref()
+                                    .map(timestamp_to_iso)
+                                    .unwrap_or_default(),
+                                end_txn_timestamp_iso = end_txn_timestamp
+                                    .as_ref()
+                                    .map(timestamp_to_iso)
+                                    .unwrap_or_default(),
+                                num_of_transactions = end_version - start_version + 1,
+                                size_in_bytes = size_in_bytes,
+                                duration_in_secs = duration_in_secs,
+                                tps = self.fetch_ma.avg().ceil() as u64,
+                                bytes_per_sec = size_in_bytes as f64 / duration_in_secs,
+                                "[Transaction Stream] Received transactions from GRPC.",
+                            )
+                        );
+
+                        if let Some(last_fetched_version) = self.last_fetched_version
+                            && last_fetched_version + 1 != start_version as i64
+                        {
+                            error!(
+                                last_fetched_version = self.last_fetched_version,
+                                expected_start_version = self.last_fetched_version.map(|v| v + 1),
+                                actual_start_version = start_version,
+                                "[Transaction Stream] Received batch with gap from GRPC stream"
                             );
-                            Err(anyhow!("Stream ended"))
-                        },
-                    }
+                            return Err(anyhow!("Received batch with gap from GRPC stream"));
+                        }
+                        self.last_fetched_version = Some(end_version as i64);
+
+                        return Ok(TransactionsPBResponse {
+                            transactions: r.transactions,
+                            chain_id,
+                            start_version,
+                            end_version,
+                            start_txn_timestamp,
+                            end_txn_timestamp,
+                            size_in_bytes,
+                        });
+                    },
+                    Some(Err(rpc_error)) => {
+                        warn!(
+                            stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
+                            connection_id = self.connection_id,
+                            start_version = self.transaction_stream_config.starting_version,
+                            end_version = self.transaction_stream_config.request_ending_version,
+                            error = ?rpc_error,
+                            "[Transaction Stream] Error receiving datastream response."
+                        );
+                        Err(anyhow!("Error receiving datastream response"))
+                    },
+                    None => {
+                        warn!(
+                            stream_address = self
+                                .transaction_stream_config
+                                .indexer_grpc_data_service_address
+                                .to_string(),
+                            connection_id = self.connection_id,
+                            start_version = self.transaction_stream_config.starting_version,
+                            end_version = self.transaction_stream_config.request_ending_version,
+                            "[Transaction Stream] Stream ended."
+                        );
+                        Err(anyhow!("Stream ended"))
+                    },
                 },
                 Err(_) => {
                     warn!(

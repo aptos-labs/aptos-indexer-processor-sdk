@@ -4,11 +4,11 @@ use aptos_indexer_processor_sdk::{
     aptos_protos::transaction::v1::transaction::TxnData,
     postgres::{
         basic_processor::process,
-        utils::database::{execute_in_chunks, MAX_DIESEL_PARAM_SIZE},
+        utils::database::{MAX_DIESEL_PARAM_SIZE, execute_in_chunks},
     },
 };
 use diesel::{pg::Pg, query_builder::QueryFragment};
-use diesel_migrations::{embed_migrations, EmbeddedMigrations};
+use diesel_migrations::{EmbeddedMigrations, embed_migrations};
 use field_count::FieldCount;
 use rayon::prelude::*;
 use tracing::{error, info, warn};

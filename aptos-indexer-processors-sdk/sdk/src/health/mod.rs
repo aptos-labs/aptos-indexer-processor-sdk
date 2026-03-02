@@ -6,6 +6,6 @@ pub mod progress;
 // Re-export commonly used types.
 pub use core::HealthCheck;
 pub use progress::{
-    default_no_progress_threshold_secs, ProgressHealthChecker, ProgressHealthConfig,
-    ProgressStatusProvider,
+    ProgressHealthChecker, ProgressHealthConfig, ProgressStatusProvider,
+    default_no_progress_threshold_secs,
 };

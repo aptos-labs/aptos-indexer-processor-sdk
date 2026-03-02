@@ -6,7 +6,7 @@ use crate::{
 };
 use bigdecimal::Zero;
 use instrumented_channel::{
-    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+    InstrumentedAsyncReceiver, InstrumentedAsyncSender, instrumented_bounded_channel,
 };
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;

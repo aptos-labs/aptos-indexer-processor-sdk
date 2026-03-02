@@ -3,22 +3,22 @@ use crate::{
     aptos_indexer_transaction_stream::TransactionStreamConfig,
     builder::ProcessorBuilder,
     common_steps::{
-        TransactionStreamStep, VersionTrackerStep, DEFAULT_UPDATE_PROCESSOR_STATUS_SECS,
+        DEFAULT_UPDATE_PROCESSOR_STATUS_SECS, TransactionStreamStep, VersionTrackerStep,
     },
     postgres::{
+        SDK_MIGRATIONS,
         progress::PostgresProgressStatusProvider,
         subconfigs::postgres_config::PostgresConfig,
         utils::{
             checkpoint::{
-                get_starting_version, PostgresChainIdChecker, PostgresProcessorStatusSaver,
+                PostgresChainIdChecker, PostgresProcessorStatusSaver, get_starting_version,
             },
-            database::{new_db_pool, run_migrations, ArcDbPool},
+            database::{ArcDbPool, new_db_pool, run_migrations},
         },
-        SDK_MIGRATIONS,
     },
     server_framework::{
-        load, register_probes_and_metrics_handler, setup_logging, setup_panic_handler,
-        GenericConfig, HealthCheck, ProgressHealthChecker, ProgressHealthConfig, ServerArgs,
+        GenericConfig, HealthCheck, ProgressHealthChecker, ProgressHealthConfig, ServerArgs, load,
+        register_probes_and_metrics_handler, setup_logging, setup_panic_handler,
     },
     traits::IntoRunnableStep,
     utils::{chain_id_check::check_or_update_chain_id, errors::ProcessorError},

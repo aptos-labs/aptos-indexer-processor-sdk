@@ -6,7 +6,7 @@ use crate::{
 use aptos_protos::transaction::v1::Transaction;
 use bigdecimal::Zero;
 use instrumented_channel::{
-    instrumented_bounded_channel, InstrumentedAsyncReceiver, InstrumentedAsyncSender,
+    InstrumentedAsyncReceiver, InstrumentedAsyncSender, instrumented_bounded_channel,
 };
 pub use pollable::PollableAccumulatorStep;
 use std::time::{Duration, Instant};

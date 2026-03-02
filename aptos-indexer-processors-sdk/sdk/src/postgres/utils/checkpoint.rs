@@ -1,6 +1,6 @@
-use super::database::{execute_with_better_error, execute_with_better_error_conn, ArcDbPool};
+use super::database::{ArcDbPool, execute_with_better_error, execute_with_better_error_conn};
 use crate::{
-    aptos_indexer_transaction_stream::{utils::time::parse_timestamp, TransactionStreamConfig},
+    aptos_indexer_transaction_stream::{TransactionStreamConfig, utils::time::parse_timestamp},
     common_steps::ProcessorStatusSaver,
     postgres::{
         models::{
@@ -14,7 +14,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use diesel::{query_dsl::methods::FilterDsl, upsert::excluded, ExpressionMethods};
+use diesel::{ExpressionMethods, query_dsl::methods::FilterDsl, upsert::excluded};
 
 /// A trait implementation of ChainIdChecker for Postgres.
 pub struct PostgresChainIdChecker {
