@@ -3,21 +3,21 @@ use aptos_indexer_transaction_stream::{
     transaction_stream::TransactionStream,
 };
 use aptos_protos::indexer::v1::{
-    raw_data_server::{RawData, RawDataServer},
     GetTransactionsRequest, TransactionsResponse,
+    raw_data_server::{RawData, RawDataServer},
 };
 use futures::{Future, Stream};
 use std::{
     pin::Pin,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     task::{Context, Poll},
     time::Duration,
 };
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{Request, Response, Status, transport::Server};
 use url::Url;
 
 /// A stream that stalls for a specified duration before yielding a response

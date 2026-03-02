@@ -8,11 +8,11 @@ use super::{
     property_map::{PropertyMap, TokenObjectPropertyMap},
 };
 use aptos_protos::transaction::v1::{
+    EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
+    TransactionPayload, UserTransactionRequest, WriteSet,
     multisig_transaction_payload::Payload as MultisigPayloadType,
     transaction_payload::{self, Payload as PayloadType},
     write_set::WriteSet as WriteSetType,
-    EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
-    TransactionPayload, UserTransactionRequest, WriteSet,
 };
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Deserializer, Serialize};

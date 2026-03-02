@@ -1,12 +1,12 @@
 use aptos_protos::indexer::v1::{
-    raw_data_server::{RawData, RawDataServer},
     GetTransactionsRequest, ProcessedRange, TransactionsResponse,
+    raw_data_server::{RawData, RawDataServer},
 };
 use futures::Stream;
 use std::{collections::HashMap, pin::Pin};
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{Request, Response, Status, transport::Server};
 
 // Bind to port 0 to get a random available port
 const GRPC_ADDRESS: &str = "127.0.0.1:0";
@@ -41,7 +41,7 @@ impl RawData for MockGrpcServer {
 
         let mut sorted_transactions: Vec<_> = transaction_map
             .iter()
-            .filter(|(&version, _)| version >= starting_version)
+            .filter(|(version, _)| **version >= starting_version)
             .map(|(_, tx)| tx.clone())
             .collect();
         sorted_transactions.sort_by_key(|tx| tx.version);

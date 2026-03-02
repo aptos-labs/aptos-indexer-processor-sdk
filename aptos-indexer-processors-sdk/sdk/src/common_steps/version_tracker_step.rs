@@ -1,6 +1,6 @@
 use crate::{
     traits::{
-        pollable_async_step::PollableAsyncRunType, NamedStep, PollableAsyncStep, Processable,
+        NamedStep, PollableAsyncStep, Processable, pollable_async_step::PollableAsyncRunType,
     },
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,
@@ -89,15 +89,15 @@ where
         current_batch: TransactionContext<T>,
     ) -> Result<Option<TransactionContext<T>>, ProcessorError> {
         // If there's a gap in version, return an error
-        if let Some(last_success_batch) = self.last_success_batch.as_ref() {
-            if last_success_batch.metadata.end_version + 1 != current_batch.metadata.start_version {
-                return Err(ProcessorError::ProcessError {
-                    message: format!(
-                        "Gap detected starting from version: {}",
-                        current_batch.metadata.start_version
-                    ),
-                });
-            }
+        if let Some(last_success_batch) = self.last_success_batch.as_ref()
+            && last_success_batch.metadata.end_version + 1 != current_batch.metadata.start_version
+        {
+            return Err(ProcessorError::ProcessError {
+                message: format!(
+                    "Gap detected starting from version: {}",
+                    current_batch.metadata.start_version
+                ),
+            });
         }
 
         // Update the last success batch

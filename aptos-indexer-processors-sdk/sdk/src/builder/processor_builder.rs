@@ -4,7 +4,7 @@ use crate::{
     types::transaction_context::TransactionContext,
 };
 use anyhow::Result;
-use instrumented_channel::{instrumented_bounded_channel, InstrumentedAsyncReceiver};
+use instrumented_channel::{InstrumentedAsyncReceiver, instrumented_bounded_channel};
 use petgraph::{
     dot::Config,
     graph::{DiGraph, EdgeReference, NodeIndex},

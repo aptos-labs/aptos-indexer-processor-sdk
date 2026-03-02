@@ -1,6 +1,6 @@
 use crate::{
     traits::{
-        pollable_async_step::PollableAsyncRunType, NamedStep, PollableAsyncStep, Processable,
+        NamedStep, PollableAsyncStep, Processable, pollable_async_step::PollableAsyncRunType,
     },
     types::transaction_context::TransactionContext,
     utils::errors::ProcessorError,

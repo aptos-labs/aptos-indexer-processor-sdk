@@ -2,8 +2,8 @@
 
 // Re-export health types for convenience.
 pub use crate::health::{
-    default_no_progress_threshold_secs, HealthCheck, ProgressHealthChecker, ProgressHealthConfig,
-    ProgressStatusProvider,
+    HealthCheck, ProgressHealthChecker, ProgressHealthConfig, ProgressStatusProvider,
+    default_no_progress_threshold_secs,
 };
 use crate::{
     instrumented_channel::channel_metrics::init_channel_metrics_registry,
@@ -13,11 +13,11 @@ use anyhow::{Context, Result};
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;
-use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
+use axum::{Router, http::StatusCode, response::IntoResponse, routing::get};
 use backtrace::Backtrace;
 use clap::Parser;
 use prometheus_client::registry::Registry;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 // TODO: remove deprecated lint when new clippy nightly is released.
 #[allow(deprecated)]

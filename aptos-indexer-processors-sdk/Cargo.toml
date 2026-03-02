@@ -11,12 +11,12 @@ members = [
 
 [workspace.package]
 authors = ["Aptos Labs <opensource@aptoslabs.com>"]
-edition = "2021"
+edition = "2024"
 homepage = "https://aptoslabs.com"
 license = "Apache-2.0"
 publish = false
 repository = "https://github.com/aptos-labs/aptos-indexer-processor-sdk"
-rust-version = "1.78"
+rust-version = "1.93.1"
 
 [workspace.dependencies]
 aptos-indexer-processor-sdk = { path = "sdk" }

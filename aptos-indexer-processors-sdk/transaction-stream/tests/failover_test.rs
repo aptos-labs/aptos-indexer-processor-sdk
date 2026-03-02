@@ -3,20 +3,20 @@ use aptos_indexer_transaction_stream::{
     transaction_stream::TransactionStream,
 };
 use aptos_protos::indexer::v1::{
-    raw_data_server::{RawData, RawDataServer},
     GetTransactionsRequest, TransactionsResponse,
+    raw_data_server::{RawData, RawDataServer},
 };
 use futures::Stream;
 use std::{
     pin::Pin,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     task::{Context, Poll},
 };
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{Request, Response, Status, transport::Server};
 use url::Url;
 
 struct WorkingResponseStream {
@@ -88,7 +88,9 @@ impl FailingMockGrpcServer {
                 .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
                 .send_compressed(tonic::codec::CompressionEncoding::Zstd),
         );
-        tokio::spawn(async move { let _ = server.serve_with_incoming(stream).await; });
+        tokio::spawn(async move {
+            let _ = server.serve_with_incoming(stream).await;
+        });
         Ok(bound_addr.port())
     }
 }
@@ -129,15 +131,20 @@ impl WorkingMockGrpcServer {
                 .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
                 .send_compressed(tonic::codec::CompressionEncoding::Zstd),
         );
-        tokio::spawn(async move { let _ = server.serve_with_incoming(stream).await; });
+        tokio::spawn(async move {
+            let _ = server.serve_with_incoming(stream).await;
+        });
         Ok(bound_addr.port())
     }
 }
 
 fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
     TransactionStreamConfig {
-        indexer_grpc_data_service_address: Url::parse(&format!("http://127.0.0.1:{}", primary_port))
-            .unwrap(),
+        indexer_grpc_data_service_address: Url::parse(&format!(
+            "http://127.0.0.1:{}",
+            primary_port
+        ))
+        .unwrap(),
         starting_version: Some(0),
         request_ending_version: None,
         auth_token: Some("primary_token".to_string()),
@@ -162,11 +169,17 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
 async fn test_failover_to_backup_endpoint() {
     let primary_connection_count = Arc::new(AtomicU64::new(0));
     let primary_server = FailingMockGrpcServer::new(primary_connection_count.clone());
-    let primary_port = primary_server.run().await.expect("Failed to start primary server");
+    let primary_port = primary_server
+        .run()
+        .await
+        .expect("Failed to start primary server");
 
     let backup_connection_count = Arc::new(AtomicU64::new(0));
     let backup_server = WorkingMockGrpcServer::new(backup_connection_count.clone(), 0);
-    let backup_port = backup_server.run().await.expect("Failed to start backup server");
+    let backup_port = backup_server
+        .run()
+        .await
+        .expect("Failed to start backup server");
 
     let mut config = create_base_config(primary_port);
     config.backup_endpoints = vec![Endpoint {
@@ -190,11 +203,17 @@ async fn test_failover_to_backup_endpoint() {
 async fn test_all_endpoints_exhausted() {
     let primary_connection_count = Arc::new(AtomicU64::new(0));
     let primary_server = FailingMockGrpcServer::new(primary_connection_count.clone());
-    let primary_port = primary_server.run().await.expect("Failed to start primary server");
+    let primary_port = primary_server
+        .run()
+        .await
+        .expect("Failed to start primary server");
 
     let backup_connection_count = Arc::new(AtomicU64::new(0));
     let backup_server = FailingMockGrpcServer::new(backup_connection_count.clone());
-    let backup_port = backup_server.run().await.expect("Failed to start backup server");
+    let backup_port = backup_server
+        .run()
+        .await
+        .expect("Failed to start backup server");
 
     let mut config = create_base_config(primary_port);
     config.backup_endpoints = vec![Endpoint {
@@ -251,11 +270,17 @@ async fn test_config_endpoint_helpers() {
 async fn test_reconnect_tries_primary_first() {
     let primary_connection_count = Arc::new(AtomicU64::new(0));
     let primary_server = FailingMockGrpcServer::new(primary_connection_count.clone());
-    let primary_port = primary_server.run().await.expect("Failed to start primary server");
+    let primary_port = primary_server
+        .run()
+        .await
+        .expect("Failed to start primary server");
 
     let backup_connection_count = Arc::new(AtomicU64::new(0));
     let backup_server = WorkingMockGrpcServer::new(backup_connection_count.clone(), 0);
-    let backup_port = backup_server.run().await.expect("Failed to start backup server");
+    let backup_port = backup_server
+        .run()
+        .await
+        .expect("Failed to start backup server");
 
     let mut config = create_base_config(primary_port);
     config.backup_endpoints = vec![Endpoint {
@@ -283,7 +308,10 @@ async fn test_reconnect_tries_primary_first() {
 async fn test_backward_compatibility_no_backup_endpoints() {
     let working_connection_count = Arc::new(AtomicU64::new(0));
     let working_server = WorkingMockGrpcServer::new(working_connection_count.clone(), 0);
-    let working_port = working_server.run().await.expect("Failed to start working server");
+    let working_port = working_server
+        .run()
+        .await
+        .expect("Failed to start working server");
 
     let config = create_base_config(working_port);
     assert!(config.backup_endpoints.is_empty());
@@ -301,11 +329,17 @@ async fn test_backward_compatibility_no_backup_endpoints() {
 async fn test_exponential_backoff_reconnection() {
     let primary_connection_count = Arc::new(AtomicU64::new(0));
     let primary_server = FailingMockGrpcServer::new(primary_connection_count.clone());
-    let primary_port = primary_server.run().await.expect("Failed to start primary server");
+    let primary_port = primary_server
+        .run()
+        .await
+        .expect("Failed to start primary server");
 
     let backup_connection_count = Arc::new(AtomicU64::new(0));
     let backup_server = WorkingMockGrpcServer::new(backup_connection_count.clone(), 0);
-    let backup_port = backup_server.run().await.expect("Failed to start backup server");
+    let backup_port = backup_server
+        .run()
+        .await
+        .expect("Failed to start backup server");
 
     let mut config = create_base_config(primary_port);
     config.reconnection_config.initial_delay_ms = 100;

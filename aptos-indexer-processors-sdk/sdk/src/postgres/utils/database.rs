@@ -6,16 +6,16 @@
 
 use crate::utils::{convert::remove_null_bytes, errors::ProcessorError};
 use ahash::AHashMap;
-use diesel::{query_builder::QueryFragment, ConnectionResult, QueryResult};
+use diesel::{ConnectionResult, QueryResult, query_builder::QueryFragment};
 use diesel_async::{
-    pooled_connection::{
-        bb8::{Pool, PooledConnection},
-        AsyncDieselConnectionManager, ManagerConfig, PoolError,
-    },
     AsyncPgConnection, RunQueryDsl,
+    pooled_connection::{
+        AsyncDieselConnectionManager, ManagerConfig, PoolError,
+        bb8::{Pool, PooledConnection},
+    },
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
-use futures_util::{future::BoxFuture, FutureExt};
+use futures_util::{FutureExt, future::BoxFuture};
 use std::sync::Arc;
 use tracing::{info, warn};
 
