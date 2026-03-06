@@ -8,9 +8,9 @@ use super::{
     property_map::{PropertyMap, TokenObjectPropertyMap},
 };
 use aptos_protos::transaction::v1::{
-    EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
-    TransactionPayload, UserTransactionRequest, WriteSet,
-    multisig_transaction_payload::Payload as MultisigPayloadType,
+    EncryptedTransactionPayload, EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode,
+    MoveType, ScriptPayload, TransactionPayload, UserTransactionRequest, WriteSet,
+    encrypted_transaction_payload, multisig_transaction_payload::Payload as MultisigPayloadType,
     transaction_payload::{self, Payload as PayloadType},
     write_set::WriteSet as WriteSetType,
 };
@@ -246,6 +246,25 @@ pub fn get_clean_payload(payload: &TransactionPayload, version: i64) -> Option<V
                 panic!()
             }))
         },
+        PayloadType::EncryptedTransactionPayload(inner) => {
+            match &inner.decrypted_payload {
+                Some(encrypted_transaction_payload::DecryptedPayload::EntryFunctionPayload(ef)) => {
+                    let clean = get_clean_entry_function_payload(ef, version);
+                    Some(serde_json::to_value(clean).unwrap_or_else(|_| {
+                        error!(version = version, "Unable to serialize encrypted payload");
+                        panic!()
+                    }))
+                },
+                Some(encrypted_transaction_payload::DecryptedPayload::ScriptPayload(sp)) => {
+                    let clean = get_clean_script_payload(sp, version);
+                    Some(serde_json::to_value(clean).unwrap_or_else(|_| {
+                        error!(version = version, "Unable to serialize encrypted payload");
+                        panic!()
+                    }))
+                },
+                None => None, // Still encrypted or failed decryption
+            }
+        },
     }
 }
 
@@ -310,6 +329,14 @@ pub fn get_clean_entry_function_payload_from_user_request(
                     None
                 }
             },
+            Some(PayloadType::EncryptedTransactionPayload(inner)) => {
+                match &inner.decrypted_payload {
+                    Some(encrypted_transaction_payload::DecryptedPayload::EntryFunctionPayload(ef)) => {
+                        Some(get_clean_entry_function_payload(ef, version))
+                    },
+                    _ => None,
+                }
+            },
             _ => return None,
         },
         None => return None,
@@ -333,6 +360,36 @@ fn get_clean_script_payload(payload: &ScriptPayload, version: i64) -> ScriptPayl
             })
             .collect(),
     }
+}
+
+pub fn get_encrypted_payload_from_user_request(
+    user_request: &UserTransactionRequest,
+) -> Option<&EncryptedTransactionPayload> {
+    user_request.payload.as_ref().and_then(|p| match &p.payload {
+        Some(PayloadType::EncryptedTransactionPayload(inner)) => Some(inner),
+        _ => None,
+    })
+}
+
+pub fn get_encrypted_state_from_user_request(
+    user_request: &UserTransactionRequest,
+) -> Option<String> {
+    get_encrypted_payload_from_user_request(user_request)
+        .map(|p| p.encrypted_state().as_str_name().to_string())
+}
+
+pub fn get_encrypted_payload_hash_from_user_request(
+    user_request: &UserTransactionRequest,
+) -> Option<String> {
+    get_encrypted_payload_from_user_request(user_request)
+        .map(|p| hex::encode(&p.payload_hash))
+}
+
+pub fn get_decryption_nonce_from_user_request(
+    user_request: &UserTransactionRequest,
+) -> Option<u64> {
+    get_encrypted_payload_from_user_request(user_request)
+        .and_then(|p| p.decryption_nonce)
 }
 
 /// Get name from unwrapped move type
