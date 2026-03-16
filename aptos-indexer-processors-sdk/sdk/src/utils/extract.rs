@@ -10,7 +10,9 @@ use super::{
 use aptos_protos::transaction::v1::{
     EncryptedTransactionPayload, EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode,
     MoveType, ScriptPayload, TransactionPayload, UserTransactionRequest, WriteSet,
-    encrypted_transaction_payload, multisig_transaction_payload::Payload as MultisigPayloadType,
+    decrypted_payload_state::DecryptedPayload,
+    encrypted_transaction_payload::State as EncryptedState,
+    multisig_transaction_payload::Payload as MultisigPayloadType,
     transaction_payload::{self, Payload as PayloadType},
     write_set::WriteSet as WriteSetType,
 };
@@ -247,22 +249,22 @@ pub fn get_clean_payload(payload: &TransactionPayload, version: i64) -> Option<V
             }))
         },
         PayloadType::EncryptedTransactionPayload(inner) => {
-            match &inner.decrypted_payload {
-                Some(encrypted_transaction_payload::DecryptedPayload::EntryFunctionPayload(ef)) => {
+            match get_decrypted_payload(inner) {
+                Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
                     let clean = get_clean_entry_function_payload(ef, version);
                     Some(serde_json::to_value(clean).unwrap_or_else(|_| {
                         error!(version = version, "Unable to serialize encrypted payload");
                         panic!()
                     }))
                 },
-                Some(encrypted_transaction_payload::DecryptedPayload::ScriptPayload(sp)) => {
+                Some(DecryptedPayload::ScriptPayload(sp)) => {
                     let clean = get_clean_script_payload(sp, version);
                     Some(serde_json::to_value(clean).unwrap_or_else(|_| {
                         error!(version = version, "Unable to serialize encrypted payload");
                         panic!()
                     }))
                 },
-                None => None, // Still encrypted or failed decryption
+                _ => None, // Still encrypted, failed decryption, or multisig
             }
         },
     }
@@ -330,8 +332,8 @@ pub fn get_clean_entry_function_payload_from_user_request(
                 }
             },
             Some(PayloadType::EncryptedTransactionPayload(inner)) => {
-                match &inner.decrypted_payload {
-                    Some(encrypted_transaction_payload::DecryptedPayload::EntryFunctionPayload(ef)) => {
+                match get_decrypted_payload(inner) {
+                    Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
                         Some(get_clean_entry_function_payload(ef, version))
                     },
                     _ => None,
@@ -371,25 +373,24 @@ pub fn get_encrypted_payload_from_user_request(
     })
 }
 
-pub fn get_encrypted_state_from_user_request(
-    user_request: &UserTransactionRequest,
-) -> Option<String> {
-    get_encrypted_payload_from_user_request(user_request)
-        .map(|p| p.encrypted_state().as_str_name().to_string())
+/// Extract the decrypted payload from an encrypted transaction payload, if available.
+fn get_decrypted_payload(
+    encrypted: &EncryptedTransactionPayload,
+) -> Option<&DecryptedPayload> {
+    match &encrypted.state {
+        Some(EncryptedState::Decrypted(decrypted)) => decrypted.decrypted_payload.as_ref(),
+        _ => None,
+    }
 }
 
-pub fn get_encrypted_payload_hash_from_user_request(
-    user_request: &UserTransactionRequest,
-) -> Option<String> {
-    get_encrypted_payload_from_user_request(user_request)
-        .map(|p| hex::encode(&p.payload_hash))
+pub fn is_encrypted_transaction(user_request: &UserTransactionRequest) -> bool {
+    get_encrypted_payload_from_user_request(user_request).is_some()
 }
 
-pub fn get_decryption_nonce_from_user_request(
-    user_request: &UserTransactionRequest,
-) -> Option<u64> {
+pub fn is_decrypted_transaction(user_request: &UserTransactionRequest) -> bool {
     get_encrypted_payload_from_user_request(user_request)
-        .and_then(|p| p.decryption_nonce)
+        .and_then(|p| get_decrypted_payload(p))
+        .is_some()
 }
 
 /// Get name from unwrapped move type
