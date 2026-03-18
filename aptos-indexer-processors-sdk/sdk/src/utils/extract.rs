@@ -8,8 +8,10 @@ use super::{
     property_map::{PropertyMap, TokenObjectPropertyMap},
 };
 use aptos_protos::transaction::v1::{
-    EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode, MoveType, ScriptPayload,
-    TransactionPayload, UserTransactionRequest, WriteSet,
+    EncryptedTransactionPayload, EntryFunctionId, EntryFunctionPayload, MoveScriptBytecode,
+    MoveType, MultisigPayload, ScriptPayload, TransactionPayload, UserTransactionRequest, WriteSet,
+    decrypted_payload_state::DecryptedPayload,
+    encrypted_transaction_payload::State as EncryptedState,
     multisig_transaction_payload::Payload as MultisigPayloadType,
     transaction_payload::{self, Payload as PayloadType},
     write_set::WriteSet as WriteSetType,
@@ -221,30 +223,37 @@ pub fn get_clean_payload(payload: &TransactionPayload, version: i64) -> Option<V
             }
         },
         PayloadType::MultisigPayload(inner) => {
-            let clean = if let Some(payload) = inner.transaction_payload.as_ref() {
-                let payload_clean = match payload.payload.as_ref().unwrap() {
-                    MultisigPayloadType::EntryFunctionPayload(payload) => {
-                        let clean = get_clean_entry_function_payload(payload, version);
-                        Some(serde_json::to_value(clean).unwrap_or_else(|_| {
-                            error!(version = version, "Unable to serialize payload into value");
-                            panic!()
-                        }))
-                    },
-                };
-                MultisigPayloadClean {
-                    multisig_address: inner.multisig_address.clone(),
-                    transaction_payload: payload_clean,
-                }
-            } else {
-                MultisigPayloadClean {
-                    multisig_address: inner.multisig_address.clone(),
-                    transaction_payload: None,
-                }
-            };
+            let clean = get_clean_multisig_payload(inner, version);
             Some(serde_json::to_value(clean).unwrap_or_else(|_| {
                 error!(version = version, "Unable to serialize payload into value");
                 panic!()
             }))
+        },
+        PayloadType::EncryptedTransactionPayload(inner) => {
+            match get_decrypted_payload(inner) {
+                Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
+                    let clean = get_clean_entry_function_payload(ef, version);
+                    Some(serde_json::to_value(clean).unwrap_or_else(|_| {
+                        error!(version = version, "Unable to serialize encrypted payload");
+                        panic!()
+                    }))
+                },
+                Some(DecryptedPayload::ScriptPayload(sp)) => {
+                    let clean = get_clean_script_payload(sp, version);
+                    Some(serde_json::to_value(clean).unwrap_or_else(|_| {
+                        error!(version = version, "Unable to serialize encrypted payload");
+                        panic!()
+                    }))
+                },
+                Some(DecryptedPayload::MultisigPayload(mp)) => {
+                    let clean = get_clean_multisig_payload(mp, version);
+                    Some(serde_json::to_value(clean).unwrap_or_else(|_| {
+                        error!(version = version, "Unable to serialize encrypted payload");
+                        panic!()
+                    }))
+                },
+                None => None, // Still encrypted or failed decryption
+            }
         },
     }
 }
@@ -310,6 +319,26 @@ pub fn get_clean_entry_function_payload_from_user_request(
                     None
                 }
             },
+            Some(PayloadType::EncryptedTransactionPayload(inner)) => {
+                match get_decrypted_payload(inner) {
+                    Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
+                        Some(get_clean_entry_function_payload(ef, version))
+                    },
+                    Some(DecryptedPayload::MultisigPayload(mp)) => {
+                        if let Some(payload) = mp.transaction_payload.as_ref() {
+                            match payload.payload.as_ref().unwrap() {
+                                MultisigPayloadType::EntryFunctionPayload(payload) => {
+                                    Some(get_clean_entry_function_payload(payload, version))
+                                },
+                            }
+                        } else {
+                            None
+                        }
+                    },
+                    Some(DecryptedPayload::ScriptPayload(_)) => None,
+                    None => None,
+                }
+            },
             _ => return None,
         },
         None => return None,
@@ -333,6 +362,59 @@ fn get_clean_script_payload(payload: &ScriptPayload, version: i64) -> ScriptPayl
             })
             .collect(),
     }
+}
+
+fn get_clean_multisig_payload(inner: &MultisigPayload, version: i64) -> MultisigPayloadClean {
+    if let Some(payload) = inner.transaction_payload.as_ref() {
+        let payload_clean = match payload.payload.as_ref().unwrap() {
+            MultisigPayloadType::EntryFunctionPayload(payload) => {
+                let clean = get_clean_entry_function_payload(payload, version);
+                Some(serde_json::to_value(clean).unwrap_or_else(|_| {
+                    error!(version = version, "Unable to serialize payload into value");
+                    panic!()
+                }))
+            },
+        };
+        MultisigPayloadClean {
+            multisig_address: inner.multisig_address.clone(),
+            transaction_payload: payload_clean,
+        }
+    } else {
+        MultisigPayloadClean {
+            multisig_address: inner.multisig_address.clone(),
+            transaction_payload: None,
+        }
+    }
+}
+
+pub fn get_encrypted_payload_from_user_request(
+    user_request: &UserTransactionRequest,
+) -> Option<&EncryptedTransactionPayload> {
+    user_request
+        .payload
+        .as_ref()
+        .and_then(|p| match &p.payload {
+            Some(PayloadType::EncryptedTransactionPayload(inner)) => Some(inner),
+            _ => None,
+        })
+}
+
+/// Extract the decrypted payload from an encrypted transaction payload, if available.
+fn get_decrypted_payload(encrypted: &EncryptedTransactionPayload) -> Option<&DecryptedPayload> {
+    match &encrypted.state {
+        Some(EncryptedState::Decrypted(decrypted)) => decrypted.decrypted_payload.as_ref(),
+        _ => None,
+    }
+}
+
+pub fn is_encrypted_transaction(user_request: &UserTransactionRequest) -> bool {
+    get_encrypted_payload_from_user_request(user_request).is_some()
+}
+
+pub fn is_decrypted_transaction(user_request: &UserTransactionRequest) -> bool {
+    get_encrypted_payload_from_user_request(user_request)
+        .and_then(|p| get_decrypted_payload(p))
+        .is_some()
 }
 
 /// Get name from unwrapped move type
