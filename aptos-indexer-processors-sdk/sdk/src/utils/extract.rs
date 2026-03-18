@@ -335,7 +335,8 @@ pub fn get_clean_entry_function_payload_from_user_request(
                             None
                         }
                     },
-                    _ => None,
+                    Some(DecryptedPayload::ScriptPayload(_)) => None,
+                    None => None,
                 }
             },
             _ => return None,
