@@ -324,6 +324,17 @@ pub fn get_clean_entry_function_payload_from_user_request(
                     Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
                         Some(get_clean_entry_function_payload(ef, version))
                     },
+                    Some(DecryptedPayload::MultisigPayload(mp)) => {
+                        if let Some(payload) = mp.transaction_payload.as_ref() {
+                            match payload.payload.as_ref().unwrap() {
+                                MultisigPayloadType::EntryFunctionPayload(payload) => {
+                                    Some(get_clean_entry_function_payload(payload, version))
+                                },
+                            }
+                        } else {
+                            None
+                        }
+                    },
                     _ => None,
                 }
             },
@@ -378,16 +389,17 @@ fn get_clean_multisig_payload(inner: &MultisigPayload, version: i64) -> Multisig
 pub fn get_encrypted_payload_from_user_request(
     user_request: &UserTransactionRequest,
 ) -> Option<&EncryptedTransactionPayload> {
-    user_request.payload.as_ref().and_then(|p| match &p.payload {
-        Some(PayloadType::EncryptedTransactionPayload(inner)) => Some(inner),
-        _ => None,
-    })
+    user_request
+        .payload
+        .as_ref()
+        .and_then(|p| match &p.payload {
+            Some(PayloadType::EncryptedTransactionPayload(inner)) => Some(inner),
+            _ => None,
+        })
 }
 
 /// Extract the decrypted payload from an encrypted transaction payload, if available.
-fn get_decrypted_payload(
-    encrypted: &EncryptedTransactionPayload,
-) -> Option<&DecryptedPayload> {
+fn get_decrypted_payload(encrypted: &EncryptedTransactionPayload) -> Option<&DecryptedPayload> {
     match &encrypted.state {
         Some(EncryptedState::Decrypted(decrypted)) => decrypted.decrypted_payload.as_ref(),
         _ => None,
