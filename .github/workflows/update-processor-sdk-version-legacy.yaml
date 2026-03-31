@@ -40,11 +40,12 @@ jobs:
           token: ${{ steps.secrets.outputs.token }}
       - name: Capture the commit hash
         id: commit_hash
+        env:
+          COMMIT_HASH: ${{ github.sha }}
+          BRANCH_NAME: ${{ github.head_ref }}
         run: |
-          # Echo the commit hash to the output
-          echo "::set-output name=commit_hash::$(echo $GITHUB_SHA)"
-          # Echo the PR branch name to the output
-          echo "::set-output name=branch_name::${{ github.head_ref }}"
+          printf 'commit_hash=%s\n' "$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+          printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install toml
@@ -54,7 +55,7 @@ jobs:
         run: |
           cd aptos-indexer-processors-sdk
           aptos_protos_commit_hash=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev)
-          echo "::set-output name=aptos_protos_commit_hash::${aptos_protos_commit_hash}"
+          printf 'aptos_protos_commit_hash=%s\n' "$aptos_protos_commit_hash" >> "$GITHUB_OUTPUT"
       - name: Dispatch Event to processors Repo
         uses: peter-evans/repository-dispatch@v3.0.0
         with:
