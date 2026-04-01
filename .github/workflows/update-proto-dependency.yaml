@@ -6,12 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       commit_hash:
-        description: 'Commit hash to update proto to'
+        description: 'Commit hash (aptos-labs/aptos-core) to set for workspace.dependencies.aptos-protos.rev'
         required: true
       branch_name:
         description: 'Branch name (without -update-aptos-protos suffix)'
         required: true
         default: 'main'
+      dry_run:
+        description: 'If true, no GCP, secrets, PAT checkout, git push, or PR; only shows Cargo.toml diff.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -22,22 +27,45 @@ jobs:
   update-the-dependency:
     runs-on: ubuntu-latest
     steps:
+      - name: Verify actor is in allowed team (optional)
+        if: ${{ vars.ALLOWED_SDK_WORKFLOW_TEAM_ORG != '' && vars.ALLOWED_SDK_WORKFLOW_TEAM_SLUG != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.ORG_TEAM_READ_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          ACTOR="${{ github.actor }}"
+          ORG="${{ vars.ALLOWED_SDK_WORKFLOW_TEAM_ORG }}"
+          TEAM="${{ vars.ALLOWED_SDK_WORKFLOW_TEAM_SLUG }}"
+          state=$(gh api "orgs/${ORG}/teams/${TEAM}/memberships/${ACTOR}" --jq .state)
+          if [ "$state" != "active" ]; then
+            echo "Actor ${ACTOR} is not an active member of ${ORG}/${TEAM} (state=${state})." >&2
+            exit 1
+          fi
+
+      - name: Checkout (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        uses: actions/checkout@v4
+
       - id: auth
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         uses: "google-github-actions/auth@v2"
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
       - name: Get Secret Manager Secrets
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         id: secrets
         uses: 'google-github-actions/get-secretmanager-secrets@v2'
         with:
           secrets: |-
             token:aptos-ci/github-actions-repository-dispatch
       - name: Configure Git user
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         run: |
           git config --global user.name "Aptos Bot"
           git config --global user.email "aptos-bot@aptoslabs.com"
       - name: Checkout
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         uses: actions/checkout@v4
         with:
           token: ${{ steps.secrets.outputs.token }}
@@ -46,16 +74,31 @@ jobs:
 
       - name: Install toml
         run: cargo install toml-cli
-      
+
+      - name: Update the dependency (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        env:
+          COMMIT_HASH: ${{ github.event.inputs.commit_hash }}
+        run: |
+          set -euo pipefail
+          cd aptos-indexer-processors-sdk
+          cp Cargo.toml Cargo.toml.orig
+          toml set Cargo.toml workspace.dependencies.aptos-protos.rev "$COMMIT_HASH" > Cargo.tmp && mv Cargo.tmp Cargo.toml
+          echo "Dry run: Cargo.toml diff (no commit, push, or PR)"
+          diff -u Cargo.toml.orig Cargo.toml || true
+          mv Cargo.toml.orig Cargo.toml
+
       - name: Update the dependency
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         env:
           COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
         run: |
-          set -e
+          set -euo pipefail
+          cd aptos-indexer-processors-sdk
           toml set Cargo.toml workspace.dependencies.aptos-protos.rev "$COMMIT_HASH" > Cargo.tmp && mv Cargo.tmp Cargo.toml
-        working-directory: aptos-indexer-processors-sdk/
-    
+
       - name: Commit and Push Changes
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         env:
           BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
           COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
@@ -68,8 +111,9 @@ jobs:
            git commit -m "Update aptos-protos to $COMMIT_HASH"
            git push origin "$branch_name" --force
         working-directory: aptos-indexer-processors-sdk/
-        
+
       - name: Check if PR Already Exists
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         id: check_pr
         env:
           BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
@@ -83,7 +127,7 @@ jobs:
             echo "if_pr_exists=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Create Pull Request
-        if: steps.check_pr.outputs.if_pr_exists == 'false'
+        if: ${{ (github.event_name != 'workflow_dispatch' || !inputs.dry_run) && steps.check_pr.outputs.if_pr_exists == 'false' }}
         env:
           BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
           GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
