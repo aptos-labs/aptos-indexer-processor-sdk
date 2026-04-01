@@ -56,10 +56,27 @@ jobs:
           cd aptos-indexer-processors-sdk
           aptos_protos_commit_hash=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev)
           printf 'aptos_protos_commit_hash=%s\n' "$aptos_protos_commit_hash" >> "$GITHUB_OUTPUT"
+      - name: Build repository dispatch payload
+        id: dispatch_payload
+        env:
+          COMMIT_HASH: ${{ github.sha }}
+          BRANCH_NAME: ${{ steps.commit_hash.outputs.branch_name }}
+          APTOS_PROTOS_COMMIT_HASH: ${{ steps.aptos_protos_commit_hash.outputs.aptos_protos_commit_hash }}
+        run: |
+          payload=$(jq -n \
+            --arg commit_hash "$COMMIT_HASH" \
+            --arg branch_name "$BRANCH_NAME" \
+            --arg aptos_protos_commit_hash "$APTOS_PROTOS_COMMIT_HASH" \
+            '{commit_hash: $commit_hash, branch_name: $branch_name, aptos_protos_commit_hash: $aptos_protos_commit_hash}')
+          {
+            echo "payload<<EOF"
+            echo "$payload"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Dispatch Event to processors Repo
         uses: peter-evans/repository-dispatch@v3.0.0
         with:
           token: ${{ steps.secrets.outputs.token }}
           repository: 'aptos-labs/aptos-indexer-processors-v2'
           event-type: 'sdk-dependency-update'
-          client-payload: '{"commit_hash": "${{ github.sha }}", "branch_name": "${{ steps.commit_hash.outputs.branch_name }}", "aptos_protos_commit_hash": ${{ steps.aptos_protos_commit_hash.outputs.aptos_protos_commit_hash }}}'
+          client-payload: ${{ steps.dispatch_payload.outputs.payload }}

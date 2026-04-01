@@ -48,43 +48,49 @@ jobs:
         run: cargo install toml-cli
       
       - name: Update the dependency
+        env:
+          COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
         run: |
           set -e
-          toml set Cargo.toml workspace.dependencies.aptos-protos.rev ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }} > Cargo.tmp && mv Cargo.tmp Cargo.toml
+          toml set Cargo.toml workspace.dependencies.aptos-protos.rev "$COMMIT_HASH" > Cargo.tmp && mv Cargo.tmp Cargo.toml
         working-directory: aptos-indexer-processors-sdk/
     
       - name: Commit and Push Changes
+        env:
+          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
+          COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
+          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         run: |
            set -e
-           branch_name="${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}-update-aptos-protos"
+           branch_name="${BRANCH_NAME}-update-aptos-protos"
            git checkout -b "$branch_name"
            git add Cargo.toml
-           git commit -m "Update aptos-protos to ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}"
+           git commit -m "Update aptos-protos to $COMMIT_HASH"
            git push origin "$branch_name" --force
-        env:
-          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         working-directory: aptos-indexer-processors-sdk/
         
       - name: Check if PR Already Exists
         id: check_pr
+        env:
+          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
+          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         run: |
-          branch_name="${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}-update-aptos-protos"
+          branch_name="${BRANCH_NAME}-update-aptos-protos"
           existing_pr=$(gh pr list --base main --head "$branch_name" --json number --jq '.[].number')
           if [ -n "$existing_pr" ]; then
-            echo "::set-output name=if_pr_exists::true"
+            echo "if_pr_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::set-output name=if_pr_exists::false"
+            echo "if_pr_exists=false" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
       - name: Create Pull Request
         if: steps.check_pr.outputs.if_pr_exists == 'false'
+        env:
+          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
+          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         run: |
-          branch_name="${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}-update-aptos-protos"
-          gh pr create --title "Update aptos-protos to upstream branch ${{ github.event.client_payload.branch_name }}" \
+          branch_name="${BRANCH_NAME}-update-aptos-protos"
+          gh pr create --title "Update aptos-protos to upstream branch ${BRANCH_NAME}" \
                        --body "This PR updates aptos-protos to new version." \
                        --base main \
                        --head "$branch_name" \
                        --label "indexer-sdk-update"
-        env:
-          GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
