@@ -53,9 +53,16 @@ jobs:
       - name: Capture aptos-protos commit hash
         id: aptos_protos_commit_hash
         run: |
+          set -euo pipefail
           cd aptos-indexer-processors-sdk
-          # toml get emits JSON strings; decode so jq --arg receives the raw hash.
-          aptos_protos_commit_hash=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev | jq -r .)
+          # toml get prints JSON for string values; decode with jq for the raw hash.
+          # Do not pipe toml get into jq: without pipefail, a failing toml get can be masked by jq exiting 0 on empty stdin.
+          raw_json=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev)
+          aptos_protos_commit_hash=$(jq -r . <<< "$raw_json")
+          if [ -z "$aptos_protos_commit_hash" ]; then
+            echo 'error: aptos-protos rev resolved empty after reading Cargo.toml' >&2
+            exit 1
+          fi
           printf 'aptos_protos_commit_hash=%s\n' "$aptos_protos_commit_hash" >> "$GITHUB_OUTPUT"
       - name: Build repository dispatch payload
         id: dispatch_payload
