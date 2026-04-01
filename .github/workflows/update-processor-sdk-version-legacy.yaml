@@ -54,7 +54,8 @@ jobs:
         id: aptos_protos_commit_hash
         run: |
           cd aptos-indexer-processors-sdk
-          aptos_protos_commit_hash=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev | jq -r '.')
+          # toml get emits JSON strings; decode so jq --arg receives the raw hash.
+          aptos_protos_commit_hash=$(toml get Cargo.toml workspace.dependencies.aptos-protos.rev | jq -r .)
           printf 'aptos_protos_commit_hash=%s\n' "$aptos_protos_commit_hash" >> "$GITHUB_OUTPUT"
       - name: Build repository dispatch payload
         id: dispatch_payload
