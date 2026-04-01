@@ -8,13 +8,6 @@ name: Update Processor SDK Version
       # Be conservative and only run this workflow when the Cargo.toml file changes.
       # Reason: if SDK version is not updated, no change will be picked up by processors.
       - aptos-indexer-processors-sdk/Cargo.toml
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'If true, no GCP, secrets, PAT checkout, or repository-dispatch; only builds and logs the payload.'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -23,51 +16,25 @@ permissions:
 jobs:
   update-processor-sdk-version:
     runs-on: ubuntu-latest
+    # Only run on each PR once an appropriate event occurs
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'indexer-sdk-update')
+      (
+        github.event_name == 'push' ||
+        contains(github.event.pull_request.labels.*.name, 'indexer-sdk-update')
+      )
     steps:
-      - name: Verify actor is in allowed team (optional)
-        if: ${{ vars.ALLOWED_SDK_WORKFLOW_TEAM_ORG != '' && vars.ALLOWED_SDK_WORKFLOW_TEAM_SLUG != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.ORG_TEAM_READ_TOKEN || github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            ACTOR="${{ github.event.pull_request.user.login }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ACTOR="${{ github.actor }}"
-          else
-            echo "unexpected event: ${{ github.event_name }}" >&2
-            exit 1
-          fi
-          ORG="${{ vars.ALLOWED_SDK_WORKFLOW_TEAM_ORG }}"
-          TEAM="${{ vars.ALLOWED_SDK_WORKFLOW_TEAM_SLUG }}"
-          state=$(gh api "orgs/${ORG}/teams/${TEAM}/memberships/${ACTOR}" --jq .state)
-          if [ "$state" != "active" ]; then
-            echo "Actor ${ACTOR} is not an active member of ${ORG}/${TEAM} (state=${state})." >&2
-            exit 1
-          fi
-
-      - name: Checkout (dry run)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        uses: actions/checkout@v4
-
       - id: auth
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         uses: "google-github-actions/auth@v2"
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
       - name: Get Secret Manager Secrets
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         id: secrets
         uses: 'google-github-actions/get-secretmanager-secrets@v2'
         with:
           secrets: |-
             token:aptos-ci/github-actions-repository-dispatch
       - name: Checkout code
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         uses: actions/checkout@v4
         with:
           token: ${{ steps.secrets.outputs.token }}
@@ -75,7 +42,7 @@ jobs:
         id: commit_hash
         env:
           COMMIT_HASH: ${{ github.sha }}
-          BRANCH_NAME: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.head_ref }}
+          BRANCH_NAME: ${{ github.head_ref }}
         run: |
           printf 'commit_hash=%s\n' "$COMMIT_HASH" >> "$GITHUB_OUTPUT"
           printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
@@ -114,16 +81,7 @@ jobs:
             echo "$payload"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-      - name: Dry run — would send repository_dispatch payload
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        env:
-          PAYLOAD: ${{ steps.dispatch_payload.outputs.payload }}
-        run: |
-          echo "Dry run: no repository_dispatch sent. Payload:"
-          echo "$PAYLOAD" | jq .
-
       - name: Dispatch Event to processors Repo
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         uses: peter-evans/repository-dispatch@v3.0.0
         with:
           token: ${{ steps.secrets.outputs.token }}
