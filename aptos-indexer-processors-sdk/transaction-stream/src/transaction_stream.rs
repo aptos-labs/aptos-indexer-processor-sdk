@@ -609,6 +609,9 @@ impl TransactionStream {
 
     /// If we are currently on a backup endpoint and enough time has elapsed,
     /// probe the primary endpoint and switch back to it if healthy.
+    ///
+    /// The probe is a single, short-timeout connection attempt (5 seconds) so
+    /// it never blocks backup-stream processing for long.
     async fn try_failback_to_primary(&mut self) {
         if self.current_endpoint_is_primary {
             return;
@@ -618,9 +621,6 @@ impl TransactionStream {
         if interval.is_zero() || self.last_primary_check.elapsed() < interval {
             return;
         }
-
-        // Reset timer regardless of outcome to avoid hammering the primary.
-        self.last_primary_check = tokio::time::Instant::now();
 
         let primary_endpoint = Endpoint {
             address: self
@@ -637,8 +637,31 @@ impl TransactionStream {
             "[Transaction Stream] Attempting failback to primary endpoint"
         );
 
-        match self.reconnect_to_grpc(&primary_endpoint).await {
-            Ok(_) => {
+        // Build a probe-specific config with no retries so the attempt is a
+        // single, short-lived connection check that won't stall backup streaming.
+        let mut probe_config = self.transaction_stream_config.clone();
+        probe_config.starting_version = self.last_fetched_version.map(|v| (v + 1) as u64);
+        probe_config.reconnection_config.max_retries = 0;
+
+        let probe_timeout = Duration::from_secs(5);
+        let probe_result = tokio::time::timeout(
+            probe_timeout,
+            get_stream_for_endpoint(probe_config, &primary_endpoint),
+        )
+        .await;
+
+        // Reset timer *after* the probe so elapsed time always reflects
+        // wall-clock time since the last completed probe, not the start.
+        self.last_primary_check = tokio::time::Instant::now();
+
+        match probe_result {
+            Ok(Ok(response)) => {
+                let connection_id = match response.metadata().get(GRPC_CONNECTION_ID) {
+                    Some(id) => id.to_str().unwrap_or("").to_string(),
+                    None => "".to_string(),
+                };
+                self.connection_id = connection_id;
+                self.stream = response.into_inner();
                 self.current_endpoint_is_primary = true;
                 self.current_endpoint_address = primary_endpoint.address.to_string();
                 info!(
@@ -647,11 +670,17 @@ impl TransactionStream {
                     "[Transaction Stream] Successfully failed back to primary endpoint"
                 );
             },
-            Err(e) => {
+            Ok(Err(e)) => {
                 info!(
                     primary_address = primary_endpoint.address.to_string(),
                     error = ?e,
                     "[Transaction Stream] Primary endpoint not yet healthy, staying on backup"
+                );
+            },
+            Err(_) => {
+                info!(
+                    primary_address = primary_endpoint.address.to_string(),
+                    "[Transaction Stream] Primary endpoint probe timed out, staying on backup"
                 );
             },
         }
