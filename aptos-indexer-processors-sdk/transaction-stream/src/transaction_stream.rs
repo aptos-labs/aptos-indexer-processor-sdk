@@ -384,6 +384,7 @@ pub struct TransactionStream {
     reconnection_retries: u64,
     last_fetched_version: Option<i64>,
     fetch_ma: MovingAverage,
+    primary_endpoint: Endpoint,
     current_endpoint_is_primary: bool,
     current_endpoint_address: String,
     /// When we last attempted (or considered) a failback probe to the primary.
@@ -393,6 +394,7 @@ pub struct TransactionStream {
 impl TransactionStream {
     pub async fn new(transaction_stream_config: TransactionStreamConfig) -> Result<Self> {
         let endpoints = transaction_stream_config.get_endpoints();
+        let primary_endpoint = endpoints[0].clone();
 
         let mut last_error = None;
         for endpoint in endpoints.iter() {
@@ -413,6 +415,7 @@ impl TransactionStream {
                             .starting_version
                             .map(|v| v as i64 - 1),
                         fetch_ma: MovingAverage::new(3000),
+                        primary_endpoint,
                         current_endpoint_is_primary: endpoint.is_primary,
                         current_endpoint_address: endpoint.address.to_string(),
                         last_primary_check: tokio::time::Instant::now(),
@@ -622,17 +625,8 @@ impl TransactionStream {
             return;
         }
 
-        let primary_endpoint = Endpoint {
-            address: self
-                .transaction_stream_config
-                .indexer_grpc_data_service_address
-                .clone(),
-            auth_token: self.transaction_stream_config.auth_token.clone(),
-            is_primary: true,
-        };
-
         info!(
-            primary_address = primary_endpoint.address.to_string(),
+            primary_address = self.primary_endpoint.address.to_string(),
             backup_address = self.current_endpoint_address,
             "[Transaction Stream] Attempting failback to primary endpoint"
         );
@@ -646,7 +640,7 @@ impl TransactionStream {
         let probe_timeout = Duration::from_secs(5);
         let probe_result = tokio::time::timeout(
             probe_timeout,
-            get_stream_for_endpoint(probe_config, &primary_endpoint),
+            get_stream_for_endpoint(probe_config, &self.primary_endpoint),
         )
         .await;
 
@@ -663,7 +657,7 @@ impl TransactionStream {
                 self.connection_id = connection_id;
                 self.stream = response.into_inner();
                 self.current_endpoint_is_primary = true;
-                self.current_endpoint_address = primary_endpoint.address.to_string();
+                self.current_endpoint_address = self.primary_endpoint.address.to_string();
                 info!(
                     stream_address = self.current_endpoint_address,
                     connection_id = self.connection_id,
@@ -672,14 +666,14 @@ impl TransactionStream {
             },
             Ok(Err(e)) => {
                 info!(
-                    primary_address = primary_endpoint.address.to_string(),
+                    primary_address = self.primary_endpoint.address.to_string(),
                     error = ?e,
                     "[Transaction Stream] Primary endpoint not yet healthy, staying on backup"
                 );
             },
             Err(_) => {
                 info!(
-                    primary_address = primary_endpoint.address.to_string(),
+                    primary_address = self.primary_endpoint.address.to_string(),
                     "[Transaction Stream] Primary endpoint probe timed out, staying on backup"
                 );
             },
