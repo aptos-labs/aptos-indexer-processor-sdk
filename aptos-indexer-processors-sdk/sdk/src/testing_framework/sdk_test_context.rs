@@ -226,6 +226,7 @@ impl SdkTestContext {
             reconnection_config: Default::default(),
             transaction_filter: None,
             backup_endpoints: vec![],
+            primary_failback_interval_secs: 0,
         }
     }
 }
