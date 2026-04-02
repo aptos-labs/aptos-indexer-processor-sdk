@@ -162,6 +162,7 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
         },
         transaction_filter: None,
         backup_endpoints: vec![],
+        primary_failback_interval_secs: 0,
     }
 }
 
@@ -254,6 +255,7 @@ async fn test_config_endpoint_helpers() {
                 is_primary: false,
             },
         ],
+        primary_failback_interval_secs: 0,
     };
 
     let endpoints = config.get_endpoints();
