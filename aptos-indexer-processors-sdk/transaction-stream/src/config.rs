@@ -120,7 +120,7 @@ pub struct TransactionStreamConfig {
     #[serde(default)]
     pub backup_endpoints: Vec<Endpoint>,
     /// How often (in seconds) to probe the primary endpoint while on a backup.
-    /// Set to 0 to disable proactive failback. Default: 60.
+    /// Set to 0 to disable proactive failback. Default: 10.
     #[serde(default = "TransactionStreamConfig::default_primary_failback_interval")]
     pub primary_failback_interval_secs: u64,
 }
