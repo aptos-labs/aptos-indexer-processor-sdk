@@ -119,6 +119,10 @@ pub struct TransactionStreamConfig {
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.
     #[serde(default)]
     pub backup_endpoints: Vec<Endpoint>,
+    /// How often (in seconds) to probe the primary endpoint while on a backup.
+    /// Set to 0 to disable proactive failback. Default: 10.
+    #[serde(default = "TransactionStreamConfig::default_primary_failback_interval")]
+    pub primary_failback_interval_secs: u64,
 }
 
 impl TransactionStreamConfig {
@@ -145,6 +149,14 @@ impl TransactionStreamConfig {
 
     pub const fn default_indexer_grpc_response_item_timeout() -> u64 {
         60
+    }
+
+    pub const fn default_primary_failback_interval() -> u64 {
+        10
+    }
+
+    pub const fn primary_failback_interval(&self) -> Duration {
+        Duration::from_secs(self.primary_failback_interval_secs)
     }
 
     /// Total number of endpoints (primary + backups).

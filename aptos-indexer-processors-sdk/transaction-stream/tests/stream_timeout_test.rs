@@ -174,6 +174,7 @@ async fn test_transaction_stream_reconnects_on_timeout() {
         },
         transaction_filter: None,
         backup_endpoints: vec![],
+        primary_failback_interval_secs: 0,
     };
 
     // Initialize the transaction stream (uses connection 1)

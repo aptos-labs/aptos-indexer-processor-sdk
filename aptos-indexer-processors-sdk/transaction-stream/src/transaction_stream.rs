@@ -384,12 +384,17 @@ pub struct TransactionStream {
     reconnection_retries: u64,
     last_fetched_version: Option<i64>,
     fetch_ma: MovingAverage,
+    primary_endpoint: Endpoint,
     current_endpoint_is_primary: bool,
+    current_endpoint_address: String,
+    /// When we last attempted (or considered) a failback probe to the primary.
+    last_primary_check: tokio::time::Instant,
 }
 
 impl TransactionStream {
     pub async fn new(transaction_stream_config: TransactionStreamConfig) -> Result<Self> {
         let endpoints = transaction_stream_config.get_endpoints();
+        let primary_endpoint = endpoints[0].clone();
 
         let mut last_error = None;
         for endpoint in endpoints.iter() {
@@ -410,7 +415,10 @@ impl TransactionStream {
                             .starting_version
                             .map(|v| v as i64 - 1),
                         fetch_ma: MovingAverage::new(3000),
+                        primary_endpoint,
                         current_endpoint_is_primary: endpoint.is_primary,
+                        current_endpoint_address: endpoint.address.to_string(),
+                        last_primary_check: tokio::time::Instant::now(),
                     });
                 },
                 Err(e) => {
@@ -465,6 +473,9 @@ impl TransactionStream {
     ///    we will automatically reconnect and retry.
     pub async fn get_next_transaction_batch(&mut self) -> Result<TransactionsPBResponse> {
         loop {
+            // If on a backup endpoint, periodically try to return to the primary.
+            self.try_failback_to_primary().await;
+
             let grpc_channel_recv_latency = std::time::Instant::now();
 
             let txn_pb_res = match tokio::time::timeout(
@@ -503,10 +514,7 @@ impl TransactionStream {
                         sample!(
                             SampleRate::Duration(Duration::from_secs(1)),
                             info!(
-                                stream_address = self
-                                    .transaction_stream_config
-                                    .indexer_grpc_data_service_address
-                                    .to_string(),
+                                stream_address = self.current_endpoint_address,
                                 connection_id = self.connection_id,
                                 start_version = start_version,
                                 end_version = end_version,
@@ -552,7 +560,7 @@ impl TransactionStream {
                     },
                     Some(Err(rpc_error)) => {
                         warn!(
-                            stream_address = self.transaction_stream_config.indexer_grpc_data_service_address.to_string(),
+                            stream_address = self.current_endpoint_address,
                             connection_id = self.connection_id,
                             start_version = self.transaction_stream_config.starting_version,
                             end_version = self.transaction_stream_config.request_ending_version,
@@ -563,10 +571,7 @@ impl TransactionStream {
                     },
                     None => {
                         warn!(
-                            stream_address = self
-                                .transaction_stream_config
-                                .indexer_grpc_data_service_address
-                                .to_string(),
+                            stream_address = self.current_endpoint_address,
                             connection_id = self.connection_id,
                             start_version = self.transaction_stream_config.starting_version,
                             end_version = self.transaction_stream_config.request_ending_version,
@@ -577,10 +582,7 @@ impl TransactionStream {
                 },
                 Err(_) => {
                     warn!(
-                        stream_address = self
-                            .transaction_stream_config
-                            .indexer_grpc_data_service_address
-                            .to_string(),
+                        stream_address = self.current_endpoint_address,
                         connection_id = self.connection_id,
                         start_version = self.transaction_stream_config.starting_version,
                         end_version = self.transaction_stream_config.request_ending_version,
@@ -605,6 +607,76 @@ impl TransactionStream {
             last_fetched_version >= ending_version as i64
         } else {
             false
+        }
+    }
+
+    /// If we are currently on a backup endpoint and enough time has elapsed,
+    /// probe the primary endpoint and switch back to it if healthy.
+    ///
+    /// The probe is a single, short-timeout connection attempt (5 seconds) so
+    /// it never blocks backup-stream processing for long.
+    async fn try_failback_to_primary(&mut self) {
+        if self.current_endpoint_is_primary {
+            return;
+        }
+
+        let interval = self.transaction_stream_config.primary_failback_interval();
+        if interval.is_zero() || self.last_primary_check.elapsed() < interval {
+            return;
+        }
+
+        info!(
+            primary_address = self.primary_endpoint.address.to_string(),
+            backup_address = self.current_endpoint_address,
+            "[Transaction Stream] Attempting failback to primary endpoint"
+        );
+
+        // Build a probe-specific config with no retries so the attempt is a
+        // single, short-lived connection check that won't stall backup streaming.
+        let mut probe_config = self.transaction_stream_config.clone();
+        probe_config.starting_version = self.last_fetched_version.map(|v| (v + 1) as u64);
+        probe_config.reconnection_config.max_retries = 0;
+
+        let probe_timeout = Duration::from_secs(5);
+        let probe_result = tokio::time::timeout(
+            probe_timeout,
+            get_stream_for_endpoint(probe_config, &self.primary_endpoint),
+        )
+        .await;
+
+        // Reset timer *after* the probe so elapsed time always reflects
+        // wall-clock time since the last completed probe, not the start.
+        self.last_primary_check = tokio::time::Instant::now();
+
+        match probe_result {
+            Ok(Ok(response)) => {
+                let connection_id = match response.metadata().get(GRPC_CONNECTION_ID) {
+                    Some(id) => id.to_str().unwrap_or("").to_string(),
+                    None => "".to_string(),
+                };
+                self.connection_id = connection_id;
+                self.stream = response.into_inner();
+                self.current_endpoint_is_primary = true;
+                self.current_endpoint_address = self.primary_endpoint.address.to_string();
+                info!(
+                    stream_address = self.current_endpoint_address,
+                    connection_id = self.connection_id,
+                    "[Transaction Stream] Successfully failed back to primary endpoint"
+                );
+            },
+            Ok(Err(e)) => {
+                info!(
+                    primary_address = self.primary_endpoint.address.to_string(),
+                    error = ?e,
+                    "[Transaction Stream] Primary endpoint not yet healthy, staying on backup"
+                );
+            },
+            Err(_) => {
+                info!(
+                    primary_address = self.primary_endpoint.address.to_string(),
+                    "[Transaction Stream] Primary endpoint probe timed out, staying on backup"
+                );
+            },
         }
     }
 
@@ -637,6 +709,8 @@ impl TransactionStream {
                 match self.reconnect_to_grpc(endpoint).await {
                     Ok(_) => {
                         self.current_endpoint_is_primary = endpoint.is_primary;
+                        self.current_endpoint_address = endpoint.address.to_string();
+                        self.last_primary_check = tokio::time::Instant::now();
                         return Ok(());
                     },
                     Err(e) => {
