@@ -478,13 +478,41 @@ impl TransactionStream {
 
             let grpc_channel_recv_latency = std::time::Instant::now();
 
-            let txn_pb_res = match tokio::time::timeout(
-                self.transaction_stream_config
-                    .indexer_grpc_response_item_timeout(),
-                self.stream.next(),
-            )
-            .await
-            {
+            // When on a backup endpoint, race the stream read against the failback
+            // interval so we can probe the primary even while the backup stream is
+            // blocked (e.g. the backup indexer hasn't caught up to our requested
+            // version). Without this, the 60-second response_item_timeout would
+            // prevent any failback probe until it expires.
+            let response_item_timeout = self
+                .transaction_stream_config
+                .indexer_grpc_response_item_timeout();
+
+            let stream_result = if !self.current_endpoint_is_primary {
+                let failback_interval = self.transaction_stream_config.primary_failback_interval();
+                let remaining = if failback_interval.is_zero() {
+                    // Failback disabled — use full timeout
+                    response_item_timeout
+                } else {
+                    // Cap the read timeout at the failback interval so we get a
+                    // chance to probe the primary before the full 60s elapses.
+                    let elapsed = self.last_primary_check.elapsed();
+                    if elapsed >= failback_interval {
+                        // Already overdue — use a minimal timeout so we loop back
+                        // to try_failback_to_primary immediately.
+                        Duration::from_millis(1)
+                    } else {
+                        std::cmp::min(
+                            response_item_timeout,
+                            failback_interval - elapsed,
+                        )
+                    }
+                };
+                tokio::time::timeout(remaining, self.stream.next()).await
+            } else {
+                tokio::time::timeout(response_item_timeout, self.stream.next()).await
+            };
+
+            let txn_pb_res = match stream_result {
                 Ok(response) => match response {
                     Some(Ok(r)) => {
                         self.reconnection_retries = 0;
@@ -581,6 +609,18 @@ impl TransactionStream {
                     },
                 },
                 Err(_) => {
+                    // When on backup, a short timeout just means it's time for a
+                    // failback probe — loop back to try_failback_to_primary().
+                    if !self.current_endpoint_is_primary
+                        && grpc_channel_recv_latency.elapsed() < response_item_timeout
+                    {
+                        info!(
+                            stream_address = self.current_endpoint_address,
+                            connection_id = self.connection_id,
+                            "[Transaction Stream] Backup stream idle, checking primary..."
+                        );
+                        continue;
+                    }
                     warn!(
                         stream_address = self.current_endpoint_address,
                         connection_id = self.connection_id,
@@ -710,7 +750,13 @@ impl TransactionStream {
                     Ok(_) => {
                         self.current_endpoint_is_primary = endpoint.is_primary;
                         self.current_endpoint_address = endpoint.address.to_string();
-                        self.last_primary_check = tokio::time::Instant::now();
+                        // Only reset the failback timer when we connect to primary.
+                        // When connecting to backup, we want try_failback_to_primary()
+                        // to fire as soon as the failback interval elapses so we can
+                        // probe the primary without waiting an extra reconnect cycle.
+                        if endpoint.is_primary {
+                            self.last_primary_check = tokio::time::Instant::now();
+                        }
                         return Ok(());
                     },
                     Err(e) => {
