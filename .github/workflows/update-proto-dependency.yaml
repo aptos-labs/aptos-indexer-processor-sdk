@@ -47,9 +47,27 @@ jobs:
       - name: Install toml
         run: cargo install toml-cli
       
+      - name: Validate inputs
+        env:
+          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
+          COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
+        run: |
+          set -e
+          if [[ ! "$BRANCH_NAME" =~ ^[a-zA-Z0-9._/@-]+$ ]]; then
+            echo "error: branch name contains unexpected characters" >&2
+            exit 1
+          fi
+          if [[ ! "$COMMIT_HASH" =~ ^[a-f0-9]+$ ]]; then
+            echo "error: commit hash is not valid hex" >&2
+            exit 1
+          fi
+          printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          printf 'commit_hash=%s\n' "$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+        id: validated_inputs
+
       - name: Update the dependency
         env:
-          COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
+          COMMIT_HASH: ${{ steps.validated_inputs.outputs.commit_hash }}
         run: |
           set -e
           toml set Cargo.toml workspace.dependencies.aptos-protos.rev "$COMMIT_HASH" > Cargo.tmp && mv Cargo.tmp Cargo.toml
@@ -57,8 +75,8 @@ jobs:
     
       - name: Commit and Push Changes
         env:
-          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
-          COMMIT_HASH: ${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}
+          BRANCH_NAME: ${{ steps.validated_inputs.outputs.branch_name }}
+          COMMIT_HASH: ${{ steps.validated_inputs.outputs.commit_hash }}
           GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         run: |
            set -e
@@ -72,7 +90,7 @@ jobs:
       - name: Check if PR Already Exists
         id: check_pr
         env:
-          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
+          BRANCH_NAME: ${{ steps.validated_inputs.outputs.branch_name }}
           GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         run: |
           branch_name="${BRANCH_NAME}-update-aptos-protos"
@@ -85,7 +103,7 @@ jobs:
       - name: Create Pull Request
         if: steps.check_pr.outputs.if_pr_exists == 'false'
         env:
-          BRANCH_NAME: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name }}
+          BRANCH_NAME: ${{ steps.validated_inputs.outputs.branch_name }}
           GITHUB_TOKEN: ${{ steps.secrets.outputs.token }}
         run: |
           branch_name="${BRANCH_NAME}-update-aptos-protos"
