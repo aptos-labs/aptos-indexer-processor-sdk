@@ -7,13 +7,11 @@ pub fn redact_string(url: &str) -> String {
     };
 
     // Redact password in the authority (user:pass@host) section.
-    if parsed.password().is_some() {
-        if parsed.set_password(Some("REDACTED")).is_err() {
-            // set_password fails only when the URL has no host, which cannot
-            // happen when password() returned Some — but return a safe fallback
-            // rather than leak credentials.
-            return "[connection string]".to_string();
-        }
+    if parsed.password().is_some() && parsed.set_password(Some("REDACTED")).is_err() {
+        // set_password fails only when the URL has no host, which cannot
+        // happen when password() returned Some — but return a safe fallback
+        // rather than leak credentials.
+        return "[connection string]".to_string();
     }
 
     // Redact password supplied as a query parameter (e.g. ?password=secret).
