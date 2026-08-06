@@ -4,4 +4,5 @@ pub mod convert;
 pub mod errors;
 pub mod extract;
 pub mod property_map;
+pub mod redact;
 pub mod step_metrics;

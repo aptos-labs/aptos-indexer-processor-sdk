@@ -4,7 +4,7 @@
 //! Database-related functions
 #![allow(clippy::extra_unused_lifetimes)]
 
-use crate::utils::{convert::remove_null_bytes, errors::ProcessorError};
+use crate::utils::{convert::remove_null_bytes, errors::ProcessorError, redact::redact_string};
 use ahash::AHashMap;
 use diesel::{ConnectionResult, QueryResult, query_builder::QueryFragment};
 use diesel_async::{
@@ -242,7 +242,7 @@ pub async fn run_migrations(
 ) {
     use diesel::{Connection, PgConnection};
 
-    info!("Running migrations: {:?}", postgres_connection_string);
+    info!("Running migrations: {}", redact_string(&postgres_connection_string));
     let migration_time = std::time::Instant::now();
     let mut conn =
         PgConnection::establish(&postgres_connection_string).expect("migrations failed!");
@@ -263,7 +263,7 @@ pub async fn run_migrations(
 ) {
     use diesel_async::async_connection_wrapper::AsyncConnectionWrapper;
 
-    info!("Running migrations: {:?}", postgres_connection_string);
+    info!("Running migrations: {}", redact_string(&postgres_connection_string));
     let conn = conn_pool
         // We need to use this since AsyncConnectionWrapper doesn't know how to
         // work with a pooled connection.

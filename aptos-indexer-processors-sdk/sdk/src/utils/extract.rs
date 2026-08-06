@@ -303,8 +303,8 @@ pub fn get_clean_entry_function_payload_from_user_request(
     user_request: &UserTransactionRequest,
     version: i64,
 ) -> Option<EntryFunctionPayloadClean> {
-    let clean_payload: Option<EntryFunctionPayloadClean> = match &user_request.payload {
-        Some(txn_payload) => match &txn_payload.payload {
+    let txn_payload = user_request.payload.as_ref()?;
+    let clean_payload: Option<EntryFunctionPayloadClean> = match &txn_payload.payload {
             Some(PayloadType::EntryFunctionPayload(payload)) => {
                 Some(get_clean_entry_function_payload(payload, version))
             },
@@ -339,9 +339,7 @@ pub fn get_clean_entry_function_payload_from_user_request(
                     None => None,
                 }
             },
-            _ => return None,
-        },
-        None => return None,
+        _ => None,
     };
     clean_payload
 }

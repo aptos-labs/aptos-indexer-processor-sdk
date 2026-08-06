@@ -159,7 +159,7 @@ impl GraphBuilder {
             let node = node_map.get(&node_val).unwrap();
 
             //let input_output = format!("{} -> {}", &node.input_type, &node.output_type);
-            let label = format!("label=\"{}\\n{}\"", &node.name, &node.step_type);
+            let label = format!("label=\"{}\\n{}\"", node.name, node.step_type);
             let shape = if node_val == 0 {
                 " shape=invhouse".to_string()
             } else if node.end_step {
