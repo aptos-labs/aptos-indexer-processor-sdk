@@ -27,7 +27,7 @@ sample = { path = "sample" }
 
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.98"
-aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "a9d20cdaea4b30ded5f1eeebc328bda983be8749" }
+aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "28ecf06679cbb912e2109f51c80d6abe6722b3fa" }
 aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "a9d20cdaea4b30ded5f1eeebc328bda983be8749" }
 aptos-transaction-filter = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "a9d20cdaea4b30ded5f1eeebc328bda983be8749" }
 async-trait = "0.1.80"
