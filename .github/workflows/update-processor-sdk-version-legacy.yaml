@@ -24,20 +24,21 @@ jobs:
       )
     steps:
       - id: auth
-        uses: "google-github-actions/auth@v2"
+        uses: "google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed" # v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
       - name: Get Secret Manager Secrets
         id: secrets
-        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        uses: 'google-github-actions/get-secretmanager-secrets@2b5f97c5a4b9c105e64646762ad4fc3f5128e6f5' # v2
         with:
           secrets: |-
             token:aptos-ci/github-actions-repository-dispatch
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ steps.secrets.outputs.token }}
+          persist-credentials: false
       - name: Capture the commit hash
         id: commit_hash
         env:
@@ -47,7 +48,7 @@ jobs:
           printf 'commit_hash=%s\n' "$COMMIT_HASH" >> "$GITHUB_OUTPUT"
           printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
       - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Install toml
         run: cargo install toml-cli
       - name: Capture aptos-protos commit hash
@@ -82,7 +83,7 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - name: Dispatch Event to processors Repo
-        uses: peter-evans/repository-dispatch@v3.0.0
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
         with:
           token: ${{ steps.secrets.outputs.token }}
           repository: 'aptos-labs/aptos-indexer-processors'

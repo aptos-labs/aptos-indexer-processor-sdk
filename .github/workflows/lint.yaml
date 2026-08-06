@@ -17,10 +17,14 @@ concurrency:
 jobs:
   Lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
-      - name: Install Dependencies (aptos-indexer-processors-sdkl)
+      - name: Install Dependencies (aptos-indexer-processors-sdk)
         run: |
           sudo apt update && sudo apt install libdw-dev
           cargo install cargo-sort
