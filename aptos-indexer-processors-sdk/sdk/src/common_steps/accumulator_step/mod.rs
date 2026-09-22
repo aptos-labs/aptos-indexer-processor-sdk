@@ -180,18 +180,16 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                             break;
                         }
 
-                        // If the accumulator size exceeds the max buffer size, wait for space in
-                        // the output channel, then flush.
+                        // The send below is what applies backpressure: it blocks on a full
+                        // channel but errors on a disconnected one, which `is_full()` cannot
+                        // distinguish.
                         if accumulator.total_size_in_bytes() >= step.max_accumulator_size_bytes {
-                            while output_sender.is_full() {
-                                warn!(
-                                    step_name,
-                                    accumulator_size_bytes = accumulator.total_size_in_bytes(),
-                                    max_buffer_size_bytes = step.max_accumulator_size_bytes,
-                                    "Accumulator buffer max size exceeded, waiting for output channel space..."
-                                );
-                                tokio::time::sleep(FLUSH_POLL_INTERVAL_MS).await;
-                            }
+                            warn!(
+                                step_name,
+                                accumulator_size_bytes = accumulator.total_size_in_bytes(),
+                                max_buffer_size_bytes = step.max_accumulator_size_bytes,
+                                "Accumulator buffer max size exceeded, waiting for output channel space..."
+                            );
                             break;
                         }
 
@@ -251,7 +249,9 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                 }
             }
 
-            // Wait for output channel to be empty before ending the task and closing the send channel
+            // Wait for output channel to be empty before ending the task and closing the send channel.
+            // A dropped receiver leaves buffered items in place forever, so a disconnected
+            // channel has to end the wait or the task never exits.
             loop {
                 let channel_size = output_sender.len();
                 info!(
@@ -260,6 +260,14 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for Accumulato
                     "Waiting for output channel to be empty"
                 );
                 if channel_size.is_zero() {
+                    break;
+                }
+                if output_sender.is_disconnected() {
+                    warn!(
+                        step_name = step_name,
+                        channel_size = channel_size,
+                        "Output channel receiver is gone; abandoning undrained items"
+                    );
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -357,5 +365,67 @@ mod tests {
         assert_eq!(result.metadata.start_version, 0);
         assert_eq!(result.metadata.end_version, 3);
         assert_eq!(result.metadata.total_size_in_bytes, 300);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn accumulator_terminates_when_downstream_consumer_dies() {
+        let (input_sender, input_receiver) = instrumented_bounded_channel("test_input", 10);
+
+        let step = AccumulatorStep::new(100);
+        let (output_receiver, handle) =
+            RunnableStep::<TestData, TestData>::spawn(step, Some(input_receiver), 1, None);
+
+        // Output channel holds 1 and is never drained, so this fills it.
+        input_sender
+            .send(make_test_context(vec![0], 0, 0, 10))
+            .await
+            .unwrap();
+        // 200 bytes exceeds the 100-byte cap, parking the step in the wait.
+        input_sender
+            .send(make_test_context(vec![1], 1, 1, 200))
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        drop(output_receiver);
+
+        let res = tokio::time::timeout(Duration::from_secs(2), handle).await;
+        assert!(
+            res.is_ok(),
+            "AccumulatorStep never terminated after its downstream receiver was dropped"
+        );
+    }
+
+    /// Pins the kanal behaviour the shutdown guards depend on.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dropped_receiver_disconnects_but_retains_buffered_items() {
+        let (tx, rx) = instrumented_bounded_channel::<TransactionContext<TestData>>("probe", 1);
+        tx.send(make_test_context(vec![0], 0, 0, 10)).await.unwrap();
+        assert!(tx.is_full(), "precondition: channel should be full");
+
+        drop(rx);
+
+        assert!(tx.is_disconnected(), "dropped receiver must disconnect");
+        assert!(
+            !tx.is_closed(),
+            "is_closed() does not report a dropped receiver"
+        );
+        assert_eq!(tx.receiver_count(), 0);
+        assert_eq!(
+            tx.len(),
+            1,
+            "buffered item is never drained, so len() never reaches 0"
+        );
+
+        let send_res = tokio::time::timeout(
+            Duration::from_secs(2),
+            tx.send(make_test_context(vec![1], 1, 1, 10)),
+        )
+        .await;
+        assert!(
+            matches!(send_res, Ok(Err(_))),
+            "send must fail fast on a disconnected channel, not block"
+        );
     }
 }

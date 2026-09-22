@@ -4,6 +4,9 @@ All notable changes to theSDK will be captured in this file. This changelog is w
 
 ## Unreleased
 
+- Steps now terminate when their output channel's receiver is dropped, instead of polling `is_full()`/`len()` forever. Previously a step whose consumer had exited kept spinning, holding the process alive with a stalled pipeline and defeating crash-fast restart supervision. Affects `AccumulatorStep`, `PollableAccumulatorStep`, and the shutdown drain in `AsyncStep`/`PollableAsyncStep`.
+- Backpressure semantics are unchanged: a slow consumer still blocks the sender, which still propagates back to the transaction stream.
+
 ## 2.2.1 (2026-03-02)
 
 - Added exponential backoff with configurable jitter for transaction stream reconnects, using `tokio-retry`'s `ExponentialBackoff`. This mitigates GRPC rate limiting and prevents processor crash-loops during reconnection storms.
