@@ -57,6 +57,9 @@ impl Sampling {
         }
     }
 
+    // Newer toolchains deprecate `fetch_update` in favour of `try_update`, which is
+    // still unstable (`atomic_try_update`), so this is the only portable spelling.
+    #[allow(deprecated)]
     fn sample_frequency(rate: u64, count: &AtomicU64) -> bool {
         let previous_count = count
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
@@ -72,6 +75,7 @@ impl Sampling {
         previous_count == 0
     }
 
+    #[allow(deprecated)]
     fn sample_duration(rate: &Duration, last_sample: &AtomicU64) -> bool {
         let rate = rate.as_secs();
         // Seconds since Unix Epoch
