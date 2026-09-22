@@ -182,7 +182,9 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for PollableAc
                 }
             }
 
-            // Wait for output channel to be empty before ending the task and closing the send channel
+            // Wait for output channel to be empty before ending the task and closing the send channel.
+            // A dropped receiver leaves buffered items in place forever, so a disconnected
+            // channel has to end the wait or the task never exits.
             loop {
                 let channel_size = output_sender.len();
                 info!(
@@ -191,6 +193,14 @@ impl<T: Accumulatable + Sync + Send + 'static> RunnableStep<T, T> for PollableAc
                     "Waiting for output channel to be empty"
                 );
                 if channel_size.is_zero() {
+                    break;
+                }
+                if output_sender.is_disconnected() {
+                    warn!(
+                        step_name = step_name,
+                        channel_size = channel_size,
+                        "Output channel receiver is gone; abandoning undrained items"
+                    );
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
