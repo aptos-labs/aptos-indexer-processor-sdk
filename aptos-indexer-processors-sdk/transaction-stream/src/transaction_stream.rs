@@ -104,7 +104,11 @@ pub async fn get_stream_for_endpoint(
             "[Transaction Stream] Failed to build GRPC channel, perhaps because the data service URL is invalid",
         )
         .http2_keep_alive_interval(transaction_stream_config.indexer_grpc_http2_ping_interval())
-        .keep_alive_timeout(transaction_stream_config.indexer_grpc_http2_ping_timeout());
+        .keep_alive_timeout(transaction_stream_config.indexer_grpc_http2_ping_timeout())
+        // A single HTTP/2 stream is capped at `window / RTT`, so hyper's 64 KiB default allows
+        // only ~655 KB/s over a 100 ms path, the same order as the ~250 KB/s a mainnet consumer
+        // needs.
+        .http2_adaptive_window(true);
 
     // If the scheme is https, add a TLS config.
     let channel = if endpoint.address.scheme() == "https" {
