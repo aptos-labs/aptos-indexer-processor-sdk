@@ -12,7 +12,7 @@ use aptos_protos::{
 use aptos_transaction_filter::BooleanTransactionFilter;
 use futures_util::StreamExt;
 use once_cell::sync::Lazy;
-use prometheus::{IntCounter, register_int_counter};
+use prometheus_client::{metrics::counter::Counter, registry::Registry};
 use prost::Message;
 use sample::{SampleRate, sample};
 use std::time::Duration;
@@ -25,13 +25,17 @@ use tracing::{error, info, warn};
 
 /// Counts reconnects triggered by sustained staleness. A climbing rate here means every
 /// endpoint we reach is behind, which reconnecting cannot fix and something should page on.
-pub static STALENESS_RECONNECTS: Lazy<IntCounter> = Lazy::new(|| {
-    register_int_counter!(
-        "indexer_transaction_stream_staleness_reconnects_total",
-        "Reconnects triggered by a stream falling behind the chain without going silent"
-    )
-    .expect("failed to register staleness reconnect counter")
-});
+pub static STALENESS_RECONNECTS: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Registers this crate's metrics. Callers that serve their own `/metrics` must call this,
+/// or `STALENESS_RECONNECTS` counts reconnects that nothing can scrape.
+pub fn init_transaction_stream_metrics_registry(registry: &mut Registry) {
+    registry.register(
+        "indexer_transaction_stream_staleness_reconnects",
+        "Reconnects triggered by a stream falling behind the chain without going silent",
+        STALENESS_RECONNECTS.clone(),
+    );
+}
 
 /// GRPC request metadata key for the token ID.
 const GRPC_API_GATEWAY_API_KEY_HEADER: &str = "authorization";

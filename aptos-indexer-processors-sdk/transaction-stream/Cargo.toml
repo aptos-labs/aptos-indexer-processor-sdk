@@ -21,6 +21,7 @@ chrono = { workspace = true }
 futures-util = { workspace = true }
 once_cell = { workspace = true }
 prometheus = { workspace = true }
+prometheus-client = { workspace = true }
 prost = { workspace = true }
 sample = { workspace = true }
 serde = { workspace = true }

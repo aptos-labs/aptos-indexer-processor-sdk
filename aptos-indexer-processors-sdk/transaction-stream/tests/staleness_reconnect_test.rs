@@ -1,6 +1,8 @@
 use aptos_indexer_transaction_stream::{
     config::{ReconnectionConfig, StalenessConfig, TransactionStreamConfig},
-    transaction_stream::{STALENESS_RECONNECTS, TransactionStream},
+    transaction_stream::{
+        STALENESS_RECONNECTS, TransactionStream, init_transaction_stream_metrics_registry,
+    },
 };
 use aptos_protos::{
     indexer::v1::{
@@ -11,6 +13,7 @@ use aptos_protos::{
     util::timestamp::Timestamp,
 };
 use futures::Stream;
+use prometheus_client::{encoding::text::encode, registry::Registry};
 use std::{
     pin::Pin,
     sync::{
@@ -262,5 +265,23 @@ async fn test_disabled_by_zero_threshold() {
         connection_count.load(Ordering::SeqCst),
         1,
         "a zero threshold must disable the check entirely"
+    );
+}
+
+/// The counter has to reach a `prometheus_client` registry to be scraped. Registering it on
+/// the `prometheus` crate's default registry instead compiles and increments fine, but
+/// encodes to nothing, so the alert it exists for can never fire.
+#[test]
+fn test_staleness_counter_is_registered_for_scraping() {
+    let mut registry = Registry::default();
+    init_transaction_stream_metrics_registry(&mut registry);
+    STALENESS_RECONNECTS.inc();
+
+    let mut encoded = String::new();
+    encode(&mut encoded, &registry).expect("failed to encode registry");
+
+    assert!(
+        encoded.contains("indexer_transaction_stream_staleness_reconnects_total"),
+        "counter missing from encoded metrics output:\n{encoded}"
     );
 }
