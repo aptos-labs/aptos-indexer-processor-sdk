@@ -4,6 +4,8 @@ All notable changes to theSDK will be captured in this file. This changelog is w
 
 ## Unreleased
 
+- Enabled HTTP/2 adaptive flow-control windows on the transaction stream channel. It previously inherited hyper's 64 KiB default, which caps a single stream at `window / RTT` — about 655 KB/s over a 100 ms path, the same order as the ~250 KB/s a mainnet consumer needs. Cross-region consumers therefore had almost no headroom to drain a backlog; same-region consumers were never near the ceiling.
+
 ## 2.2.1 (2026-03-02)
 
 - Added exponential backoff with configurable jitter for transaction stream reconnects, using `tokio-retry`'s `ExponentialBackoff`. This mitigates GRPC rate limiting and prevents processor crash-loops during reconnection storms.
