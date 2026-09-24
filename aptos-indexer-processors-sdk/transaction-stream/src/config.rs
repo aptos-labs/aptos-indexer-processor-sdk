@@ -16,6 +16,63 @@ pub struct Endpoint {
     pub is_primary: bool,
 }
 
+/// Settings for reconnecting away from a stream that keeps delivering, but too slowly to
+/// keep up with the chain.
+///
+/// `indexer_grpc_response_item_timeout_secs` only catches a stream that goes *silent*. A
+/// backend trickling below chain rate resets that timer on every item, so without this a
+/// consumer stays pinned to it indefinitely.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct StalenessConfig {
+    /// How far behind the chain a batch may be before it counts as stale. `0` disables the check.
+    #[serde(default = "StalenessConfig::default_max_staleness_secs")]
+    pub max_staleness_secs: u64,
+    /// How long staleness must persist *without improving* before reconnecting.
+    #[serde(default = "StalenessConfig::default_sustained_secs")]
+    pub sustained_secs: u64,
+    /// Minimum gap between staleness-triggered reconnects. When every endpoint is slow this
+    /// bounds the reconnect rate so the counter climbs and can be alerted on instead.
+    #[serde(default = "StalenessConfig::default_reconnect_cooldown_secs")]
+    pub reconnect_cooldown_secs: u64,
+}
+
+impl Default for StalenessConfig {
+    fn default() -> Self {
+        Self {
+            max_staleness_secs: Self::default_max_staleness_secs(),
+            sustained_secs: Self::default_sustained_secs(),
+            reconnect_cooldown_secs: Self::default_reconnect_cooldown_secs(),
+        }
+    }
+}
+
+impl StalenessConfig {
+    pub const fn default_max_staleness_secs() -> u64 {
+        15
+    }
+
+    pub const fn default_sustained_secs() -> u64 {
+        30
+    }
+
+    pub const fn default_reconnect_cooldown_secs() -> u64 {
+        60
+    }
+
+    pub const fn is_enabled(&self) -> bool {
+        self.max_staleness_secs > 0
+    }
+
+    pub const fn sustained(&self) -> Duration {
+        Duration::from_secs(self.sustained_secs)
+    }
+
+    pub const fn reconnect_cooldown(&self) -> Duration {
+        Duration::from_secs(self.reconnect_cooldown_secs)
+    }
+}
+
 /// Settings that control how gRPC reconnections are retried, including exponential
 /// backoff and jitter (via `tokio-retry`'s `ExponentialBackoff`).
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -114,6 +171,8 @@ pub struct TransactionStreamConfig {
     pub indexer_grpc_response_item_timeout_secs: u64,
     #[serde(default)]
     pub reconnection_config: ReconnectionConfig,
+    #[serde(default)]
+    pub staleness_config: StalenessConfig,
     #[serde(default)]
     pub transaction_filter: Option<BooleanTransactionFilter>,
     /// Backup gRPC endpoints for failover. Tried in order after primary fails.

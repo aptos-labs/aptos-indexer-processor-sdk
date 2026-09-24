@@ -10,6 +10,7 @@ use crate::{
     utils::step_metrics::init_step_metrics_registry,
 };
 use anyhow::{Context, Result};
+use aptos_indexer_transaction_stream::transaction_stream::init_transaction_stream_metrics_registry;
 #[cfg(target_os = "linux")]
 use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;
@@ -204,6 +205,7 @@ pub async fn register_probes_and_metrics_handler(
     );
     init_step_metrics_registry(&mut registry);
     init_channel_metrics_registry(&mut registry);
+    init_transaction_stream_metrics_registry(&mut registry);
     AutometricsSettings::builder()
         .prometheus_client_registry(registry)
         .init();

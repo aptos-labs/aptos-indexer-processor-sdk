@@ -1,5 +1,5 @@
 use aptos_indexer_transaction_stream::{
-    config::{Endpoint, ReconnectionConfig, TransactionStreamConfig},
+    config::{Endpoint, ReconnectionConfig, StalenessConfig, TransactionStreamConfig},
     transaction_stream::TransactionStream,
 };
 use aptos_protos::indexer::v1::{
@@ -163,6 +163,10 @@ fn create_base_config(primary_port: u16) -> TransactionStreamConfig {
         transaction_filter: None,
         backup_endpoints: vec![],
         primary_failback_interval_secs: 0,
+        staleness_config: StalenessConfig {
+            max_staleness_secs: 0,
+            ..Default::default()
+        },
     }
 }
 
@@ -256,6 +260,10 @@ async fn test_config_endpoint_helpers() {
             },
         ],
         primary_failback_interval_secs: 0,
+        staleness_config: StalenessConfig {
+            max_staleness_secs: 0,
+            ..Default::default()
+        },
     };
 
     let endpoints = config.get_endpoints();

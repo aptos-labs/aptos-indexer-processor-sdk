@@ -11,6 +11,8 @@ use aptos_protos::{
 };
 use aptos_transaction_filter::BooleanTransactionFilter;
 use futures_util::StreamExt;
+use once_cell::sync::Lazy;
+use prometheus_client::{metrics::counter::Counter, registry::Registry};
 use prost::Message;
 use sample::{SampleRate, sample};
 use std::time::Duration;
@@ -20,6 +22,20 @@ use tonic::{
     transport::{Channel, ClientTlsConfig},
 };
 use tracing::{error, info, warn};
+
+/// Counts reconnects triggered by sustained staleness. A climbing rate here means every
+/// endpoint we reach is behind, which reconnecting cannot fix and something should page on.
+pub static STALENESS_RECONNECTS: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Registers this crate's metrics. Callers that serve their own `/metrics` must call this,
+/// or `STALENESS_RECONNECTS` counts reconnects that nothing can scrape.
+pub fn init_transaction_stream_metrics_registry(registry: &mut Registry) {
+    registry.register(
+        "indexer_transaction_stream_staleness_reconnects",
+        "Reconnects triggered by a stream falling behind the chain without going silent",
+        STALENESS_RECONNECTS.clone(),
+    );
+}
 
 /// GRPC request metadata key for the token ID.
 const GRPC_API_GATEWAY_API_KEY_HEADER: &str = "authorization";
@@ -389,6 +405,12 @@ pub struct TransactionStream {
     current_endpoint_address: String,
     /// When we last attempted (or considered) a failback probe to the primary.
     last_primary_check: tokio::time::Instant,
+    /// When staleness first exceeded the threshold in the current run of non-improving
+    /// batches. Cleared whenever staleness drops below the threshold or improves.
+    staleness_exceeded_since: Option<tokio::time::Instant>,
+    /// Staleness of the previous timestamped batch.
+    last_staleness_secs: Option<f64>,
+    last_staleness_reconnect: Option<tokio::time::Instant>,
 }
 
 impl TransactionStream {
@@ -419,6 +441,9 @@ impl TransactionStream {
                         current_endpoint_is_primary: endpoint.is_primary,
                         current_endpoint_address: endpoint.address.to_string(),
                         last_primary_check: tokio::time::Instant::now(),
+                        staleness_exceeded_since: None,
+                        last_staleness_secs: None,
+                        last_staleness_reconnect: None,
                     });
                 },
                 Err(e) => {
@@ -535,6 +560,14 @@ impl TransactionStream {
                             )
                         );
 
+                        if self.should_reconnect_for_staleness(end_txn_timestamp.as_ref()) {
+                            STALENESS_RECONNECTS.inc();
+                            self.reset_staleness_tracking();
+                            self.last_staleness_reconnect = Some(tokio::time::Instant::now());
+                            self.reconnect_to_grpc_with_retries().await?;
+                            continue;
+                        }
+
                         if let Some(last_fetched_version) = self.last_fetched_version
                             && last_fetched_version + 1 != start_version as i64
                         {
@@ -597,6 +630,68 @@ impl TransactionStream {
             };
             return txn_pb_res;
         }
+    }
+
+    fn reset_staleness_tracking(&mut self) {
+        self.staleness_exceeded_since = None;
+        self.last_staleness_secs = None;
+    }
+
+    /// Whether this batch should trigger a reconnect because the stream is falling behind.
+    ///
+    /// Only ever returns true while staleness is *not improving*. A consumer draining a
+    /// backlog is stale by definition, so triggering on the level alone would reconnect it
+    /// mid-recovery and it could never finish catching up. That also leaves bounded
+    /// backfills alone, since their staleness falls as they advance.
+    fn should_reconnect_for_staleness(&mut self, end_txn_timestamp: Option<&Timestamp>) -> bool {
+        let config = &self.transaction_stream_config.staleness_config;
+        if !config.is_enabled() {
+            return false;
+        }
+
+        // Batches carrying no transactions (fully filtered, or version-range-only responses)
+        // say nothing about staleness. Skip without disturbing the run.
+        let Some(timestamp) = end_txn_timestamp else {
+            return false;
+        };
+
+        let staleness_secs = match chrono::Utc::now().timestamp() as f64 - timestamp.seconds as f64
+        {
+            s if s.is_finite() => s,
+            _ => return false,
+        };
+
+        let improving = self
+            .last_staleness_secs
+            .is_some_and(|previous| staleness_secs < previous);
+        self.last_staleness_secs = Some(staleness_secs);
+
+        if staleness_secs <= config.max_staleness_secs as f64 || improving {
+            self.staleness_exceeded_since = None;
+            return false;
+        }
+
+        let now = tokio::time::Instant::now();
+        let exceeded_since = *self.staleness_exceeded_since.get_or_insert(now);
+        if now.duration_since(exceeded_since) < config.sustained() {
+            return false;
+        }
+
+        if let Some(last) = self.last_staleness_reconnect
+            && now.duration_since(last) < config.reconnect_cooldown()
+        {
+            return false;
+        }
+
+        warn!(
+            stream_address = self.current_endpoint_address,
+            connection_id = self.connection_id,
+            staleness_secs = staleness_secs,
+            max_staleness_secs = config.max_staleness_secs,
+            sustained_secs = config.sustained_secs,
+            "[Transaction Stream] Stream is behind the chain and not catching up. Reconnecting..."
+        );
+        true
     }
 
     pub fn is_end_of_stream(&self) -> bool {
