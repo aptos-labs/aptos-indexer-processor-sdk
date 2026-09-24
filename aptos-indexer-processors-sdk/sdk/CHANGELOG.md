@@ -4,6 +4,8 @@ All notable changes to theSDK will be captured in this file. This changelog is w
 
 ## Unreleased
 
+- Added a staleness-triggered reconnect to the transaction stream, configured via `staleness_config` on `TransactionStreamConfig` (`max_staleness_secs`, default 15; `sustained_secs`, default 30; `reconnect_cooldown_secs`, default 60). `indexer_grpc_response_item_timeout_secs` only catches a stream that goes silent, so a backend trickling below chain rate reset that timer on every item and the consumer stayed pinned to it. The check only fires while staleness is **not improving**, so a consumer draining a backlog (or a bounded backfill) is never interrupted mid-recovery. Set `max_staleness_secs: 0` to disable. Reconnects are counted by `indexer_transaction_stream_staleness_reconnects_total`; a climbing rate means every reachable endpoint is behind, which reconnecting cannot fix.
+
 ## 2.2.1 (2026-03-02)
 
 - Added exponential backoff with configurable jitter for transaction stream reconnects, using `tokio-retry`'s `ExponentialBackoff`. This mitigates GRPC rate limiting and prevents processor crash-loops during reconnection storms.
