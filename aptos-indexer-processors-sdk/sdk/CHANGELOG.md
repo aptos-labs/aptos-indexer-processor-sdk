@@ -4,6 +4,8 @@ All notable changes to theSDK will be captured in this file. This changelog is w
 
 ## Unreleased
 
+- Fixed decoding of `u256` and `i256` property map values. These branches deserialized the raw 32-byte little-endian BCS payload as `BigDecimal`, whose wire format never matches, so every `u256`/`i256` property value (token v1 type strings and token v2 numeric type 6) fell back to the raw hex string instead of its decimal representation.
+
 ## 2.2.1 (2026-03-02)
 
 - Added exponential backoff with configurable jitter for transaction stream reconnects, using `tokio-retry`'s `ExponentialBackoff`. This mitigates GRPC rate limiting and prevents processor crash-loops during reconnection storms.
