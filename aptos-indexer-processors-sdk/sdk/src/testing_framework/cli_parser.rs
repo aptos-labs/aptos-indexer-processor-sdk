@@ -35,7 +35,7 @@ pub fn parse_test_args() -> TestArgs {
     let custom_args: Vec<String> = raw_args[custom_args_start..].to_vec();
 
     // Manually parse the "generate" flag
-    let generate_flag = custom_args.contains(&"generate".to_string());
+    let generate_flag = custom_args.iter().any(|i| i == "generate");
 
     // Manually parse the "--output-path" flag and get its associated value
     let output_path = custom_args
@@ -69,7 +69,7 @@ mod tests {
         };
 
         // Manually parse the "--generate" flag
-        let generate_output_flag = custom_args.contains(&"generate".to_string());
+        let generate_output_flag = custom_args.iter().any(|i| i == "generate");
 
         // Manually parse the "--output-path" flag and get its associated value
         let output_path = custom_args

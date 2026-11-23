@@ -10,20 +10,28 @@ use crate::{
     utils::step_metrics::init_step_metrics_registry,
 };
 use anyhow::{Context, Result};
-#[cfg(target_os = "linux")]
-use aptos_system_utils::profiling::start_cpu_profiling;
 use autometrics::settings::AutometricsSettings;
 use axum::{Router, http::StatusCode, response::IntoResponse, routing::get};
 use backtrace::Backtrace;
 use clap::Parser;
+#[cfg(target_os = "linux")]
+use once_cell::sync::Lazy;
 use prometheus_client::registry::Registry;
+#[cfg(target_os = "linux")]
+use regex::Regex;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+#[cfg(target_os = "linux")]
+use std::fmt::Write as _;
 use std::sync::Arc;
+#[cfg(target_os = "linux")]
+use std::time::Duration;
 // TODO: remove deprecated lint when new clippy nightly is released.
 #[allow(deprecated)]
 use std::{fs::File, io::Read, panic::PanicInfo, path::PathBuf, process};
 use tokio::runtime::Handle;
 use tracing::error;
+#[cfg(target_os = "linux")]
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 /// ServerArgs bootstraps a server with all common pieces. And then triggers the run method for
@@ -267,8 +275,69 @@ async fn metrics_handler() -> impl IntoResponse {
 }
 
 #[cfg(target_os = "linux")]
+static CPU_PROFILE_MUTEX: Lazy<tokio::sync::Mutex<()>> = Lazy::new(|| tokio::sync::Mutex::new(()));
+
+#[cfg(target_os = "linux")]
+async fn start_cpu_profiling(seconds: u64, frequency: i32) -> Result<Vec<u8>> {
+    info!(
+        seconds = seconds,
+        frequency = frequency,
+        "Starting cpu profiling."
+    );
+    let _lock = CPU_PROFILE_MUTEX
+        .try_lock()
+        .map_err(|_| anyhow::anyhow!("A profiling task is already running."))?;
+
+    let guard = pprof::ProfilerGuard::new(frequency)
+        .map_err(|e| anyhow::anyhow!("Failed to start cpu profiling: {e:?}."))?;
+
+    tokio::time::sleep(Duration::from_secs(seconds)).await;
+
+    let regex = Regex::new(r"^(.*)-(\d*)$").unwrap();
+    let report = guard
+        .report()
+        .frames_post_processor(move |frames| {
+            if let Some((_, [name, _])) = regex.captures(&frames.thread_name).map(|c| c.extract()) {
+                frames.thread_name = name.to_string();
+            }
+        })
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to generate cpu profiling report: {e:?}."))?;
+
+    let lines: Vec<String> = report
+        .data
+        .iter()
+        .map(|(key, value)| {
+            let mut line = key.thread_name_or_id();
+            line.push(';');
+
+            for frame in key.frames.iter().rev() {
+                for symbol in frame.iter().rev() {
+                    write!(&mut line, "{symbol};").unwrap();
+                }
+            }
+
+            line.pop().unwrap_or_default();
+            write!(&mut line, " {value}").unwrap();
+
+            line
+        })
+        .collect();
+
+    let mut body = Vec::new();
+    if !lines.is_empty() {
+        let mut options = inferno::flamegraph::Options::default();
+        inferno::flamegraph::from_lines(&mut options, lines.iter().map(String::as_str), &mut body)
+            .map_err(|e| anyhow::anyhow!("Failed to generate flamegraph report: {e:?}."))?;
+    }
+
+    info!("Cpu profiling is done.");
+    Ok(body)
+}
+
+#[cfg(target_os = "linux")]
 async fn profilez_handler() -> impl IntoResponse {
-    match start_cpu_profiling(10, 99, false).await {
+    match start_cpu_profiling(10, 99).await {
         Ok(body) => (
             StatusCode::OK,
             [
@@ -337,5 +406,26 @@ mod tests {
     fn verify_tool() {
         use clap::CommandFactory;
         ServerArgs::command().debug_assert()
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_start_cpu_profiling() {
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_worker = stop.clone();
+        let worker = std::thread::spawn(move || {
+            let mut acc = 0u64;
+            while !stop_worker.load(std::sync::atomic::Ordering::Relaxed) {
+                acc = acc.wrapping_add(1);
+                std::hint::black_box(acc);
+            }
+        });
+
+        let svg = start_cpu_profiling(1, 99).await.expect("profiling failed");
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        worker.join().unwrap();
+
+        let svg_str = String::from_utf8(svg).expect("flamegraph should be valid UTF-8");
+        assert!(svg_str.contains("<svg"), "expected SVG flamegraph output");
     }
 }

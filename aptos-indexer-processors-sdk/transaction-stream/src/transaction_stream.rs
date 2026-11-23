@@ -491,17 +491,15 @@ impl TransactionStream {
 
                         let start_version = match r.processed_range {
                             Some(range) => range.first_version,
-                            None => r.transactions.as_slice().first().unwrap().version,
+                            None => r.transactions.first().unwrap().version,
                         };
                         let end_version = match r.processed_range {
                             Some(range) => range.last_version,
-                            None => r.transactions.as_slice().last().unwrap().version,
+                            None => r.transactions.last().unwrap().version,
                         };
 
-                        let start_txn_timestamp =
-                            r.transactions.as_slice().first().and_then(|t| t.timestamp);
-                        let end_txn_timestamp =
-                            r.transactions.as_slice().last().and_then(|t| t.timestamp);
+                        let start_txn_timestamp = r.transactions.first().and_then(|t| t.timestamp);
+                        let end_txn_timestamp = r.transactions.last().and_then(|t| t.timestamp);
 
                         let size_in_bytes = r.encoded_len() as u64;
                         let chain_id: u64 = r

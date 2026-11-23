@@ -305,40 +305,40 @@ pub fn get_clean_entry_function_payload_from_user_request(
 ) -> Option<EntryFunctionPayloadClean> {
     let txn_payload = user_request.payload.as_ref()?;
     let clean_payload: Option<EntryFunctionPayloadClean> = match &txn_payload.payload {
-            Some(PayloadType::EntryFunctionPayload(payload)) => {
-                Some(get_clean_entry_function_payload(payload, version))
-            },
-            Some(PayloadType::MultisigPayload(payload)) => {
-                if let Some(payload) = payload.transaction_payload.as_ref() {
-                    match payload.payload.as_ref().unwrap() {
-                        MultisigPayloadType::EntryFunctionPayload(payload) => {
-                            Some(get_clean_entry_function_payload(payload, version))
-                        },
-                    }
-                } else {
-                    None
-                }
-            },
-            Some(PayloadType::EncryptedTransactionPayload(inner)) => {
-                match get_decrypted_payload(inner) {
-                    Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
-                        Some(get_clean_entry_function_payload(ef, version))
+        Some(PayloadType::EntryFunctionPayload(payload)) => {
+            Some(get_clean_entry_function_payload(payload, version))
+        },
+        Some(PayloadType::MultisigPayload(payload)) => {
+            if let Some(payload) = payload.transaction_payload.as_ref() {
+                match payload.payload.as_ref().unwrap() {
+                    MultisigPayloadType::EntryFunctionPayload(payload) => {
+                        Some(get_clean_entry_function_payload(payload, version))
                     },
-                    Some(DecryptedPayload::MultisigPayload(mp)) => {
-                        if let Some(payload) = mp.transaction_payload.as_ref() {
-                            match payload.payload.as_ref().unwrap() {
-                                MultisigPayloadType::EntryFunctionPayload(payload) => {
-                                    Some(get_clean_entry_function_payload(payload, version))
-                                },
-                            }
-                        } else {
-                            None
+                }
+            } else {
+                None
+            }
+        },
+        Some(PayloadType::EncryptedTransactionPayload(inner)) => {
+            match get_decrypted_payload(inner) {
+                Some(DecryptedPayload::EntryFunctionPayload(ef)) => {
+                    Some(get_clean_entry_function_payload(ef, version))
+                },
+                Some(DecryptedPayload::MultisigPayload(mp)) => {
+                    if let Some(payload) = mp.transaction_payload.as_ref() {
+                        match payload.payload.as_ref().unwrap() {
+                            MultisigPayloadType::EntryFunctionPayload(payload) => {
+                                Some(get_clean_entry_function_payload(payload, version))
+                            },
                         }
-                    },
-                    Some(DecryptedPayload::ScriptPayload(_)) => None,
-                    None => None,
-                }
-            },
+                    } else {
+                        None
+                    }
+                },
+                Some(DecryptedPayload::ScriptPayload(_)) => None,
+                None => None,
+            }
+        },
         _ => None,
     };
     clean_payload
