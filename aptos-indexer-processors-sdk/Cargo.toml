@@ -28,10 +28,10 @@ sample = { path = "sample" }
 ahash = { version = "0.8.7", features = ["serde"] }
 anyhow = "1.0.98"
 aptos-protos = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "a9d20cdaea4b30ded5f1eeebc328bda983be8749" }
-aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "a9d20cdaea4b30ded5f1eeebc328bda983be8749" }
+aptos-system-utils = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "19b6b988ef00426c93196388576ad908b5053eb4" }
 aptos-transaction-filter = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "a9d20cdaea4b30ded5f1eeebc328bda983be8749" }
 async-trait = "0.1.80"
-autometrics = { version = "1.0.1", features = ["prometheus-exporter"] }
+autometrics = { version = "3.0.0", features = ["prometheus-exporter"] }
 axum = "0.7.5"
 backtrace = "0.3.58"
 bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
@@ -71,7 +71,7 @@ mockall = "0.12.1"
 num_cpus = "1.16.0"
 once_cell = { version = "1.19.0" }
 petgraph = "0.6.5"
-prometheus = "0.13.3"
+prometheus = "0.14.0"
 prometheus-client = "0.22.2"
 prost = { version = "0.13.4", features = ["no-recursion-limit"] }
 rayon = "1.10.0"
@@ -81,7 +81,7 @@ serde_yaml = "0.8.24"
 sha2 = "0.9.3"
 strum = { version = "0.24.1", features = ["derive"] }
 tempfile = "3.3.0"
-testcontainers = "0.20.1"
+testcontainers = "0.28.0"
 thiserror = "1.0.61"
 tiny-keccak = { version = "2.0.2", features = ["keccak", "sha3"] }
 tokio = { version = "1.37.0", features = [
