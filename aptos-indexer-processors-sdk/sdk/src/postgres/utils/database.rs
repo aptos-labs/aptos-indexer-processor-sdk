@@ -242,7 +242,10 @@ pub async fn run_migrations(
 ) {
     use diesel::{Connection, PgConnection};
 
-    info!("Running migrations: {}", redact_string(&postgres_connection_string));
+    info!(
+        "Running migrations: {}",
+        redact_string(&postgres_connection_string)
+    );
     let migration_time = std::time::Instant::now();
     let mut conn =
         PgConnection::establish(&postgres_connection_string).expect("migrations failed!");
@@ -263,7 +266,10 @@ pub async fn run_migrations(
 ) {
     use diesel_async::async_connection_wrapper::AsyncConnectionWrapper;
 
-    info!("Running migrations: {}", redact_string(&postgres_connection_string));
+    info!(
+        "Running migrations: {}",
+        redact_string(&postgres_connection_string)
+    );
     let conn = conn_pool
         // We need to use this since AsyncConnectionWrapper doesn't know how to
         // work with a pooled connection.

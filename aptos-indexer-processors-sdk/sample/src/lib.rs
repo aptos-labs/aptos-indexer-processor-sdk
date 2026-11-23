@@ -57,6 +57,8 @@ impl Sampling {
         }
     }
 
+    // `fetch_update` is deprecated in newer Rust in favor of `try_update`, which is not in MSRV 1.93.1.
+    #[allow(deprecated)]
     fn sample_frequency(rate: u64, count: &AtomicU64) -> bool {
         let previous_count = count
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
@@ -72,6 +74,8 @@ impl Sampling {
         previous_count == 0
     }
 
+    // `fetch_update` is deprecated in newer Rust in favor of `try_update`, which is not in MSRV 1.93.1.
+    #[allow(deprecated)]
     fn sample_duration(rate: &Duration, last_sample: &AtomicU64) -> bool {
         let rate = rate.as_secs();
         // Seconds since Unix Epoch
