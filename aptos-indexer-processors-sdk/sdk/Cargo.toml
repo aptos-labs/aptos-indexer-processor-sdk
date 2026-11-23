@@ -19,6 +19,9 @@ server_framework = [
     "axum",
     "backtrace",
     "clap",
+    "dep:inferno",
+    "dep:pprof",
+    "dep:regex",
     "toml",
     "tracing-subscriber",
     "tokio/net",
@@ -37,13 +40,7 @@ postgres_partial = [
 # it in a feature so the CLI can opt out, since it cannot tolerate the libpq dep.
 # Recall that features should always be additive.
 postgres_full = ["postgres_partial", "diesel/postgres"]
-testing_framework = [
-    "testcontainers",
-    "tonic",
-    "tokio-retry",
-    "tokio-stream",
-    "tokio/net",
-]
+testing_framework = ["testcontainers", "tonic", "tokio-retry", "tokio-stream", "tokio/net"]
 default = []
 
 [dependencies]
@@ -98,4 +95,6 @@ tracing-subscriber = { workspace = true, optional = true }
 url = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-aptos-system-utils = { workspace = true }
+inferno = { workspace = true, optional = true }
+pprof = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
