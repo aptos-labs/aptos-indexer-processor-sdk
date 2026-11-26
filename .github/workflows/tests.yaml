@@ -13,8 +13,12 @@ concurrency:
 jobs:
   Test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install Dependencies
         run: |
@@ -39,7 +43,7 @@ jobs:
           steps.tests.outcome == 'failure' && 
           github.event_name == 'pull_request' && 
           contains(github.event.pull_request.labels.*.name, 'indexer-sdk-update')
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
         with:
           # eco-infra-oncall channel.
           channel-id: 'C0468USBLQJ'
